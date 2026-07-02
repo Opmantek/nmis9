@@ -25,6 +25,7 @@
 use strict;
 use warnings;
 use JSON::XS;
+use POSIX qw(strftime);
 
 my ($host, $port, $comm, $out) = @ARGV;
 die "usage: capture_host.pl host port community outfile\n" if (!$out);
@@ -94,8 +95,23 @@ if (@unparsed)
 	warn "capture_host: " . scalar(@unparsed) . " snmpwalk line(s) could not be parsed; see warnings above.\n";
 }
 
+# Embed provenance so the frozen reference is self-documenting. This is a
+# non-OID key: the collect never queries it, and collect_bench.pl drops
+# _-prefixed keys before loading, so it does not affect any measurement.
+my $oidcount = scalar(keys %walk);
+my $ifcount  = grep { /^1\.3\.6\.1\.2\.1\.2\.2\.1\.2\./ } keys %walk;
+$walk{_capture} = {
+	captured        => strftime("%Y-%m-%dT%H:%M:%SZ", gmtime()),
+	source          => "$host:$port community $comm",
+	sysDescr        => $walk{"1.3.6.1.2.1.1.1.0"},
+	oid_count       => $oidcount,
+	interface_count => $ifcount,
+	tool            => "test/bench/capture_host.pl",
+	note            => "Frozen reference for reproducible collect benchmarks; non-OID key, dropped on load.",
+};
+
 open(my $o, ">", $out) or die "cannot write $out: $!\n";
 print $o JSON::XS->new->canonical->pretty->encode(\%walk);
 close($o);
 
-printf "captured %d OIDs to %s\n", scalar(keys %walk), $out;
+printf "captured %d OIDs (+_capture provenance) to %s\n", $oidcount, $out;

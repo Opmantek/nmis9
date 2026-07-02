@@ -19097,5 +19097,14 @@
    "1.3.6.1.2.1.4.6.0" : "53637203",
    "1.3.6.1.2.1.4.7.0" : "0",
    "1.3.6.1.2.1.4.8.0" : "0",
-   "1.3.6.1.2.1.4.9.0" : "54046654"
+   "1.3.6.1.2.1.4.9.0" : "54046654",
+   "_capture" : {
+      "captured" : "2026-07-01",
+      "interface_count" : 26,
+      "note" : "Frozen reference for reproducible collect benchmarks; non-OID key, dropped on load.",
+      "oid_count" : 19099,
+      "source" : "172.20.0.1:1161 community nmisGig8",
+      "sysDescr" : "Linux debian-12-5-base 6.1.0-43-amd64 #1 SMP PREEMPT_DYNAMIC Debian 6.1.162-1 (2026-02-08) x86_64",
+      "tool" : "test/bench/capture_host.pl"
+   }
 }
