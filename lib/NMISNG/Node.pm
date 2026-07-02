@@ -4952,7 +4952,7 @@ sub collect_systemhealth_info
 		# Collects (index, description, inventory) from whichever protocol runs below.
 		# After the protocol block, descriptions that appear more than once get the
 		# index appended so callers can tell items apart without breaking unique ones.
-		my @_desc_dedup = ();
+		my @desc_dedup = ();
 
 		if ( exists( $thissection->{wmi} ) )
 		{
@@ -5091,7 +5091,7 @@ sub collect_systemhealth_info
 						my @keys = keys (%{$header_info->[0]});
 						# use first key in headers to get description
 						$description = $target->{ $keys[0] };
-						push @_desc_dedup, { index => $indexvalue, description => $description, inventory => $inventory }
+						push @desc_dedup, { index => $indexvalue, description => $description, inventory => $inventory }
 							if ($description);
 					}
 
@@ -5277,7 +5277,7 @@ sub collect_systemhealth_info
 						my @keys = keys (%{$header_info->[0]});
 						# use first key in headers to get description
 						$description = $target->{ $keys[0] };
-						push @_desc_dedup, { index => $index, description => $description, inventory => $inventory }
+						push @desc_dedup, { index => $index, description => $description, inventory => $inventory }
 							if ($description);
 					}
 
@@ -5319,8 +5319,8 @@ sub collect_systemhealth_info
 			# Set inventory descriptions: plain when unique, append "(index)" only if duplicated.
 			{
 				my %desc_count;
-				$desc_count{$_->{description}}++ for @_desc_dedup;
-				for my $item (@_desc_dedup)
+				$desc_count{$_->{description}}++ for @desc_dedup;
+				for my $item (@desc_dedup)
 				{
 					my $final = $desc_count{$item->{description}} > 1
 						? "$item->{description} ($item->{index})"
