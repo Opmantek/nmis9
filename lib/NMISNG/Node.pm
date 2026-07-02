@@ -5326,7 +5326,10 @@ sub collect_systemhealth_info
 						? "$item->{description} ($item->{index})"
 						: $item->{description};
 					$item->{inventory}->description($final);
-					$item->{inventory}->save(node => $self, update => 1);
+					my ($op, $error) = $item->{inventory}->save(node => $self, update => 1);
+					$self->nmisng->log->error(
+						"Failed to save inventory:" . join(",", @{$item->{inventory}->path}) . " error:$error")
+						if ($error);
 				}
 			}
 	}
