@@ -5339,9 +5339,12 @@ sub collect_systemhealth_info
 					next unless $desc_count{$item->{description}} > 1;
 					$item->{inventory}->description("$item->{description} ($item->{index})");
 					my ($op, $error) = $item->{inventory}->save(node => $self, update => 1);
-					$self->nmisng->log->error(
-						"Failed to save inventory:" . join(",", @{$item->{inventory}->path}) . " error:$error")
-						if ($error);
+					if ($error)
+					{
+						my $path = $item->{inventory}->path;
+						$self->nmisng->log->error(
+							"Failed to save inventory:" . (ref($path) eq "ARRAY" ? join(",", @$path) : $path) . " error:$error");
+					}
 				}
 			}
 	}
