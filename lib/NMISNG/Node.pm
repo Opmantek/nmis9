@@ -5091,8 +5091,11 @@ sub collect_systemhealth_info
 						my @keys = keys (%{$header_info->[0]});
 						# use first key in headers to get description
 						$description = $target->{ $keys[0] };
-						push @desc_dedup, { index => $indexvalue, description => $description, inventory => $inventory }
-							if ($description);
+						if ($description)
+						{
+							$inventory->description($description);
+							push @desc_dedup, { index => $indexvalue, description => $description, inventory => $inventory };
+						}
 					}
 
 					# the above will put data into inventory, so save
@@ -5277,8 +5280,11 @@ sub collect_systemhealth_info
 						my @keys = keys (%{$header_info->[0]});
 						# use first key in headers to get description
 						$description = $target->{ $keys[0] };
-						push @desc_dedup, { index => $index, description => $description, inventory => $inventory }
-							if ($description);
+						if ($description)
+						{
+							$inventory->description($description);
+							push @desc_dedup, { index => $index, description => $description, inventory => $inventory };
+						}
 					}
 
 					# Regenerate storage: If db name has changed, we need this
@@ -5316,16 +5322,14 @@ sub collect_systemhealth_info
 			}
 		}
 
-			# Set inventory descriptions: plain when unique, append "(index)" only if duplicated.
+			# Descriptions were already saved plain above; only duplicates need a second save with the index appended.
 			{
 				my %desc_count;
 				$desc_count{$_->{description}}++ for @desc_dedup;
 				for my $item (@desc_dedup)
 				{
-					my $final = $desc_count{$item->{description}} > 1
-						? "$item->{description} ($item->{index})"
-						: $item->{description};
-					$item->{inventory}->description($final);
+					next unless $desc_count{$item->{description}} > 1;
+					$item->{inventory}->description("$item->{description} ($item->{index})");
 					my ($op, $error) = $item->{inventory}->save(node => $self, update => 1);
 					$self->nmisng->log->error(
 						"Failed to save inventory:" . join(",", @{$item->{inventory}->path}) . " error:$error")
