@@ -91,6 +91,103 @@ sub report
 	}
 }
 
+sub apply_changes
+{
+	my ($results, $custom_dir, $C) = @_;
+
+	my @todo = grep { $_->{verified}
+			&& ($_->{category} eq "identical" || $_->{category} eq "reducible") } @$results;
+	if (!@todo)
+	{
+		print "\nNothing to apply.\n";
+		return;
+	}
+
+	# snapshot compiled models BEFORE any change (real dirs, isolated var)
+	my $default_dir = $arg->{default_dir} // NMISNG::Util::getDir(dir => "default_models", conf => $C);
+	my $snap_var = "$scratch/snap-before"; make_path("$snap_var/nmis_system/model_cache");
+	my %before;
+	for my $r (@todo)
+	{
+		for my $m (affected_models($r, $custom_dir, $default_dir))
+		{
+			$before{$m} //= NMISNG::ModelReduce::compile_model(model=>$m, config=>$C,
+				default_dir=>$default_dir, custom_dir=>$custom_dir, var_dir=>$snap_var);
+		}
+	}
+
+	print "\nAbout to change " . scalar(@todo) . " file(s) in $custom_dir\n";
+	print "A backup of each removed copy is written first.\n";
+	print "Type 'yes' to proceed: ";
+	my $answer = <STDIN> // ""; chomp($answer);
+	if (lc($answer) ne "yes") { print "Aborted, no changes made.\n"; return; }
+
+	my $ts = _timestamp();
+	my $backup = "$custom_dir/.reduce-backup-$ts";
+	make_path($backup);
+
+	for my $r (@todo)
+	{
+		my $file = "$custom_dir/$r->{basename}.nmis";
+		if (!copy($file, "$backup/$r->{basename}.nmis"))
+		{
+			warn "backup failed for $file: $! - skipping\n";
+			next;
+		}
+		if ($r->{category} eq "reducible")
+		{
+			local $Data::Dumper::Sortkeys = 1;
+			NMISNG::Util::writeHashtoFile(file => "$custom_dir/Override-$r->{basename}.nmis",
+				data => $r->{override}, json => 0, conf => $C);
+		}
+		unlink($file) or warn "could not remove $file: $!\n";
+		print "changed: $r->{basename} ($r->{category})\n";
+	}
+
+	# clear affected model cache entries
+	my $cachedir = $C->{'<nmis_var>'} . "/nmis_system/model_cache";
+	for my $r (@todo)
+	{
+		for my $m (affected_models($r, $custom_dir, $default_dir))
+		{
+			unlink("$cachedir/$m.json");
+			unlink("$cachedir/$m.json.meta.json");
+		}
+	}
+
+	# post-apply guard: recompile and compare against the snapshot
+	my $snap_var2 = "$scratch/snap-after"; make_path("$snap_var2/nmis_system/model_cache");
+	my $failed = 0;
+	for my $m (sort keys %before)
+	{
+		my $after = NMISNG::ModelReduce::compile_model(model=>$m, config=>$C,
+			default_dir=>$default_dir, custom_dir=>$custom_dir, var_dir=>$snap_var2);
+		if (!NMISNG::ModelReduce::deep_equal($before{$m}, $after))
+		{
+			warn "POST-APPLY MISMATCH on $m - restore from $backup\n";
+			$failed++;
+		}
+	}
+	if ($failed) { print "\nWARNING: $failed model(s) mismatched after apply. Backup: $backup\n"; }
+	else { print "\nDone. All affected models compile identically. Backup: $backup\n"; }
+	return;
+}
+
+sub affected_models
+{
+	my ($r, $custom_dir, $default_dir) = @_;
+	return ($r->{basename}) if ($r->{basename} =~ /^Model-/);
+	my $feature = $r->{basename}; $feature =~ s/^Common-//;
+	return NMISNG::ModelReduce::models_referencing_common($feature, $custom_dir, $default_dir);
+}
+
+sub _timestamp
+{
+	my @t = localtime();
+	return sprintf("%04d%02d%02d-%02d%02d%02d",
+		$t[5]+1900, $t[4]+1, $t[3], $t[2], $t[1], $t[0]);
+}
+
 sub usage
 {
 	print <<EOF;
