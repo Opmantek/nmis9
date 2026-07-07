@@ -5,6 +5,9 @@ use FindBin;
 use lib "$FindBin::Bin/../lib";
 use Test::More;
 use NMISNG::ModelReduce;
+use File::Temp qw(tempdir);
+use File::Path qw(make_path);
+use NMISNG::Util;
 
 # deep_equal
 ok(NMISNG::ModelReduce::deep_equal(1, 1), "scalars equal");
@@ -99,6 +102,39 @@ is(NMISNG::ModelReduce::classify({set=>[],drop=>[],typeconflict=>[{path=>["a"]}]
 	my $ov = NMISNG::ModelReduce::build_override({set=>[{path=>['a'],value=>$shared}],drop=>[],typeconflict=>[]});
 	$ov->{a}{x} = 99;
 	is($shared->{x}, 1, "build_override clones values");
+}
+
+# compile_model: base + auto-discovered override merged by the real loader
+{
+	my $C = NMISNG::Util::loadConfTable();
+	SKIP: {
+		skip "no usable config", 3 if (ref($C) ne "HASH" || !%$C);
+
+		my $base = tempdir("t-reduce-XXXXXX", TMPDIR => 1, CLEANUP => 1);
+		my $def = "$base/models-default";
+		my $cus = "$base/models-custom";
+		my $var = "$base/var";
+		make_path($def, $cus, "$var/nmis_system/model_cache");
+
+		NMISNG::Util::writeHashtoFile(file => "$def/Model-Foo.nmis", json => 0, conf => $C, data => {
+			system => { nodeVendor => 'BaseVendor', nodeType => 'router' },
+		});
+
+		my $mdl = NMISNG::ModelReduce::compile_model(
+			model => "Model-Foo", config => $C,
+			default_dir => $def, custom_dir => $cus, var_dir => $var);
+		is(ref($mdl), "HASH", "compile_model returns a hash");
+		is($mdl->{system}{nodeVendor}, 'BaseVendor', "base value present");
+
+		# add an auto-discovered Model override and recompile
+		NMISNG::Util::writeHashtoFile(file => "$cus/Override-Model-Foo.nmis", json => 0, conf => $C, data => {
+			system => { nodeVendor => 'OverriddenVendor' },
+		});
+		my $mdl2 = NMISNG::ModelReduce::compile_model(
+			model => "Model-Foo", config => $C,
+			default_dir => $def, custom_dir => $cus, var_dir => $var);
+		is($mdl2->{system}{nodeVendor}, 'OverriddenVendor', "scoped override applied by real loader");
+	}
 }
 
 done_testing();

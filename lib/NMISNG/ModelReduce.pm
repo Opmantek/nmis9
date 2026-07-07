@@ -6,8 +6,18 @@ package NMISNG::ModelReduce;
 use strict;
 use warnings;
 use Clone;
+use NMISNG::Sys;
+use NMISNG::Log;
 
 our $VERSION = "9.6.5";
+
+# Minimal nmisng-like object: loadModel only needs ->log and ->config.
+{
+	package NMISNG::ModelReduce::FakeNmisng;
+	sub new { my ($c, %a) = @_; bless { %a }, $c; }
+	sub log { $_[0]->{log} }
+	sub config { $_[0]->{config} }
+}
 
 # deep_equal($a, $b): true if two Perl structures are deeply equal.
 sub deep_equal
@@ -136,6 +146,30 @@ sub _set_path
 	}
 	$node->{$path->[-1]} = $value;
 	return;
+}
+
+# compile_model(%args): drive the real loader against isolated dirs.
+sub compile_model
+{
+	my (%args) = @_;
+
+	my $C = Clone::clone($args{config});
+	$C->{'<nmis_default_models>'} = $args{default_dir};
+	$C->{'<nmis_models>'}         = $args{custom_dir};
+	$C->{'<nmis_var>'}            = $args{var_dir};
+	delete $C->{global_model_overrides};
+
+	my $logger = NMISNG::Log->new(level => 'fatal');
+	my $fake = NMISNG::ModelReduce::FakeNmisng->new(config => $C, log => $logger);
+
+	my $sys = NMISNG::Sys->new();
+	$sys->{config}       = $C;
+	$sys->{_nmisng}      = $fake;
+	$sys->{cache_models} = 0;
+
+	my $ok = $sys->loadModel(model => $args{model});
+	return undef if (!$ok);
+	return $sys->{mdl};
 }
 
 1;
