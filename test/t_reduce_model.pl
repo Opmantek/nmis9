@@ -159,4 +159,42 @@ is(NMISNG::ModelReduce::classify({set=>[],drop=>[],typeconflict=>[{path=>["a"]}]
 	}
 }
 
+# verify_reduction
+{
+	my $C = NMISNG::Util::loadConfTable();
+	SKIP: {
+		skip "no usable config", 3 if (ref($C) ne "HASH" || !%$C);
+		my $base = tempdir("t-reduce-verify-XXXXXX", TMPDIR => 1, CLEANUP => 1);
+		my $def = "$base/models-default";
+		my $cus = "$base/models-custom";
+		make_path($def, $cus);
+
+		# default has vendor Base + nodeType; custom copy changes vendor only.
+		NMISNG::Util::writeHashtoFile(file=>"$def/Model-Bar.nmis", json=>0, conf=>$C, data=>{
+			system=>{nodeVendor=>'Base', nodeType=>'router'}});
+		NMISNG::Util::writeHashtoFile(file=>"$cus/Model-Bar.nmis", json=>0, conf=>$C, data=>{
+			system=>{nodeVendor=>'Custom', nodeType=>'router'}});
+
+		# correct override reproduces the copy: PASS
+		my $good = NMISNG::ModelReduce::verify_reduction(
+			basename=>"Model-Bar", custom_dir=>$cus, default_dir=>$def, config=>$C,
+			override=>{system=>{nodeVendor=>'Custom'}});
+		ok($good->{ok}, "correct override verifies identical");
+
+		# wrong override does NOT reproduce the copy: FAIL
+		my $bad = NMISNG::ModelReduce::verify_reduction(
+			basename=>"Model-Bar", custom_dir=>$cus, default_dir=>$def, config=>$C,
+			override=>{system=>{nodeVendor=>'WRONG'}});
+		ok(!$bad->{ok}, "wrong override fails verification");
+
+		# identical case: copy equals default, removal with no override verifies
+		NMISNG::Util::writeHashtoFile(file=>"$cus/Model-Bar.nmis", json=>0, conf=>$C, data=>{
+			system=>{nodeVendor=>'Base', nodeType=>'router'}});
+		my $same = NMISNG::ModelReduce::verify_reduction(
+			basename=>"Model-Bar", custom_dir=>$cus, default_dir=>$def, config=>$C,
+			override=>undef);
+		ok($same->{ok}, "identical copy removal verifies");
+	}
+}
+
 done_testing();

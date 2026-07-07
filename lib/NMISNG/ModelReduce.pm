@@ -8,6 +8,9 @@ use warnings;
 use Clone;
 use NMISNG::Sys;
 use NMISNG::Log;
+use File::Temp qw(tempdir);
+use File::Path qw(make_path);
+use File::Copy qw(copy);
 
 our $VERSION = "9.6.5";
 
@@ -203,6 +206,80 @@ sub models_referencing_common
 		}
 	}
 	return sort keys %matches;
+}
+
+# _copy_dir_files($src, $dst): copy every *.nmis file from src into dst (flat).
+sub _copy_dir_files
+{
+	my ($src, $dst) = @_;
+	make_path($dst) if (!-d $dst);
+	return if (!-d $src);
+	opendir(my $dh, $src) or return;
+	for my $f (grep { /\.nmis$/ } readdir($dh))
+	{
+		File::Copy::copy("$src/$f", "$dst/$f");
+	}
+	closedir($dh);
+	return;
+}
+
+# verify_reduction(%args): compile affected models before/after and compare.
+sub verify_reduction
+{
+	my (%args) = @_;
+	my $basename    = $args{basename};
+	my $custom_dir  = $args{custom_dir};
+	my $default_dir = $args{default_dir};
+	my $config      = $args{config};
+	my $override    = $args{override};
+
+	my $tmp = tempdir("model-reduce-verify-XXXXXX", TMPDIR => 1, CLEANUP => 1);
+	my $before_cus = "$tmp/before-custom";
+	my $after_cus  = "$tmp/after-custom";
+	my $var_before = "$tmp/var-before";
+	my $var_after  = "$tmp/var-after";
+	make_path("$var_before/nmis_system/model_cache", "$var_after/nmis_system/model_cache");
+
+	# before: exact copy of the real custom dir
+	_copy_dir_files($custom_dir, $before_cus);
+	# after: same, minus the target file, plus the override when given
+	_copy_dir_files($custom_dir, $after_cus);
+	unlink("$after_cus/$basename.nmis");
+	if (defined $override)
+	{
+		NMISNG::Util::writeHashtoFile(
+			file => "$after_cus/Override-$basename.nmis",
+			data => $override, json => 0, conf => $config);
+	}
+
+	# which models to compile
+	my @models;
+	if ($basename =~ /^Model-/)
+	{
+		push @models, $basename;
+	}
+	else # Common-<feature>
+	{
+		my $feature = $basename; $feature =~ s/^Common-//;
+		# scan the after custom dir plus the default dir for referencing models
+		@models = models_referencing_common($feature, $after_cus, $default_dir);
+	}
+
+	return { ok => 0, models => [], mismatch => undef, error => "no models to compile" }
+		if (!@models);
+
+	for my $m (@models)
+	{
+		my $before = compile_model(model => $m, config => $config,
+			default_dir => $default_dir, custom_dir => $before_cus, var_dir => $var_before);
+		my $after  = compile_model(model => $m, config => $config,
+			default_dir => $default_dir, custom_dir => $after_cus, var_dir => $var_after);
+		if (!defined $before || !defined $after || !deep_equal($before, $after))
+		{
+			return { ok => 0, models => \@models, mismatch => $m };
+		}
+	}
+	return { ok => 1, models => \@models, mismatch => undef };
 }
 
 1;
