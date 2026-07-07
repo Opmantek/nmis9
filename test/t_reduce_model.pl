@@ -340,4 +340,45 @@ is(NMISNG::ModelReduce::classify({set=>[],drop=>[],typeconflict=>[{path=>["a"]}]
 	}
 }
 
+# verify_reduction: a referencing model that fails to compile (missing dependency)
+# is skipped, and the reduction still verifies via a healthy referencing model.
+{
+	my $C = NMISNG::Util::loadConfTable();
+	SKIP: {
+		skip "no usable config", 4 if (ref($C) ne "HASH" || !%$C);
+		my $base = tempdir("t-reduce-skip-XXXXXX", TMPDIR => 1, CLEANUP => 1);
+		my $def = "$base/models-default";
+		my $cus = "$base/models-custom";
+		make_path($def, $cus);
+
+		# shared Common referenced by a healthy model and a broken one
+		NMISNG::Util::writeHashtoFile(file=>"$def/Common-Shared.nmis", json=>0, conf=>$C, data=>{
+			systemHealth=>{rrd=>{s=>{threshold=>'base'}}}});
+		NMISNG::Util::writeHashtoFile(file=>"$def/Model-Healthy.nmis", json=>0, conf=>$C, data=>{
+			system=>{nodeVendor=>'V'}, '-common-'=>{class=>{s=>{'common-model'=>'Shared'}}}});
+		# Model-Broken references Shared AND a Common that does not exist -> fails to load
+		NMISNG::Util::writeHashtoFile(file=>"$def/Model-Broken.nmis", json=>0, conf=>$C, data=>{
+			system=>{nodeVendor=>'V'}, '-common-'=>{class=>{
+				s=>{'common-model'=>'Shared'}, m=>{'common-model'=>'DoesNotExist'}}}});
+
+		# custom Common changes a leaf (reducible)
+		NMISNG::Util::writeHashtoFile(file=>"$cus/Common-Shared.nmis", json=>0, conf=>$C, data=>{
+			systemHealth=>{rrd=>{s=>{threshold=>'tuned'}}}});
+
+		my $v = NMISNG::ModelReduce::verify_reduction(
+			basename=>"Common-Shared", custom_dir=>$cus, default_dir=>$def, config=>$C,
+			override=>{systemHealth=>{rrd=>{s=>{threshold=>'tuned'}}}});
+		ok($v->{ok}, "reduction verifies despite a broken referencing model");
+		is_deeply([sort @{$v->{skipped}}], ["Model-Broken"], "broken model was skipped, not a mismatch");
+
+		# when the ONLY referencing model is broken, nothing can be proven -> not ok
+		unlink("$def/Model-Healthy.nmis");
+		my $v2 = NMISNG::ModelReduce::verify_reduction(
+			basename=>"Common-Shared", custom_dir=>$cus, default_dir=>$def, config=>$C,
+			override=>{systemHealth=>{rrd=>{s=>{threshold=>'tuned'}}}});
+		ok(!$v2->{ok}, "no compilable referencing model -> not verified");
+		is($v2->{reason}, "unverifiable", "reason is 'unverifiable' when every referencer failed to compile");
+	}
+}
+
 done_testing();

@@ -265,21 +265,51 @@ sub verify_reduction
 		@models = models_referencing_common($feature, $after_cus, $default_dir);
 	}
 
-	return { ok => 0, models => [], mismatch => undef, error => "no models to compile" }
+	return { ok => 0, models => [], mismatch => undef, reason => "no-referencers",
+		error => "no models to compile" }
 		if (!@models);
 
+	my @skipped;
+	my $matched = 0;
 	for my $m (@models)
 	{
 		my $before = compile_model(model => $m, config => $config,
 			default_dir => $default_dir, custom_dir => $before_cus, var_dir => $var_before);
 		my $after  = compile_model(model => $m, config => $config,
 			default_dir => $default_dir, custom_dir => $after_cus, var_dir => $var_after);
-		if (!defined $before || !defined $after || !deep_equal($before, $after))
+		my $bdef = defined $before;
+		my $adef = defined $after;
+
+		# both fail to compile the same way: the reduction cannot affect a model
+		# that does not load, so this model gives no evidence either way. Skip it.
+		if (!$bdef && !$adef)
 		{
-			return { ok => 0, models => \@models, mismatch => $m };
+			push @skipped, $m;
+			next;
 		}
+		# compile status changed (one loads, the other does not): the reduction
+		# changed whether the model compiles. That is a real, unsafe difference.
+		if ($bdef != $adef)
+		{
+			return { ok => 0, models => \@models, mismatch => $m,
+				reason => "compile-status-changed", skipped => \@skipped };
+		}
+		# both compiled: they must be identical.
+		if (!deep_equal($before, $after))
+		{
+			return { ok => 0, models => \@models, mismatch => $m,
+				reason => "differs", skipped => \@skipped };
+		}
+		$matched++;
 	}
-	return { ok => 1, models => \@models, mismatch => undef };
+	# no model actually compiled, so nothing was proven.
+	if ($matched == 0)
+	{
+		return { ok => 0, models => \@models, mismatch => undef,
+			reason => "unverifiable", skipped => \@skipped };
+	}
+	return { ok => 1, models => \@models, mismatch => undef,
+		compiled => $matched, skipped => \@skipped };
 }
 
 # analyse(%args): full per-file classification with verification.
@@ -347,7 +377,13 @@ sub analyse
 			else
 			{
 				# verification failed: cannot trust this reduction, keep the copy.
-				my $why = $v->{mismatch} ? "compiled model differs on $v->{mismatch}"
+				my $r = $v->{reason} // "";
+				my $why =
+					  $r eq "differs" ? "compiled model differs on $v->{mismatch}"
+					: $r eq "compile-status-changed" ? "reduction changes whether $v->{mismatch} compiles"
+					: $r eq "no-referencers" ? "no models to compile"
+					: $r eq "unverifiable" ? "no referencing model could be compiled (skipped: "
+						. join(", ", @{$v->{skipped} // []}) . ")"
 					: ($v->{error} // "verification failed");
 				push @results, { basename=>$basename, category=>"error",
 					verified=>0, override=>undef, error=>$why };
