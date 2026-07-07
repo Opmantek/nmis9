@@ -303,4 +303,41 @@ is(NMISNG::ModelReduce::classify({set=>[],drop=>[],typeconflict=>[{path=>["a"]}]
 	}
 }
 
+# integration: full outcome mix on synthetic fixtures
+{
+	my $C = NMISNG::Util::loadConfTable();
+	SKIP: {
+		skip "no usable config", 4 if (ref($C) ne "HASH" || !%$C);
+		my $base = tempdir("t-reduce-int-XXXXXX", TMPDIR => 1, CLEANUP => 1);
+		my $def = "$base/models-default";
+		my $cus = "$base/models-custom";
+		make_path($def, $cus);
+
+		# a Common referenced by a model, reducible via override
+		NMISNG::Util::writeHashtoFile(file=>"$def/Common-Feat.nmis", json=>0, conf=>$C, data=>{
+			systemHealth=>{rrd=>{cpu=>{graphtype=>'cpu', threshold=>'base'}}}});
+		NMISNG::Util::writeHashtoFile(file=>"$def/Model-Host.nmis", json=>0, conf=>$C, data=>{
+			system=>{nodeVendor=>'V'}, '-common-'=>{class=>{cpu=>{'common-model'=>'Feat'}}}});
+
+		# custom Common changes a threshold only (reducible)
+		NMISNG::Util::writeHashtoFile(file=>"$cus/Common-Feat.nmis", json=>0, conf=>$C, data=>{
+			systemHealth=>{rrd=>{cpu=>{graphtype=>'cpu', threshold=>'tuned'}}}});
+		# identical model copy
+		NMISNG::Util::writeHashtoFile(file=>"$cus/Model-Host.nmis", json=>0, conf=>$C, data=>{
+			system=>{nodeVendor=>'V'}, '-common-'=>{class=>{cpu=>{'common-model'=>'Feat'}}}});
+
+		my $res = NMISNG::ModelReduce::analyse(custom_dir=>$cus, default_dir=>$def, config=>$C);
+		my %cat;
+		$cat{$_->{category}}++ for @$res;
+
+		is($cat{identical}, 1, "one identical (Model-Host copy)");
+		is($cat{reducible}, 1, "one reducible (Common-Feat)");
+		my ($common) = grep { $_->{basename} eq "Common-Feat" } @$res;
+		ok($common->{verified}, "Common reduction verified via referencing model");
+		is_deeply($common->{override},
+			{systemHealth=>{rrd=>{cpu=>{threshold=>'tuned'}}}},
+			"Common override carries only the changed leaf");
+	}
+}
+
 done_testing();
