@@ -271,4 +271,36 @@ is(NMISNG::ModelReduce::classify({set=>[],drop=>[],typeconflict=>[{path=>["a"]}]
 	}
 }
 
+# analyse: error category (verify failure with clean diagnostic, and unparseable file)
+{
+	my $C = NMISNG::Util::loadConfTable();
+	SKIP: {
+		skip "no usable config", 4 if (ref($C) ne "HASH" || !%$C);
+		my $base = tempdir("t-reduce-err-XXXXXX", TMPDIR => 1, CLEANUP => 1);
+		my $def = "$base/models-default";
+		my $cus = "$base/models-custom";
+		make_path($def, $cus);
+
+		# a reducible Common that NO model references -> verify has nothing to compile
+		NMISNG::Util::writeHashtoFile(file=>"$def/Common-Lonely.nmis", json=>0, conf=>$C, data=>{
+			systemHealth=>{rrd=>{x=>{threshold=>'base'}}}});
+		NMISNG::Util::writeHashtoFile(file=>"$cus/Common-Lonely.nmis", json=>0, conf=>$C, data=>{
+			systemHealth=>{rrd=>{x=>{threshold=>'tuned'}}}});
+
+		# an unparseable custom file with a valid default counterpart
+		NMISNG::Util::writeHashtoFile(file=>"$def/Model-Bad.nmis", json=>0, conf=>$C, data=>{system=>{nodeVendor=>'V'}});
+		open(my $fh, '>', "$cus/Model-Bad.nmis") or die $!;
+		print $fh "%hash = (this is not valid perl\n";
+		close($fh);
+
+		my $res = NMISNG::ModelReduce::analyse(custom_dir=>$cus, default_dir=>$def, config=>$C);
+		my %by = map { $_->{basename} => $_ } @$res;
+
+		is($by{"Common-Lonely"}{category}, "error", "unreferenced reducible Common -> error");
+		ok(!defined $by{"Common-Lonely"}{override}, "error row carries no override");
+		like($by{"Common-Lonely"}{error}, qr/no models to compile/, "error message is the real reason");
+		is($by{"Model-Bad"}{category}, "error", "unparseable custom file -> error");
+	}
+}
+
 done_testing();

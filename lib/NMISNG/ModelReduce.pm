@@ -334,26 +334,24 @@ sub analyse
 		my $diff = semantic_diff($default, $custom);
 		my $cat  = classify($diff);
 
-		if ($cat eq "identical")
+		if ($cat eq "identical" || $cat eq "reducible")
 		{
-			my $v = verify_reduction(basename=>$basename, custom_dir=>$custom_dir,
-				default_dir=>$default_dir, config=>$config, override=>undef);
-			push @results, { basename=>$basename, category=>"identical",
-				verified=>($v->{ok}?1:0), override=>undef };
-		}
-		elsif ($cat eq "reducible")
-		{
-			my $override = build_override($diff);
+			my $override = ($cat eq "reducible") ? build_override($diff) : undef;
 			my $v = verify_reduction(basename=>$basename, custom_dir=>$custom_dir,
 				default_dir=>$default_dir, config=>$config, override=>$override);
-			# if the loader disagrees, keep the copy and report it as drift-like
-			push @results, {
-				basename => $basename,
-				category => ($v->{ok} ? "reducible" : "error"),
-				verified => ($v->{ok}?1:0),
-				override => $override,
-				error    => ($v->{ok} ? undef : "verification mismatch on $v->{mismatch}"),
-			};
+			if ($v->{ok})
+			{
+				push @results, { basename=>$basename, category=>$cat,
+					verified=>1, override=>$override };
+			}
+			else
+			{
+				# verification failed: cannot trust this reduction, keep the copy.
+				my $why = $v->{mismatch} ? "compiled model differs on $v->{mismatch}"
+					: ($v->{error} // "verification failed");
+				push @results, { basename=>$basename, category=>"error",
+					verified=>0, override=>undef, error=>$why };
+			}
 		}
 		else # drift
 		{
