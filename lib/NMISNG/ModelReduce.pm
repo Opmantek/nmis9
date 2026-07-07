@@ -101,4 +101,13 @@ sub _diff_walk
 	return;
 }
 
+# classify($diff): identical | reducible | drift
+sub classify
+{
+	my ($diff) = @_;
+	return "drift" if (@{$diff->{drop}} || @{$diff->{typeconflict}});
+	return "reducible" if (@{$diff->{set}});
+	return "identical";
+}
+
 1;

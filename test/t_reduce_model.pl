@@ -67,4 +67,14 @@ ok(!NMISNG::ModelReduce::deep_equal({a=>1}, [1]), "hash vs array differ");
 	is_deeply($d->{set}, [{path=>["a"], value=>{x=>1}}], "custom hash over scalar -> set");
 }
 
+# classify
+is(NMISNG::ModelReduce::classify({set=>[],drop=>[],typeconflict=>[]}),
+   "identical", "no differences -> identical");
+is(NMISNG::ModelReduce::classify({set=>[{path=>["a"],value=>1}],drop=>[],typeconflict=>[]}),
+   "reducible", "sets only -> reducible");
+is(NMISNG::ModelReduce::classify({set=>[{path=>["a"],value=>1}],drop=>[{path=>["b"]}],typeconflict=>[]}),
+   "drift", "any drop -> drift");
+is(NMISNG::ModelReduce::classify({set=>[],drop=>[],typeconflict=>[{path=>["a"]}]}),
+   "drift", "any type conflict -> drift");
+
 done_testing();
