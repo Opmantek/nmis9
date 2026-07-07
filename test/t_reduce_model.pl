@@ -197,4 +197,41 @@ is(NMISNG::ModelReduce::classify({set=>[],drop=>[],typeconflict=>[{path=>["a"]}]
 	}
 }
 
+# verify_reduction: Common target referenced by multiple models
+{
+	my $C = NMISNG::Util::loadConfTable();
+	SKIP: {
+		skip "no usable config", 3 if (ref($C) ne "HASH" || !%$C);
+		my $base = tempdir("t-reduce-common-XXXXXX", TMPDIR => 1, CLEANUP => 1);
+		my $def = "$base/models-default";
+		my $cus = "$base/models-custom";
+		make_path($def, $cus);
+
+		# default: Common-Widget + two models referencing it
+		NMISNG::Util::writeHashtoFile(file=>"$def/Common-Widget.nmis", json=>0, conf=>$C, data=>{
+			systemHealth=>{rrd=>{w=>{graphtype=>'w', threshold=>'base'}}}});
+		NMISNG::Util::writeHashtoFile(file=>"$def/Model-A.nmis", json=>0, conf=>$C, data=>{
+			system=>{nodeVendor=>'V'}, '-common-'=>{class=>{w=>{'common-model'=>'Widget'}}}});
+		NMISNG::Util::writeHashtoFile(file=>"$def/Model-B.nmis", json=>0, conf=>$C, data=>{
+			system=>{nodeVendor=>'V'}, '-common-'=>{class=>{w=>{'common-model'=>'Widget'}}}});
+
+		# custom copy of the Common changes the threshold leaf (reducible)
+		NMISNG::Util::writeHashtoFile(file=>"$cus/Common-Widget.nmis", json=>0, conf=>$C, data=>{
+			systemHealth=>{rrd=>{w=>{graphtype=>'w', threshold=>'tuned'}}}});
+
+		my $good = NMISNG::ModelReduce::verify_reduction(
+			basename=>"Common-Widget", custom_dir=>$cus, default_dir=>$def, config=>$C,
+			override=>{systemHealth=>{rrd=>{w=>{threshold=>'tuned'}}}});
+		ok($good->{ok}, "Common reduction verifies across referencing models");
+		is_deeply([sort @{$good->{models}}], ["Model-A","Model-B"],
+			"both referencing models were compiled");
+
+		# a Common with no referencers -> nothing to compile -> not ok
+		my $orphan = NMISNG::ModelReduce::verify_reduction(
+			basename=>"Common-Orphan", custom_dir=>$cus, default_dir=>$def, config=>$C,
+			override=>{x=>1});
+		ok(!$orphan->{ok}, "Common with no referencers returns not-ok");
+	}
+}
+
 done_testing();
