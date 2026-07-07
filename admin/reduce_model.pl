@@ -137,10 +137,19 @@ sub apply_changes
 		if ($r->{category} eq "reducible")
 		{
 			local $Data::Dumper::Sortkeys = 1;
-			NMISNG::Util::writeHashtoFile(file => "$custom_dir/Override-$r->{basename}.nmis",
+			my $werr = NMISNG::Util::writeHashtoFile(file => "$custom_dir/Override-$r->{basename}.nmis",
 				data => $r->{override}, json => 0, conf => $C);
+			if ($werr)
+			{
+				warn "override write FAILED for $r->{basename}: $werr - copy NOT removed\n";
+				next;
+			}
 		}
-		unlink($file) or warn "could not remove $file: $!\n";
+		if (!unlink($file))
+		{
+			warn "could not remove $file: $! - override written but copy remains\n";
+			next;
+		}
 		print "changed: $r->{basename} ($r->{category})\n";
 	}
 
