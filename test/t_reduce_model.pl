@@ -409,4 +409,33 @@ is(NMISNG::ModelReduce::classify({set=>[],drop=>[],typeconflict=>[{path=>["a"]}]
 	}
 }
 
+# apply path end-to-end via the CLI: backup, override write, copy removal, post-apply guard
+{
+	my $C = NMISNG::Util::loadConfTable();
+	SKIP: {
+		skip "no usable config", 5 if (ref($C) ne "HASH" || !%$C);
+		my $base = tempdir("t-reduce-apply-XXXXXX", TMPDIR => 1, CLEANUP => 1);
+		my $def = "$base/models-default";
+		my $cus = "$base/models-custom";
+		make_path($def, $cus);
+
+		# bare models with no commons so they load cleanly in the isolated dirs
+		NMISNG::Util::writeHashtoFile(file=>"$def/Model-ApplyKeep.nmis",   json=>0, conf=>$C, data=>{system=>{nodeVendor=>'V'}});
+		NMISNG::Util::writeHashtoFile(file=>"$def/Model-ApplyChange.nmis", json=>0, conf=>$C, data=>{system=>{nodeVendor=>'V'}});
+		# identical copy (should be removed, no override) and a reducible copy (override + removed)
+		NMISNG::Util::writeHashtoFile(file=>"$cus/Model-ApplyKeep.nmis",   json=>0, conf=>$C, data=>{system=>{nodeVendor=>'V'}});
+		NMISNG::Util::writeHashtoFile(file=>"$cus/Model-ApplyChange.nmis", json=>0, conf=>$C, data=>{system=>{nodeVendor=>'Custom'}});
+
+		my $script = "$FindBin::Bin/../admin/reduce_model.pl";
+		my $out = `echo yes | perl \Q$script\E dir=\Q$cus\E default_dir=\Q$def\E apply=1 2>&1`;
+
+		like($out, qr/All affected models compile identically/, "apply: post-apply guard reports clean");
+		ok(!-e "$cus/Model-ApplyKeep.nmis",   "apply: identical copy removed");
+		ok(!-e "$cus/Model-ApplyChange.nmis", "apply: reducible copy removed");
+		ok(-e "$cus/Override-Model-ApplyChange.nmis", "apply: override written for reducible file");
+		my @bk = glob("$cus/.reduce-backup-*/Model-ApplyChange.nmis");
+		ok(@bk && -e $bk[0], "apply: removed copy backed up before removal");
+	}
+}
+
 done_testing();

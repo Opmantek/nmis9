@@ -126,31 +126,47 @@ sub apply_changes
 	my $backup = "$custom_dir/.reduce-backup-$ts";
 	make_path($backup);
 
+	my @changed;
+	my @skipped;
 	for my $r (@todo)
 	{
 		my $file = "$custom_dir/$r->{basename}.nmis";
 		if (!copy($file, "$backup/$r->{basename}.nmis"))
 		{
 			warn "backup failed for $file: $! - skipping\n";
+			push @skipped, $r->{basename};
 			next;
 		}
 		if ($r->{category} eq "reducible")
 		{
 			local $Data::Dumper::Sortkeys = 1;
-			my $werr = NMISNG::Util::writeHashtoFile(file => "$custom_dir/Override-$r->{basename}.nmis",
-				data => $r->{override}, json => 0, conf => $C);
-			if ($werr)
+			my $ovpath = "$custom_dir/Override-$r->{basename}.nmis";
+			NMISNG::Util::writeHashtoFile(file => $ovpath, data => $r->{override}, json => 0, conf => $C);
+			# writeHashtoFile can return a non-fatal error (e.g. a failed chown to
+			# the "nmis" user) even when the content was written correctly, so trust
+			# the on-disk content, not the return value: only skip removal if the
+			# override is missing or does not match what we intended to write.
+			my $check = NMISNG::Util::readFiletoHash(file => $ovpath);
+			if (ref($check) ne "HASH" || !NMISNG::ModelReduce::deep_equal($check, $r->{override}))
 			{
-				warn "override write FAILED for $r->{basename}: $werr - copy NOT removed\n";
+				warn "override write FAILED for $r->{basename} (on-disk content mismatch) - copy NOT removed\n";
+				push @skipped, $r->{basename};
 				next;
 			}
 		}
 		if (!unlink($file))
 		{
 			warn "could not remove $file: $! - override written but copy remains\n";
+			push @skipped, $r->{basename};
 			next;
 		}
+		push @changed, $r->{basename};
 		print "changed: $r->{basename} ($r->{category})\n";
+	}
+	if (@skipped)
+	{
+		print "\nNOTE: " . scalar(@skipped) . " file(s) were NOT reduced (see warnings above): "
+			. join(", ", @skipped) . "\n";
 	}
 
 	# clear affected model cache entries
@@ -166,19 +182,28 @@ sub apply_changes
 
 	# post-apply guard: recompile and compare against the snapshot
 	my $snap_var2 = "$scratch/snap-after"; make_path("$snap_var2/nmis_system/model_cache");
-	my $failed = 0;
+	my @mismatched;
 	for my $m (sort keys %before)
 	{
 		my $after = NMISNG::ModelReduce::compile_model(model=>$m, config=>$C,
 			default_dir=>$default_dir, custom_dir=>$custom_dir, var_dir=>$snap_var2);
-		if (!NMISNG::ModelReduce::deep_equal($before{$m}, $after))
-		{
-			warn "POST-APPLY MISMATCH on $m - restore from $backup\n";
-			$failed++;
-		}
+		push @mismatched, $m if (!NMISNG::ModelReduce::deep_equal($before{$m}, $after));
 	}
-	if ($failed) { print "\nWARNING: $failed model(s) mismatched after apply. Backup: $backup\n"; }
-	else { print "\nDone. All affected models compile identically. Backup: $backup\n"; }
+	if (@mismatched)
+	{
+		print "\n*** WARNING: post-apply check FAILED for " . scalar(@mismatched)
+			. " model(s): " . join(", ", @mismatched) . "\n";
+		print "*** The compiled model changed - this should not happen. Restore the originals:\n";
+		print "***   cp -f \"$backup\"/*.nmis \"$custom_dir\"/\n";
+		print "*** then remove the overrides written this run:\n";
+		print "***   rm -f" . join("", map { " \"$custom_dir/Override-$_->{basename}.nmis\"" }
+			grep { $_->{category} eq "reducible" } @todo) . "\n";
+		print "*** Backups are in $backup\n";
+	}
+	else
+	{
+		print "\nDone: reduced " . scalar(@changed) . " file(s). All affected models compile identically. Backup: $backup\n";
+	}
 	return;
 }
 
