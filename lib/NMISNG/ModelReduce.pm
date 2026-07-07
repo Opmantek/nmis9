@@ -5,6 +5,7 @@ package NMISNG::ModelReduce;
 #
 use strict;
 use warnings;
+use Clone;
 
 our $VERSION = "9.6.5";
 
@@ -108,6 +109,33 @@ sub classify
 	return "drift" if (@{$diff->{drop}} || @{$diff->{typeconflict}});
 	return "reducible" if (@{$diff->{set}});
 	return "identical";
+}
+
+# build_override($diff): rebuild a hashref from the diff's set entries only.
+sub build_override
+{
+	my ($diff) = @_;
+	my $override = {};
+	for my $entry (@{$diff->{set}})
+	{
+		_set_path($override, $entry->{path}, Clone::clone($entry->{value}));
+	}
+	return $override;
+}
+
+# _set_path($hash, \@path, $value): set a nested value, creating intermediate hashes.
+sub _set_path
+{
+	my ($hash, $path, $value) = @_;
+	my $node = $hash;
+	for my $i (0 .. $#$path - 1)
+	{
+		my $k = $path->[$i];
+		$node->{$k} = {} if (ref($node->{$k}) ne "HASH");
+		$node = $node->{$k};
+	}
+	$node->{$path->[-1]} = $value;
+	return;
 }
 
 1;

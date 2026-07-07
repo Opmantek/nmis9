@@ -77,4 +77,28 @@ is(NMISNG::ModelReduce::classify({set=>[{path=>["a"],value=>1}],drop=>[{path=>["
 is(NMISNG::ModelReduce::classify({set=>[],drop=>[],typeconflict=>[{path=>["a"]}]}),
    "drift", "any type conflict -> drift");
 
+# build_override
+{
+	my $diff = {set=>[
+		{path=>['system','nodeVendor'], value=>'Acme'},
+		{path=>['-common-','class','sdwan-omp'], value=>{'common-model'=>'sdwan-omp'}},
+		{path=>['-common-','class','sdwan-bfd'], value=>{'common-model'=>'sdwan-bfd'}},
+	], drop=>[{path=>['-common-','class','IP-FORWARD']}], typeconflict=>[]};
+	my $ov = NMISNG::ModelReduce::build_override($diff);
+	is_deeply($ov, {
+		system => { nodeVendor => 'Acme' },
+		'-common-' => { class => {
+			'sdwan-omp' => {'common-model'=>'sdwan-omp'},
+			'sdwan-bfd' => {'common-model'=>'sdwan-bfd'},
+		}},
+	}, "build_override rebuilds nested set paths and ignores drops");
+}
+{
+	# values are cloned, not shared
+	my $shared = {x=>1};
+	my $ov = NMISNG::ModelReduce::build_override({set=>[{path=>['a'],value=>$shared}],drop=>[],typeconflict=>[]});
+	$ov->{a}{x} = 99;
+	is($shared->{x}, 1, "build_override clones values");
+}
+
 done_testing();
