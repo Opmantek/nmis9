@@ -172,4 +172,37 @@ sub compile_model
 	return $sys->{mdl};
 }
 
+# models_referencing_common($feature, @dirs): model names that pull in Common-$feature.
+sub models_referencing_common
+{
+	my ($feature, @dirs) = @_;
+	my %seen_file;
+	my %matches;
+	for my $dir (@dirs)
+	{
+		next if (!defined $dir || !-d $dir);
+		opendir(my $dh, $dir) or next;
+		my @files = grep { /^Model-.+\.nmis$/ } readdir($dh);
+		closedir($dh);
+		for my $f (sort @files)
+		{
+			next if ($seen_file{$f}++);    # first dir wins (custom before default)
+			my $data = NMISNG::Util::readFiletoHash(file => "$dir/$f");
+			next if (ref($data) ne "HASH");
+			my $class = $data->{'-common-'}{class};
+			next if (ref($class) ne "HASH");
+			for my $c (keys %$class)
+			{
+				if (($class->{$c}{'common-model'} // '') eq $feature)
+				{
+					my $name = $f; $name =~ s/\.nmis$//;
+					$matches{$name} = 1;
+					last;
+				}
+			}
+		}
+	}
+	return sort keys %matches;
+}
+
 1;

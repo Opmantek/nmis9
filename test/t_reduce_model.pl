@@ -137,4 +137,26 @@ is(NMISNG::ModelReduce::classify({set=>[],drop=>[],typeconflict=>[{path=>["a"]}]
 	}
 }
 
+# models_referencing_common
+{
+	my $C = NMISNG::Util::loadConfTable();
+	SKIP: {
+		skip "no usable config", 2 if (ref($C) ne "HASH" || !%$C);
+		my $base = tempdir("t-reduce-ref-XXXXXX", TMPDIR => 1, CLEANUP => 1);
+		my $def = "$base/models-default";
+		make_path($def);
+		NMISNG::Util::writeHashtoFile(file=>"$def/Model-Uses.nmis", json=>0, conf=>$C, data=>{
+			'-common-'=>{class=>{cpu=>{'common-model'=>'WidgetCpu'}}}});
+		NMISNG::Util::writeHashtoFile(file=>"$def/Model-AlsoUses.nmis", json=>0, conf=>$C, data=>{
+			'-common-'=>{class=>{cpu=>{'common-model'=>'WidgetCpu'}, ip=>{'common-model'=>'Other'}}}});
+		NMISNG::Util::writeHashtoFile(file=>"$def/Model-Nope.nmis", json=>0, conf=>$C, data=>{
+			'-common-'=>{class=>{ip=>{'common-model'=>'Other'}}}});
+
+		my @refs = NMISNG::ModelReduce::models_referencing_common("WidgetCpu", $def);
+		is_deeply(\@refs, ["Model-AlsoUses","Model-Uses"], "finds all referencing models, sorted");
+		my @none = NMISNG::ModelReduce::models_referencing_common("Missing", $def);
+		is_deeply(\@none, [], "no references -> empty list");
+	}
+}
+
 done_testing();
