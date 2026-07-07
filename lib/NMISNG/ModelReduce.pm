@@ -47,4 +47,58 @@ sub deep_equal
 	return ("$a" eq "$b") ? 1 : 0;
 }
 
+# semantic_diff($default, $custom): classify differences. See interface doc.
+sub semantic_diff
+{
+	my ($default, $custom) = @_;
+	my $result = { set => [], drop => [], typeconflict => [] };
+	_diff_walk($default, $custom, [], $result);
+	return $result;
+}
+
+sub _diff_walk
+{
+	my ($default, $custom, $path, $result) = @_;
+
+	# both hashes: recurse over the union of keys
+	if (ref($default) eq "HASH" && ref($custom) eq "HASH")
+	{
+		my %allkeys = map { $_ => 1 } (keys %$default, keys %$custom);
+		for my $k (sort keys %allkeys)
+		{
+			my $subpath = [@$path, $k];
+			my $in_def = exists $default->{$k};
+			my $in_cus = exists $custom->{$k};
+
+			if ($in_def && !$in_cus)
+			{
+				push @{$result->{drop}}, { path => $subpath };
+			}
+			elsif (!$in_def && $in_cus)
+			{
+				push @{$result->{set}}, { path => $subpath, value => $custom->{$k} };
+			}
+			else
+			{
+				_diff_walk($default->{$k}, $custom->{$k}, $subpath, $result);
+			}
+		}
+		return;
+	}
+
+	# base is a hash but custom is not: merge would fail
+	if (ref($default) eq "HASH" && ref($custom) ne "HASH")
+	{
+		push @{$result->{typeconflict}}, { path => $path };
+		return;
+	}
+
+	# leaf, array, or custom-hash-over-base-non-hash: representable, set whole value
+	if (!deep_equal($default, $custom))
+	{
+		push @{$result->{set}}, { path => $path, value => $custom };
+	}
+	return;
+}
+
 1;
