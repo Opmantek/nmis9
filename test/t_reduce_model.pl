@@ -381,4 +381,32 @@ is(NMISNG::ModelReduce::classify({set=>[],drop=>[],typeconflict=>[{path=>["a"]}]
 	}
 }
 
+# verify_reduction: a reduction that breaks compilation is blocked (compile-status-changed)
+{
+	my $C = NMISNG::Util::loadConfTable();
+	SKIP: {
+		skip "no usable config", 2 if (ref($C) ne "HASH" || !%$C);
+		my $base = tempdir("t-reduce-csc-XXXXXX", TMPDIR => 1, CLEANUP => 1);
+		my $def = "$base/models-default";
+		my $cus = "$base/models-custom";
+		make_path($def, $cus);
+
+		# default and custom Model-Foo both load fine (no bogus refs)
+		NMISNG::Util::writeHashtoFile(file=>"$def/Model-Foo.nmis", json=>0, conf=>$C, data=>{
+			system=>{nodeVendor=>'V'}});
+		NMISNG::Util::writeHashtoFile(file=>"$cus/Model-Foo.nmis", json=>0, conf=>$C, data=>{
+			system=>{nodeVendor=>'V'}});
+
+		# An override that, applied on the default base in the AFTER state, references a
+		# Common that does not exist, so the AFTER model fails to load while BEFORE (the
+		# plain custom copy) loads fine.
+		my $v = NMISNG::ModelReduce::verify_reduction(
+			basename=>"Model-Foo", custom_dir=>$cus, default_dir=>$def, config=>$C,
+			override=>{'-common-'=>{class=>{bogus=>{'common-model'=>'NoSuchCommon'}}}});
+		ok(!$v->{ok}, "reduction that breaks compilation is blocked");
+		is($v->{reason}, "compile-status-changed",
+			"reason is compile-status-changed when the after-state fails to load");
+	}
+}
+
 done_testing();
