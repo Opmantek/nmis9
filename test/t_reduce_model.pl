@@ -234,4 +234,41 @@ is(NMISNG::ModelReduce::classify({set=>[],drop=>[],typeconflict=>[{path=>["a"]}]
 	}
 }
 
+# analyse
+{
+	my $C = NMISNG::Util::loadConfTable();
+	SKIP: {
+		skip "no usable config", 5 if (ref($C) ne "HASH" || !%$C);
+		my $base = tempdir("t-reduce-analyse-XXXXXX", TMPDIR => 1, CLEANUP => 1);
+		my $def = "$base/models-default";
+		my $cus = "$base/models-custom";
+		make_path($def, $cus);
+
+		# default files
+		NMISNG::Util::writeHashtoFile(file=>"$def/Model-Same.nmis", json=>0, conf=>$C, data=>{system=>{nodeVendor=>'V'}});
+		NMISNG::Util::writeHashtoFile(file=>"$def/Model-Red.nmis",  json=>0, conf=>$C, data=>{system=>{nodeVendor=>'V'}});
+		NMISNG::Util::writeHashtoFile(file=>"$def/Model-Drift.nmis",json=>0, conf=>$C, data=>{system=>{nodeVendor=>'V'}, extra=>{keep=>1}});
+
+		# custom copies
+		NMISNG::Util::writeHashtoFile(file=>"$cus/Model-Same.nmis", json=>0, conf=>$C, data=>{system=>{nodeVendor=>'V'}});                 # identical
+		NMISNG::Util::writeHashtoFile(file=>"$cus/Model-Red.nmis",  json=>0, conf=>$C, data=>{system=>{nodeVendor=>'Custom'}});            # reducible
+		NMISNG::Util::writeHashtoFile(file=>"$cus/Model-Drift.nmis",json=>0, conf=>$C, data=>{system=>{nodeVendor=>'V'}});                 # drops extra
+		NMISNG::Util::writeHashtoFile(file=>"$cus/Model-Own.nmis",  json=>0, conf=>$C, data=>{system=>{nodeVendor=>'X'}});                 # no default
+		NMISNG::Util::writeHashtoFile(file=>"$cus/Override-Model-Same.nmis", json=>0, conf=>$C, data=>{system=>{x=>1}});                   # existing override
+		NMISNG::Util::writeHashtoFile(file=>"$cus/Graph-cpu.nmis",  json=>0, conf=>$C, data=>{title=>'x'});                                # graph
+
+		my $res = NMISNG::ModelReduce::analyse(custom_dir=>$cus, default_dir=>$def, config=>$C);
+		my %by = map { $_->{basename} => $_ } @$res;
+
+		is($by{"Model-Same"}{category},  "identical",       "identical detected");
+		is($by{"Model-Red"}{category},   "reducible",       "reducible detected");
+		ok($by{"Model-Red"}{verified},                      "reducible verified");
+		is($by{"Model-Drift"}{category}, "drift",           "drift detected");
+		is_deeply($by{"Model-Drift"}{drops}, ["extra"],     "drift lists the dropped top-level section");
+		is($by{"Model-Own"}{category},   "skip-no-default", "genuine custom skipped");
+		is($by{"Graph-cpu"}{category},   "skip-graph",      "graph skipped");
+		is($by{"Override-Model-Same"}{category}, "skip-override", "existing override skipped");
+	}
+}
+
 done_testing();

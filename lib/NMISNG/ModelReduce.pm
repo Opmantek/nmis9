@@ -282,4 +282,93 @@ sub verify_reduction
 	return { ok => 1, models => \@models, mismatch => undef };
 }
 
+# analyse(%args): full per-file classification with verification.
+sub analyse
+{
+	my (%args) = @_;
+	my $custom_dir  = $args{custom_dir};
+	my $default_dir = $args{default_dir};
+	my $config      = $args{config};
+	my $only        = $args{only};
+
+	my @results;
+	opendir(my $dh, $custom_dir) or die "cannot read $custom_dir: $!\n";
+	my @files = sort grep { /\.nmis$/ } readdir($dh);
+	closedir($dh);
+
+	for my $f (@files)
+	{
+		my $basename = $f; $basename =~ s/\.nmis$//;
+		next if (defined $only && $basename ne $only);
+
+		if ($basename =~ /^Override-/)
+		{
+			push @results, { basename=>$basename, category=>"skip-override" };
+			next;
+		}
+		if ($basename =~ /^Graph-/)
+		{
+			push @results, { basename=>$basename, category=>"skip-graph" };
+			next;
+		}
+		if ($basename !~ /^(Model|Common)-/)
+		{
+			push @results, { basename=>$basename, category=>"skip-override" };
+			next;
+		}
+		if (!-e "$default_dir/$f")
+		{
+			push @results, { basename=>$basename, category=>"skip-no-default" };
+			next;
+		}
+
+		my $custom  = NMISNG::Util::readFiletoHash(file => "$custom_dir/$f");
+		my $default = NMISNG::Util::readFiletoHash(file => "$default_dir/$f");
+		if (ref($custom) ne "HASH" || ref($default) ne "HASH")
+		{
+			push @results, { basename=>$basename, category=>"error",
+				error => "unparseable: " . (ref($custom) ne "HASH" ? $custom : $default) };
+			next;
+		}
+
+		my $diff = semantic_diff($default, $custom);
+		my $cat  = classify($diff);
+
+		if ($cat eq "identical")
+		{
+			my $v = verify_reduction(basename=>$basename, custom_dir=>$custom_dir,
+				default_dir=>$default_dir, config=>$config, override=>undef);
+			push @results, { basename=>$basename, category=>"identical",
+				verified=>($v->{ok}?1:0), override=>undef };
+		}
+		elsif ($cat eq "reducible")
+		{
+			my $override = build_override($diff);
+			my $v = verify_reduction(basename=>$basename, custom_dir=>$custom_dir,
+				default_dir=>$default_dir, config=>$config, override=>$override);
+			# if the loader disagrees, keep the copy and report it as drift-like
+			push @results, {
+				basename => $basename,
+				category => ($v->{ok} ? "reducible" : "error"),
+				verified => ($v->{ok}?1:0),
+				override => $override,
+				error    => ($v->{ok} ? undef : "verification mismatch on $v->{mismatch}"),
+			};
+		}
+		else # drift
+		{
+			my @drops = map { join("/", @{$_->{path}}) } @{$diff->{drop}};
+			push @drops, map { join("/", @{$_->{path}})." (type conflict)" } @{$diff->{typeconflict}};
+			push @results, {
+				basename => $basename,
+				category => "drift",
+				verified => 0,
+				override => build_override($diff),   # manual-start (adds/changes only)
+				drops    => \@drops,
+			};
+		}
+	}
+	return \@results;
+}
+
 1;
