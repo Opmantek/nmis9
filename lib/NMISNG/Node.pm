@@ -8314,13 +8314,17 @@ sub collect_services
 				else{
 					$self->nmisng->log->error("$node SNMP failed while collecting SNMP Service Data: ".$SNMP->error);
 					
-					if ($SNMP->error =~ /No session open/){
-						$self->handle_down( sys => $S, type => "snmp",
-															details => "get SNMP Service Data: " . $SNMP->error,
-															catchall_inventory => $catchall_inventory);
-						$snmp_allowed = 0;
-						last;
-					}
+					# OMK-12742: any real SNMP failure here (timeout, no response, no
+					# session) means the process-table read did not complete, so we
+					# must not judge services this cycle. Only a genuinely unopened
+					# session raises SNMP Down; a walk timeout must not, as basic
+					# polling may still be fine.
+					$self->handle_down( sys => $S, type => "snmp",
+						details => "get SNMP Service Data: " . $SNMP->error,
+						catchall_inventory => $catchall_inventory )
+						if ($SNMP->error =~ /No session open/);
+					$snmp_allowed = 0;
+					last;
 				}
 			}
 		}
@@ -8414,6 +8418,9 @@ sub collect_services
 		if( $error ) 
 		{
 			$self->nmisng->log->error("collect_services wmi error: $error running query:$query");
+			# OMK-12742: the WMI read failed, so we did not get the process list;
+			# don't judge services this cycle (mirrors the SNMP walk error above).
+			$wmi_allowed = 0;
 		}
 		else 
 		{
@@ -8438,7 +8445,7 @@ sub collect_services
 	}
 # print "Services: ".Dumper(\%services);
 
-	# are we still good to continue?		
+	# are we still good to continue?
 	if( keys %services > 0 )
 	{
 		# keep all processes for display, not rrd - park this as timed-data
@@ -8523,6 +8530,38 @@ sub collect_services
 			$invobj->historic(1);
 			$error = $invobj->save( node => $self );
 			$self->nmisng->log->error("failed to save historic inventory object for service $maybedead: $error") if ($error);
+		}
+	}
+
+	# OMK-12742: clear "Service Configuration Error" events for services that are
+	# no longer configured on this node. These (non-existent or invalid-type)
+	# services 'next' before their inventory is saved, so they can't be swept via
+	# the historic pass above - scan the open events by element instead. Services
+	# still configured (valid or not) keep their element in %desiredservices and
+	# are handled by the notify/checkEvent pair in the per-service loop below.
+	# NOTE: %desiredservices here is still the full configured set; the optional
+	# $preselected narrowing happens afterwards, so a targeted collect will not
+	# wrongly clear errors for services merely absent from this run's batch.
+	my $cfgerr = $self->get_events_model(filter => { event => "Service Configuration Error" });
+	if (my $error = $cfgerr->error)
+	{
+		$self->nmisng->log->error("collect_services: failed to load Service Configuration Error events: $error");
+	}
+	else
+	{
+		for my $ev (@{$cfgerr->data})
+		{
+			my $elem = $ev->{element};
+			next if (!defined $elem || $desiredservices{$elem});
+			$self->nmisng->log->debug("clearing Service Configuration Error for unconfigured service $elem");
+			Compat::NMIS::checkEvent(
+				sys          => $S,
+				event        => "Service Configuration Error",
+				level        => "Normal",
+				element      => $elem,
+				details      => "service no longer configured on this node",
+				inventory_id => $ev->{inventory_id}
+			);
 		}
 	}
 
