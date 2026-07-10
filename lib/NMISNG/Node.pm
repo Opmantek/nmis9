@@ -2425,6 +2425,19 @@ sub update_node_info
 	else
 	{
 		$self->nmisng->log->debug2(sub {"node $S->{name} is marked collect is 'false'"});
+		# Without this, collect=false nodes never persist their resolved model (PingOnly,
+		# ServiceOnly) into catchall, so opCharts reads stale or default nodeModel/nodegraph.
+		# Write directly to $catchall_data (the live ref Node.pm saves) rather than via
+		# copyModelCfgInfo, which writes to the Sys cache — a different object when force=1
+		# clears the catchall and triggers a MongoDB re-fetch through sync_catchall.
+		# Guard: Sys::init may load the bare "Model" fallback when ping=false and no services
+		# are configured; skip in that case to avoid writing nodeModel="Model" into catchall.
+		my $cfgmodel = $S->{mdl}{system}{nodeModel} // '';
+		if ($cfgmodel && $cfgmodel ne 'Model') {
+			$catchall_data->{nodeModel} = $cfgmodel;
+			my @nodegraphs = split /,/, $S->{mdl}{system}{nodegraph} // '';
+			$catchall_data->{nodegraph} = \@nodegraphs if @nodegraphs;
+		}
 		$success = 1;                # done
 	}
 
