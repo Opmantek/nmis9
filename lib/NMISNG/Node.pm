@@ -3894,39 +3894,10 @@ sub collect_intf_data
 
 	# 1. get the interface inventories for this node, but only the bits we need (so far)
 	$self->nmisng->log->debug5(sub {"collect_intf_data phase 1"});
-	my $ifNumber     = $catchall_data->{ifNumber} // 10; # default to 10 if not set
-	my $max_interfaces_before_cutback = $self->nmisng->config->{max_interfaces_before_cutback} // 100;
-	# if there are a lot of interfaces, only get the fields we really need
-	# if there are only a few, get everything, it's handy for custom properties in calculate_index/oid
-	my $which_fields = ($ifNumber < $max_interfaces_before_cutback) ?
-		{
-			'_id' => 1,
-			'concept' => 1,
-			'cluster_id' => 1,
-			'node_uuid' => 1,
-			'data' => 1,
-			'enabled' => 1,
-			'historic' => 1
-		} 
-	: 
-		{
-			'_id' => 1,
-			'concept' => 1,
-			'cluster_id' => 1,
-			'node_uuid' => 1,
-			'data.collect' => 1,
-			'data.ifAdminStatus' => 1,
-			'data.ifOperStatus' => 1,
-			'data.ifDescr' => 1,
-			'data.ifDescr_orig' => 1,
-			'data.ifDescr_duplicate' => 1,
-			'data.ifIndex' => 1,
-			'data.ifLastChangeSec' => 1, # ifLastChange is textual and NO GOOD
-			'data.real' => 1,
-			'enabled' => 1,
-			'historic' => 1
-	};
-	my $result = $self->get_inventory_model('concept' => 'interface',	fields_hash => $which_fields );
+	# Load full interface records once: phase 8 reuses these objects instead of
+	# reloading each interface by _id (OMK-12375). The previous field cutback only
+	# trimmed this phase-1 read, which did not prevent the per-interface reloads.
+	my $result = $self->get_inventory_model('concept' => 'interface');
 	if (my $error = $result->error)
 	{
 		$self->nmisng->log->error("get inventory model failed: $error");
@@ -3955,17 +3926,32 @@ sub collect_intf_data
 			next;
 		}
 
+		# clone the inventory data BEFORE we inject the convenience fields below, so the
+		# $if_inventory_map object's _data is identical to what a fresh inventory(_id=>) load
+		# would hold (OMK-12375). two reasons this is a pre-injection clone:
+		#  - CORRECTNESS: if_data_map gets transient working fields (_rrd_data etc.) added
+		#    during collect phases 2-7, and Inventory::new() stores data by ref, so without an
+		#    independent copy the object's _data would share the same hash and pick those up.
+		#    (this is what the original B3 clone fixed; the only behavioural requirement.)
+		#  - CLEANLINESS: the _id/enabled/historic injected below are if_data_map conveniences,
+		#    not part of a fresh-loaded inventory's data, so we keep them out of the reused
+		#    object's _data to stay byte-identical to a reload. NB this is NOT load-bearing for
+		#    the db: Inventory::save dirty-tracking captures _data_orig from the same _data, so
+		#    a nested data._id would also sit in _data_orig and cancel out (verified - a post-
+		#    injection clone does NOT persist data._id). pre-injection is simply the clean form.
+		my $clean_data = Clone::clone($maybeevil->{data});
+
 		# move these over into data for simplicity
 		for my $thing (qw(_id enabled historic))
 		{
 			$maybeevil->{data}->{$thing} = $maybeevil->{$thing};
 		}
 		$if_data_map{ $thisindex } = $maybeevil->{data};
-		
+
 		my $class = NMISNG::Inventory::get_inventory_class( "interface" );
 		Module::Load::load $class;
 		$maybeevil->{nmisng} = $self->nmisng;
-		my $no_save_inventory = $class->new(%$maybeevil); # this doesn't report errors!		
+		my $no_save_inventory = $class->new(%$maybeevil, data => $clean_data);
 		$if_inventory_map{$thisindex} = $no_save_inventory;
 		
 	}
@@ -4137,6 +4123,10 @@ sub collect_intf_data
 			$if_data_map{$needsmust}->{_was_updated} = 1;
 			delete $if_data_map{$needsmust}->{_needs_update};
 		}
+		# keep the reusable object map in step with the updated inventory so
+		# phase 8 reuses the post-update object (recomputed tags + correct _id),
+		# matching the old reload-by-id behaviour (OMK-12375).
+		$if_inventory_map{$needsmust} = $maybenew if (ref($maybenew));
 	}
 
 	# 5. collect modelled data for enabled, nonhistoric, collectable interfaces
@@ -4331,6 +4321,10 @@ sub collect_intf_data
 			$if_data_map{$needsmust}->{_was_updated} = 1;
 			delete $if_data_map{$needsmust}->{_needs_update};
 		}
+		# keep the reusable object map in step with the updated inventory so
+		# phase 8 reuses the post-update object (recomputed tags + correct _id),
+		# matching the old reload-by-id behaviour (OMK-12375).
+		$if_inventory_map{$needsmust} = $maybenew if (ref($maybenew));
 	}
 
 	# 8. do something with the stashed rrd data; now if_data_map should have
@@ -4350,12 +4344,21 @@ sub collect_intf_data
 	{
 		my $thisif = $if_data_map{$index};
 
-		# instantiate inventory
-		my ($inventory, $error_message) = $self->inventory( _id => $thisif->{_id} );
+		# reuse the object loaded in phase 1 / refreshed in phases 4-7 instead of
+		# reloading each interface from the db (OMK-12375). fall back to a load only
+		# if the map is unexpectedly missing this index, and log it so gaps are visible.
+		my $inventory = $if_inventory_map{$index};
 		if (!$inventory)
 		{
-			$self->nmisng->log->error("Failed to get interface inventory, _id: $thisif->{_id}: $error_message");
-			next;
+			my $error_message;
+			($inventory, $error_message) = $self->inventory( _id => $thisif->{_id} );
+			$self->nmisng->log->warn("collect_intf_data phase 8: object map miss for index $index, fell back to reload"
+				. ($error_message ? ": $error_message" : ""));
+			if (!$inventory)
+			{
+				$self->nmisng->log->error("Failed to get interface inventory, _id: $thisif->{_id}: $error_message");
+				next;
+			}
 		}
 		$leftovers{$inventory->id} = 0; # clearly an interface we're handling, so not dead
 
