@@ -51,6 +51,16 @@ The point of override files is to let users customize part of a model without ta
 
 These are the right tool when the customization is specific to one model or one Common.
 
+### Automating the reduction
+
+`admin/reduce_model.pl` automates converting full custom copies into
+`Override-*.nmis` files. It runs read-only by default, classifies each custom
+Model or Common file as identical, reducible, or drifted, and verifies every
+proposed change by compiling the model both ways with the real loader. Pass
+`apply=1` to write the overrides and remove the reduced copies (each copy is
+backed up first). Graph files and files with no default counterpart are
+reported and left alone. See the header of the script for full arguments.
+
 ### Global overrides (`global_model_overrides`)
 
 An array config setting that names override files applied to every model load:
