@@ -55,6 +55,7 @@ my %hash = (
   },
 
   'globals' => {
+	'event_prefetch_enabled' => 'true', # serve per-node event existence checks from an in-cycle in-memory buffer (OMK-12677; see docs/superpowers/specs/2026-06-30-event-prefetch-audit.md). Set false to disable.
 	'global_collect_Description' => '(CNOC|Collection)',
 	'global_collect_ifDescr' => '',
 	'global_enable_password_encryption' => 'false',

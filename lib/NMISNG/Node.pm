@@ -7259,7 +7259,9 @@ sub update
 		$self->nmisng->log->$severity("skipping update for node $name: active $lock->{type} lock held by $lock->{conflict}");
 		return { error => "$lock->{type} lock exists for node $name", locked => 1 };
 	}
-	
+
+	my $event_prefetch_guard = $self->nmisng->event_prefetch_begin(node_uuid => $self->uuid);
+
 	# update will always force dashnode to be regenerated so old things can be removed 
 	# because mongo auto expire won't work in the file
 	$self->load_dashnode_data(op => "update", force => 1);
@@ -9506,6 +9508,8 @@ sub collect
 		$self->nmisng->log->$severity("skipping collect for node $name: active $lock->{type} lock held by $lock->{conflict}");
 		return { error => "$lock->{type} lock exists for node $name", locked => 1 };
 	}
+
+	my $event_prefetch_guard = $self->nmisng->event_prefetch_begin(node_uuid => $self->uuid);
 
 	my $S = NMISNG::Sys->new(nmisng => $self->nmisng);
 	my ($catchall_inventory, $error) =  $self->inventory( concept => "catchall", model_class => "system" );

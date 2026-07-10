@@ -174,6 +174,48 @@ sub eventDelete
 	return $event->delete();
 }
 
+# OMK-12677 event-prefetch: events that MUST be read live, never served from the
+# per-node buffer. An external, non-flock-holding process can flip the
+# (historic=0,active=1) state of these classes mid-cycle with a real alert flip,
+# so a buffered answer for them can be wrong. Source of truth for this list is
+# docs/superpowers/specs/2026-06-30-event-prefetch-audit.md, "Section 6 - Step 6
+# - exemption list (the deliverable)" (Task 9: this list matches that audit;
+# logic unchanged since Task 5/6):
+#   - the node-down family (raised AND cleared by the nmisd fping_loop with no
+#     flock, concurrently with a same-node collect): the node/failover/backup
+#     names of NMISNG::Node::handle_down_eventnames plus the failover-close
+#     literal "Node Polling Failover Closed" (Node.pm:2156). NOT snmp/wmi.
+#   - any stateless event (process_escalations deletes these mid-cycle past
+#     dampening): names matching config non_stateful_events (Config.nmis).
+#
+# Maintenance invariant: the buffer's safety for non-exempt events depends on
+# no out-of-cycle process raising them mid-cycle. If a NEW out-of-cycle event
+# RAISER is added (a writer outside collect/update that can set a non-exempt
+# event to active), it MUST be re-evaluated against this exemption list and
+# against the audit (docs/superpowers/specs/2026-06-30-event-prefetch-audit.md
+# §3b/§7) before it ships.
+# returns 1 if the named event must be read live, 0 otherwise.
+sub _event_exempt
+{
+	my ( $self, $event ) = @_;
+	return 0 if ( !defined $event );
+
+	# node-down family by name (read the hash rather than re-typing the strings)
+	my $names = NMISNG::Node::handle_down_eventnames();
+	for my $type (qw(node failover backup))
+	{
+		return 1 if ( defined $names->{$type} && $event eq $names->{$type} );
+	}
+	return 1 if ( $event eq "Node Polling Failover Closed" );    # failover-close literal, Node.pm:2156
+
+	# stateless events: substring match congruent with Compat::NMIS::notify
+	# (which tests $C->{non_stateful_events} !~ /$event/). Using \Q...\E so
+	# the event name is matched literally, not as a regex.
+	my $nse = $self->nmisng->config->{non_stateful_events};
+	return 1 if ( defined $nse && length($nse) && $event ne '' && $nse =~ /\Q$event\E/ );
+	return 0;
+}
+
 # this function checks if a particular event exists and is both active and non-historic
 #
 # args: node (object), event(name), element (element may be missing)
@@ -181,6 +223,16 @@ sub eventDelete
 sub eventExist
 {
 	my ( $self, $node, $event, $element ) = @_;
+
+	# OMK-12677 event-prefetch: when a per-node buffer is active and the event is
+	# not exempt, answer from the buffer with no DB hit. eventExist is true only
+	# for a non-historic, active event, so apply that same test to the buffered row.
+	my $uuid = ref($node) ? $node->uuid : $node;
+	if ( $self->nmisng->event_prefetch_active($uuid) && !$self->_event_exempt($event) )
+	{
+		my $row = $self->nmisng->event_prefetch_lookup( $uuid, $event, $element );
+		return ( $row && $row->{active} && ( ( $row->{historic} // 0 ) <= 0 ) ) ? 1 : 0;
+	}
 
 	# we only want non-historic events which are active
 	# non-historic is default, but active is ignored by event::load!

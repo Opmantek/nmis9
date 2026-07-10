@@ -60,6 +60,7 @@ use NMISNG::Sys;
 use NMISNG::Util;
 use NMISNG::NetworkStatus;
 use NMISNG::SQoS;
+use NMISNG::Guard;
 
 use Compat::Timing;
 
@@ -90,6 +91,7 @@ sub new
 			_existing_timed_collections => $args{existing_timed_collections} // {},
 			_log     => $args{log},
 			_plugins => undef,            # sub plugins populates that on the go
+			_event_prefetch => {},        # per-node event buffer; keyed by node_uuid
 		},
 		$class
 	);
@@ -1654,6 +1656,53 @@ sub events_collection
 		$self->{_db_events} = $newvalue;
 	}
 	return $self->{_db_events};
+}
+
+# Per-node event prefetch buffer primitives (OMK-12677).
+# _event_key builds the hash key used inside the buffer.
+sub _event_key { my ($event,$element)=@_; return ($event // '')."\x00".($element // ''); }
+
+# event_prefetch_begin: loads all current (non-historic) events for a node into RAM.
+# Returns an NMISNG::Guard that clears the buffer on scope exit, or undef if
+# the feature is disabled (event_prefetch_enabled falsy) or no uuid is given.
+sub event_prefetch_begin
+{
+	my ($self, %args) = @_;
+	my $node_uuid = $args{node_uuid};
+	return undef if (!$node_uuid);
+	return undef if (!NMISNG::Util::getbool($self->config->{event_prefetch_enabled} // 1));  # default ON; kill switch: set event_prefetch_enabled false to disable
+	my $md = $self->events->get_events_model(filter => { node_uuid => $node_uuid, historic => 0 });
+	my %bykey;
+	if (!$md->error) {
+		for my $row (@{ $md->data() // [] }) {
+			$bykey{ _event_key($row->{event}, $row->{element}) } = $row;
+		}
+	}
+	$self->{_event_prefetch}{$node_uuid} = \%bykey;
+	return NMISNG::Guard->new(sub { delete $self->{_event_prefetch}{$node_uuid}; });
+}
+
+# event_prefetch_active: returns 1 if a buffer is loaded for the given node_uuid, else 0.
+sub event_prefetch_active { my ($self,$u)=@_; return (exists $self->{_event_prefetch}{$u}) ? 1 : 0; }
+
+# event_prefetch_lookup: returns the buffered event row hashref, or undef on a miss.
+sub event_prefetch_lookup
+{
+	my ($self,$u,$event,$element)=@_;
+	my $buf = $self->{_event_prefetch}{$u};
+	return undef if (!$buf);
+	return $buf->{ _event_key($event,$element) };
+}
+
+# event_prefetch_store: stores a raised/updated row, or removes it when $row is undef.
+# No-op when no buffer is active for the node.
+sub event_prefetch_store
+{
+	my ($self,$u,$event,$element,$row)=@_;
+	my $buf = $self->{_event_prefetch}{$u};
+	return if (!$buf);
+	my $k = _event_key($event,$element);
+	if (defined $row) { $buf->{$k} = $row; } else { delete $buf->{$k}; }
 }
 
 # this function finds nodes that are due for a given operation;
