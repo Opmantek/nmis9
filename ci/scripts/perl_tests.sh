@@ -20,6 +20,7 @@ working_tests=(
     nmisng_log.t
     t_sys.pl
     t_polling.pl
+    t_collect_services.pl
     t_node_lock_stale.pl
     t_duplicate_event.pl
 )
