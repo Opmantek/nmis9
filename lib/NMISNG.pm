@@ -52,6 +52,7 @@ use Archive::Zip 1.36;					# for dump()/undump()
 
 use NMISNG::DB;
 use NMISNG::Events;
+use NMISNG::Guard;
 use NMISNG::Status;
 use NMISNG::Log;
 use NMISNG::ModelData;
@@ -90,6 +91,7 @@ sub new
 			_existing_timed_collections => $args{existing_timed_collections} // {},
 			_log     => $args{log},
 			_plugins => undef,            # sub plugins populates that on the go
+			_pit_prefetch => {},          # per-cycle latest_data prefetch buffer (OMK-12375): node_uuid -> {inv_id_str -> {time,subconcepts}}
 		},
 		$class
 	);
@@ -6189,9 +6191,69 @@ sub get_cluster_id
 			fields_hash => {cluster_id => 1}
 		);
 
-	# Should only return one. 
+	# Should only return one.
 	my $entry = $cursor->next;
 	return $entry->{cluster_id};
+}
+
+# OMK-12375 per-node latest_data prefetch buffer.
+# Stringify an inventory _id the SAME way get_inventory_ids does (Node.pm), so the
+# buffer key from a loaded doc and the key from $inventory->id always agree regardless
+# of MongoDB::OID (->value) vs BSON::OID (->hex).
+sub _pit_oid_str
+{
+	my ($oid) = @_;
+	return '' if (!defined $oid);
+	return "$oid" if (!ref $oid);
+	return $oid->can('hex') ? $oid->hex : $oid->value;
+}
+
+# Populate the prefetch buffer for one node with a single latest_data find, and return
+# an NMISNG::Guard that deletes the node's buffer entry on scope exit (the memory cap).
+# Returns undef (no buffer, no guard) when disabled by config or given no node_uuid.
+sub pit_prefetch_begin
+{
+	my ($self, %args) = @_;
+	my $node_uuid = $args{node_uuid};
+	return undef if (!$node_uuid);
+	return undef if (!NMISNG::Util::getbool($self->config->{pit_prefetch_enabled} // 1));   # kill switch, default on (NMIS boolean: "false"/"0"/0 disable)
+
+	my $cursor = NMISNG::DB::find(
+		collection  => $self->latest_data_collection,
+		query       => NMISNG::DB::get_query( and_part => { node_uuid => $node_uuid }, no_regex => 1 ),
+		fields_hash => { inventory_id => 1, time => 1, subconcepts => 1 },
+	);
+	my %byid;
+	if ($cursor)
+	{
+		while (my $doc = $cursor->next)
+		{
+			$byid{ _pit_oid_str($doc->{inventory_id}) } = { time => $doc->{time}, subconcepts => $doc->{subconcepts} };
+		}
+	}
+	$self->{_pit_prefetch}{$node_uuid} = \%byid;   # overwrite-at-entry
+
+	return NMISNG::Guard->new(sub { delete $self->{_pit_prefetch}{$node_uuid}; });
+}
+
+# Look up one inventory's prefetched reading. Returns the raw {time,subconcepts} doc on a
+# hit, or undef on a miss OR when no buffer is active for this node (caller live-loads on undef).
+sub pit_prefetch_lookup
+{
+	my ($self, $node_uuid, $oid) = @_;
+	my $buf = $self->{_pit_prefetch}{$node_uuid};
+	return undef if (!$buf);
+	return $buf->{ _pit_oid_str($oid) };
+}
+
+# Write a freshly computed reading through to the buffer so same-cycle readers see it.
+# No-op when no buffer is active for this node.
+sub pit_prefetch_store
+{
+	my ($self, $node_uuid, $oid, $doc) = @_;
+	my $buf = $self->{_pit_prefetch}{$node_uuid};
+	return if (!$buf);
+	$buf->{ _pit_oid_str($oid) } = $doc;
 }
 
 1;

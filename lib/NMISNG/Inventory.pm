@@ -674,6 +674,21 @@ sub add_timed_data
 		);
 		return "failed to upsert data record: $dbres->{error}" if ( !$dbres->{success} );
 
+		# OMK-12375 write-through: keep the per-cycle prefetch buffer current so a later same-cycle
+		# reader (e.g. thresholds) sees this reading, not the prefetched previous one. Placed AFTER
+		# the timed insert and latest_data upsert have reported success: a failed write returns
+		# earlier (above), leaving the buffer at the last committed reading, identical to
+		# prefetch-off. No-op when no buffer is active. Stored shape matches the latest_data find
+		# projection. The stored {time,subconcepts} deliberately shares refs with $timedrecord; this
+		# is safe because the read path (get_newest_timed_data) Clone::clones before returning, and
+		# the DB layer does not stamp _id into this substructure.
+		# NOTE: on the bulk path the upsert above only ENQUEUES (reporting success on enqueue); if a
+		# later bulk flush fails, the buffer can hold a reading the DB never committed. That residual
+		# window equals the pre-existing "bulk flush failed = cycle data lost" state and cannot be
+		# closed here, since the flush runs in the caller.
+		$self->nmisng->pit_prefetch_store( $self->node_uuid, $self->id,
+			{ time => $timedrecord->{time}, subconcepts => $timedrecord->{subconcepts} } );
+
 		# if the datasets were modified they need to be saved, only if we're not flushing
 		# which should only come from save (so don't start a recursive loop)
 		$self->save( node => $node ) if (!$flush && $datasets_modfied && !$bulk_save);
@@ -700,35 +715,51 @@ sub get_newest_timed_data
 	# inventory not saved certainly means no pit data, but  that's no error
 	return {success => 1} if ( $self->is_new );
 
-	my $cursor;
+	my $reading;
 	if( $from_timed )
 	{
-		$cursor = NMISNG::DB::find(
+		my $cursor = NMISNG::DB::find(
 			collection => $self->nmisng->timed_concept_collection( concept => $self->concept() ),
 			query => NMISNG::DB::get_query( and_part => {inventory_id => $self->id}, no_regex => 1 ),
 			limit => 1,
 			sort        => {time => -1},
 			fields_hash => {time => 1, subconcepts => 1}
 		);
+		return {success => 0, error => NMISNG::DB::get_error_string} if ( !$cursor );
+		$reading = $cursor->next;
 	}
 	else
 	{
-		$cursor = NMISNG::DB::find(
-			collection => $self->nmisng->latest_data_collection,
-			query => NMISNG::DB::get_query( and_part => {inventory_id => $self->id}, no_regex => 1 ),
-			fields_hash => {time => 1, subconcepts => 1}
-		);
+		# OMK-12375: serve the previous reading from the per-cycle prefetch buffer if active.
+		# Clone so the caller can never mutate the shared buffer entry.
+		# The 'ping' concept is exempt: its latest_data is written out-of-process by the
+		# separate fastping worker (bin/nmisd), which cannot write through to this collect
+		# worker's in-memory buffer. A buffered ping reading would be frozen at collect-start,
+		# so we always do a live find for ping to pick up fastping's newer reading.
+		my $cached = ($self->concept() ne 'ping')
+			? $self->nmisng->pit_prefetch_lookup( $self->node_uuid, $self->id )
+			: undef;
+		if ($cached)
+		{
+			$reading = Clone::clone($cached);
+		}
+		else
+		{
+			my $cursor = NMISNG::DB::find(
+				collection => $self->nmisng->latest_data_collection,
+				query => NMISNG::DB::get_query( and_part => {inventory_id => $self->id}, no_regex => 1 ),
+				fields_hash => {time => 1, subconcepts => 1}
+			);
+			return {success => 0, error => NMISNG::DB::get_error_string} if ( !$cursor );
+			$reading = $cursor->next;
+		}
 	}
-	return {success => 0, error => NMISNG::DB::get_error_string} if ( !$cursor );
 
-	my $reading = $cursor->next;
 	# new driver doesn't offer cursor->count anymore...
 	return {success => 1} if (!defined $reading);
 
 	# data/derived data are stored for optimal searching (arrays of hashes),
 	# turn them back into hashes (which are much handier for use in perl)
-	# data goes from subconcepts => [{ subconcept=>$,data=>{},derived_data =>{}}]
-	# to  data=>{$subconcept}{...},derived_data=>{$subconcept}{...}}
 	foreach my $entry (@{$reading->{subconcepts}})
 	{
 		$reading->{data}{$entry->{subconcept}} = $entry->{data};
