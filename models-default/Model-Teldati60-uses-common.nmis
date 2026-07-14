@@ -1,9 +1,6 @@
 %hash = (
 	  '-common-' => {
 		'class' => {
-		  'calls' => {
-			'common-model' => 'calls'
-		  },
 		  'cbqos' => {
 			'common-model' => 'Teldat-cbqos'
 		  },

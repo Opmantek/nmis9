@@ -50,9 +50,6 @@
       'stats' => {
         'common-model' => 'stats'
       },
-      'calls' => {
-        'common-model' => 'calls'
-      },
       'heading' => {
         'common-model' => 'heading'
       },
