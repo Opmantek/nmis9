@@ -64,8 +64,9 @@ use NMISNG::Util;
 #   if under config.
 #
 #  value: either array, or string or regex-string ('/.../' or '/.../i')
-#  array: set of acceptable values; one or more must meet strict equality
-#   test for the selector succeed
+#  array: set of acceptable values. An entry matches by strict equality
+#   unless prefixed 'regex:' (case-sensitive) or 'iregex:' (case-insensitive),
+#   which match the property as a pattern; one or more entries must match
 #  single string: strict equality
 #  regex-string: identified property must match
 
@@ -587,21 +588,21 @@ sub check_outages
 							$actual = $nodeconfig->{$propname};
 						}
 					}
-					# choices can be: regex, or fixed string, or array of fixed strings
+					# choices can be: a regex-string, a fixed string, or an array of fixed strings and/or 'regex:'/'iregex:' patterns
 					my $expected = $maybeout->{selector}->{$selcat}->{$propname};
 
-					# list of precise matches
+					# array of match entries: each is a fixed string, or a 'regex:'/'iregex:' prefixed pattern
 					if (ref($expected) eq "ARRAY")
 					{
 						# $rulematches = 0 if (! List::Util::any { $actual eq $_ } @$expected);
 
 						if (! List::Util::any {
-                                                                        /^iregex:(.+)$/ ? ($actual =~ qr{$1}i) :
-                                                                        /^regex:(.+)$/  ? ($actual =~ qr{$1})  :
-                                                                        ($actual eq $_)
-                                                                      } @$expected){
-                                                 $rulematches = 0;
-                                                }
+							/^iregex:(.+)$/ ? ($actual =~ qr{$1}i) :
+							/^regex:(.+)$/  ? ($actual =~ qr{$1})  :
+							($actual eq $_)
+						} @$expected){
+							$rulematches = 0;
+						}
 						else{
 							## node matched now check if you have mentioned element in event or not.
 								if ($rulesmatchesElements == 0){
