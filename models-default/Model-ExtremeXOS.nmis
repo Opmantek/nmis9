@@ -50,8 +50,8 @@
       'event' => {
         'common-model' => 'event'
       },
-      'entity' => {
-      'common-model' => 'entity'
+      'entityMib' => {
+      'common-model' => 'entityMib'
       },
     }
   },

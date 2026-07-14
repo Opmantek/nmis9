@@ -134,6 +134,7 @@ my %hash = (
 	'log_node_configuration_events' => 'false',
 	'max_child_runtime' => undef, 		# maximum runtime of per-node operations (ie. collect, update, services). unlimited if set to zero or undef
 	'model_health_sections' => 'cpu_cpm,entityMib,diskIOTable,ds3Errors,SONETErrors',
+	'model_load_strict' => 'false', # true: never cache partially loaded models, missing model dependencies make the cache stale. installer sets true for new installs, upgrades stay false (OMK-12755)
 	'network_health_view' => 'Group',
 	'network_summary_maxgroups' => 30,
 	'network_viewNode_field_list' => 'nodestatus,outage,sysName,host_addr,host_addr_backup,ip_protocol,group,customer,location,businessService,serviceStatus,notes,nodeType,nodeModel,polling_policy,sysUpTime,sysLocation,sysContact,sysDescr,ifNumber,last_ping,last_poll,last_update,nodeVendor,sysObjectName,roleType,netType',

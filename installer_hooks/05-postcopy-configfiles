@@ -18,6 +18,11 @@ if [ -n "$CLEANSLATE" ]; then
 		execPrint "$TARGETDIR/admin/patch_config.pl -b $TARGETDIR/conf/Config.nmis '/tools/mtr'=mtr"
 		execPrint "$TARGETDIR/admin/patch_config.pl -b $TARGETDIR/conf/Config.nmis '/tools/lft'=lft"
 
+		## new installs get strict model loading: no caching of partially
+		## loaded models, missing model dependencies make the cache stale.
+		## upgrades keep the lenient template default of 'false' (OMK-12755).
+		execPrint "$TARGETDIR/admin/patch_config.pl -b $TARGETDIR/conf/Config.nmis /system/model_load_strict=true"
+
 else
 		# upgrade case
 		printBanner "Updating (missing) configuration files"

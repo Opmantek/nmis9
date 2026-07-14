@@ -53,9 +53,6 @@
       'Cisco-routing' => {
         'common-model' => 'Cisco-routing'
       },
-      'Cisco-system' => {
-        'common-model' => 'Cisco-system'
-      },
       'Cisco-temp' => {
         'common-model' => 'Cisco-temp'
       },
