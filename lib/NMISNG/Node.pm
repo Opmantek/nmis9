@@ -2348,7 +2348,8 @@ sub update_node_info
 					Compat::NMIS::notify(
 						sys     => $S,
 						event   => "Model File Invalid",
-						details => "Model $catchall_data->{nodeModel} could not be loaded",
+						details => "Model $catchall_data->{nodeModel} could not be loaded: "
+									. ($S->status->{error} // "unknown error"),
 						context => {type => "node"},
 						inventory_id => $catchall_inventory->{_id}{hex}
 					);

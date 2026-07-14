@@ -1740,6 +1740,31 @@ sub loadModel
 	my $catchall_data = $self->{name}? $self->inventory( concept => 'catchall' )->data_live() : {};
 	my $C = $self->{config} // NMISNG::Util::loadConfTable();    # needed to determine the correct dir; generally cached and a/v anyway
 
+	# loadModel reports only its own failures: an error left over from an
+	# earlier operation must not leak into this load's result (or into the
+	# Model File Invalid event raised from it). see OMK-12755.
+	delete $self->{error};
+
+	# strict mode: never cache a partially loaded model, treat a missing
+	# dependency file as stale. default (key absent) is lenient so upgraded
+	# installs keep their existing behaviour; the installer enables strict
+	# for new installs.
+	my $strict = NMISNG::Util::getbool($C->{model_load_strict});
+
+	# ALL load failures are collected and reported in one go: every failure
+	# lands in $self->{error} (and thus in the event details), and exactly
+	# one error line is logged per failed load.
+	my @errors;
+	my $finish = sub {
+		if (@errors)
+		{
+			$exit = 0;
+			$self->{error} = "ERROR (".($self->{name} // '').") model $model: ".join("; ", @errors);
+			$self->nmisng->log->error($self->{error});
+		}
+		return $exit;
+	};
+
 	# load the policy document (if any)
 	my $modelpol = NMISNG::Util::loadTable( dir => 'conf', name => 'Model-Policy', conf => $C );
 	if ( ref($modelpol) ne "HASH" or !keys %$modelpol )
@@ -1763,8 +1788,10 @@ sub loadModel
 		$self->{mdl} = NMISNG::Util::readFiletoHash( file => $thiscf, json => 1, lock => 0, conf => $C );
 		if ( ref( $self->{mdl} ) ne "HASH" or !keys %{$self->{mdl}} )
 		{
-			$self->{error} = "ERROR ($self->{name}) failed to load Model (from cache): $self->{mdl}";
-			$exit = 0;
+			# a broken cache file is not fatal: fall through to a source load,
+			# which rewrites the cache. visible as warning, not as failure.
+			$self->nmisng->log->warn("(".($self->{name} // '').") failed to load cached model for $model, reloading from source: $self->{mdl}");
+			$self->{mdl} = undef;
 		}
 		else
 		{
@@ -1789,9 +1816,19 @@ sub loadModel
 				else
 				{
 					my $meta =  NMISNG::Util::getModelFile(model => $other, only_mtime => 1, conf => $C );
-					$othermtime = $meta->{mtime} if ($meta->{success});
+					if ($meta->{success})
+					{
+						$othermtime = $meta->{mtime};
+					}
+					elsif ($strict)
+					{
+						# strict: a cache whose ingredient is gone cannot be trusted
+						$self->nmisng->log->debug2(sub {"Cached model \"$model\" stale: dependency \"$other\" unavailable: $meta->{error}"});
+						$isstale = 1;
+						last;
+					}
 				}
-				if ($othermtime > $cfage)
+				if (defined($othermtime) && $othermtime > $cfage)
 				{
 					$self->nmisng->log->debug2(sub {"Cached model \"$model\" stale: mtime $cfage, older than \"$other\" ($othermtime)."});
 					$isstale = 1;
@@ -1902,7 +1939,7 @@ sub loadModel
 		my $res = NMISNG::Util::getModelFile(model => $model, conf => $C );
 		if (!$res->{success})
 		{
-			$self->{error} = "ERROR ($self->{name}) failed to load Model file for $model: $res->{error}!";
+			push @errors, "failed to load Model file for $model: $res->{error}";
 			$exit = 0;
 		}
 		else
@@ -1930,21 +1967,21 @@ sub loadModel
 				my $data = NMISNG::Util::loadTable(dir => "models", name => "$name.nmis", conf => $C);
 				if (ref($data) ne "HASH" or !keys %$data)
 				{
-					$self->{error} = "ERROR ($self->{name}) failed to read scoped override $path: $data";
+					push @errors, "failed to read scoped override $path: $data";
 					$exit = 0;
-					return 0;
+					return 1;			# a broken override file is collected, not terminal
 				}
 				if (!$self->_mergeHash($self->{mdl}, $data))
 				{
-					$self->{error} = "ERROR ($self->{name}) scoped override merge failed for $path!";
-					return 0;
+					push @errors, "scoped override merge failed for $path: ".($self->{error} // '');
+					return 0;			# an unmergeable model is terminal
 				}
 				push @applied_overrides, { path => $path, mtime => $mtime };
 				return 1;
 			};
 
 			# apply Override-Model-<shortname> right after the main model is in place
-			return 0 if (!$apply_scoped_override->("Override-Model-$shortname"));
+			return $finish->() if (!$apply_scoped_override->("Override-Model-$shortname"));
 
 			# continue with loading common Models, sorted using characters because we didn't use numbers here...
 			foreach my $class (sort  {$a cmp $b} keys %{$self->{mdl}{'-common-'}{class}} )
@@ -1954,7 +1991,7 @@ sub loadModel
 				my $commonres = NMISNG::Util::getModelFile(model => $name, conf => $C);
 				if (!$commonres->{success})
 				{
-					$self->{error} = "ERROR ($self->{name}) failed to read Model file $name: $commonres->{error}!";
+					push @errors, "failed to read Model file $name: $commonres->{error}";
 					$exit = 0;
 				}
 				else
@@ -1963,11 +2000,11 @@ sub loadModel
 					# however, an unmergeable model is terminal, mustn't be cached, useless.
 					if ( !$self->_mergeHash( $self->{mdl}, $commonres->{data} ) )
 					{
-						$self->{error} = "ERROR ($self->{name}) model merging failed!";
-						return 0;
+						push @errors, "merging of $name failed: ".($self->{error} // '');
+						return $finish->();
 					}
 					# apply Override-Common-<feature> immediately after its base Common file
-					return 0 if (!$apply_scoped_override->("Override-Common-$feature"));
+					return $finish->() if (!$apply_scoped_override->("Override-Common-$feature"));
 				}
 			}
 			# after all models are loaded add in override files
@@ -1977,7 +2014,7 @@ sub loadModel
 				my $commonres = NMISNG::Util::getModelFile(model => $name, conf => $C);
 					if (!$commonres->{success})
 				{
-					$self->{error} = "ERROR ($self->{name}) failed to read Model file $name: $commonres->{error}!";
+					push @errors, "failed to read Model file $name: $commonres->{error}";
 					$exit = 0;
 				}
 				else
@@ -1986,8 +2023,8 @@ sub loadModel
 					# however, an unmergeable model is terminal, mustn't be cached, useless.
 					if ( !$self->_mergeHash( $self->{mdl}, $commonres->{data} ) )
 					{
-						$self->{error} = "ERROR ($self->{name}) model merging failed!";
-						return 0;
+						push @errors, "merging of $name failed: ".($self->{error} // '');
+						return $finish->();
 					}
 				}
 			}
@@ -2024,8 +2061,9 @@ sub loadModel
 				}
 			}
 
-			# save to cache BEFORE the policy application, if caching is on OR if in update operation
-			if ( -d $modelcachedir && ( $self->{cache_models} || $self->{update} ) )
+			# save to cache BEFORE the policy application, if caching is on OR if in update operation.
+			# strict mode never caches a partially loaded model.
+			if ( -d $modelcachedir && ( $self->{cache_models} || $self->{update} ) && ($exit || !$strict) )
 			{
 				NMISNG::Util::writeHashtoFile( file => $thiscf, data => $self->{mdl}, json => 1, pretty => 0, conf => $C );
 				# sidecar with the list of scoped overrides actually merged in. Used by the freshness check
@@ -2183,8 +2221,8 @@ sub loadModel
 			$gt2sc->{$onegt} = $fixedsubconcept;
 		}
 	}
-			
-	return $exit;
+
+	return $finish->();
 }
 
 # small internal helper that merges two hashes
@@ -2205,12 +2243,15 @@ sub _mergeHash
 
 		if ( ref( $dest->{$k} ) eq "HASH" and ref($v) eq "HASH" )
 		{
-			$self->_mergeHash( $dest->{$k}, $source->{$k}, $lvl );
+			# a nested merge failure must propagate, not be swallowed
+			$self->_mergeHash( $dest->{$k}, $source->{$k}, $lvl )
+					or return undef;
 		}
 		elsif ( ref( $dest->{$k} ) eq "HASH" and ref($v) ne "HASH" )
 		{
 			$self->{error} = "cannot merge inconsistent hash: key=$k, value=$v, value is " . ref($v);
-			$self->nmisng->log->error( "($self->{name}) " . $self->{error} );
+			# detail is reported (with the file name) by loadModel's single error line
+			$self->nmisng->log->debug( "(".($self->{name} // '').") " . $self->{error} );
 			return undef;
 		}
 		else
