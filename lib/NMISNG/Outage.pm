@@ -66,7 +66,8 @@ use NMISNG::Util;
 #  value: either array, or string or regex-string ('/.../' or '/.../i')
 #  array: set of acceptable values. An entry matches by strict equality
 #   unless prefixed 'regex:' (case-sensitive) or 'iregex:' (case-insensitive),
-#   which match the property as a pattern; one or more entries must match
+#   which match the property as a pattern; one or more entries must match.
+#   a malformed pattern is logged and never matches (it does not raise an error)
 #  single string: strict equality
 #  regex-string: identified property must match
 
@@ -80,6 +81,10 @@ use NMISNG::Util;
 # meta (hash, optional, for audit logging, keys user and details.
 #  if missing, user will
 #  be set from os user of the current process)
+#
+# selector patterns ('regex:'/'iregex:' array entries, '/.../' strings)
+# are compile-checked and the whole update is rejected if one is malformed
+#
 # returns: hashref, keys success/error, id
 sub update_outage
 {
@@ -151,6 +156,13 @@ sub update_outage
 		{
 			my $catsel = $args{selector}->{$cat};
 			if ($cat eq 'element' && ref($catsel) eq 'ARRAY'){
+				for my $onesel (@$catsel)
+				{
+					next if (ref($onesel) ne "HASH");
+					my $problem = invalid_selector_pattern($onesel->{element_name});
+					return { error => "invalid regex in selector \"$cat\" entry \"$onesel->{element_name}\": $problem" }
+					if ($problem);
+				}
 				$newrec{selector}->{$cat} = $catsel;
 			}
 			next if (ref($catsel) ne "HASH");
@@ -164,10 +176,20 @@ sub update_outage
 				if (ref($catsel->{$onesel}) eq "ARRAY")
 				{
 					# fix up any holes if item N was deleted but N+1... exist
-					$newrec{selector}->{$cat}->{$onesel} = [ grep( defined($_), @{$catsel->{$onesel}}) ];
+					my @entries = grep( defined($_), @{$catsel->{$onesel}});
+					for my $entry (@entries)
+					{
+						my $problem = invalid_selector_pattern($entry);
+						return { error => "invalid regex in selector \"$cat.$onesel\" entry \"$entry\": $problem" }
+						if ($problem);
+					}
+					$newrec{selector}->{$cat}->{$onesel} = \@entries;
 				}
 				elsif (defined $catsel->{$onesel})
 				{
+					my $problem = invalid_selector_pattern($catsel->{$onesel});
+					return { error => "invalid regex in selector \"$cat.$onesel\": $problem" }
+					if ($problem);
 					$newrec{selector}->{$cat}->{$onesel} = $catsel->{$onesel};
 				}
 				else
@@ -454,6 +476,67 @@ sub purge_outages
 		success => @problems? 0 : 1 };
 }
 
+# match one selector array entry against the actual property value.
+# entry is a fixed string, or an 'iregex:' (case-insensitive) or 'regex:'
+# (case-sensitive) prefixed pattern, matched unanchored.
+# a malformed pattern is logged and treated as no-match; it never dies.
+#
+# args: actual value, entry, nmisng (optional, for logging only)
+# returns: 1 if the entry matches, 0 otherwise
+sub selector_entry_matches
+{
+	my ($actual, $entry, $nmisng) = @_;
+	return 0 if (!defined $actual or !defined $entry);
+
+	if ($entry =~ /^(i?)regex:(.+)\z/s)
+	{
+		my ($ci, $pat) = ($1, $2);
+		my $re = eval { $ci? qr{$pat}i : qr{$pat} };
+		if (!defined $re)
+		{
+			$nmisng->log->warn("outage selector: invalid regex '$entry': $@") if ($nmisng);
+			return 0;
+		}
+		return ($actual =~ $re)? 1 : 0;
+	}
+	return ($actual eq $entry)? 1 : 0;
+}
+
+# check that a selector value's pattern (if it is one) would compile.
+# handles the array-entry 'regex:'/'iregex:' prefix form and the
+# scalar '/.../' or '/.../i' regex-string form; any other value passes,
+# as it is matched by strict equality.
+#
+# args: value (one selector string)
+# returns: undef if the value is usable, error message otherwise
+sub invalid_selector_pattern
+{
+	my ($value) = @_;
+	return undef if (!defined $value or ref($value));
+
+	my $pat;
+	if ($value =~ /^(i?)regex:(.+)\z/s)
+	{
+		$pat = $2;
+	}
+	elsif ($value =~ m!^/(.*)/(i)?$!)
+	{
+		$pat = $1;
+	}
+	else
+	{
+		return undef;
+	}
+	my $re = eval { qr{$pat} };
+	if (!defined $re)
+	{
+		my $problem = $@;
+		$problem =~ s/ at \S+ line \d+\.?\s*$//s; # the eval location is just noise
+		return $problem;
+	}
+	return undef;
+}
+
 # find active/future/past outages for a given context,
 # ie. one node and a time - or potential outages, if only
 # given time.
@@ -490,6 +573,9 @@ sub check_outages
 	# get the data for selectors: node object links to nmisng, has global config;
 	# node object has own config, and catchall inventory has the nodeModel.
 	my $globalconfig = $nmisng? $nmisng->config : $node->nmisng->config;
+	# the nmisng arg may be absent on node-only calls; the selector matcher
+	# needs one for logging bad patterns
+	my $lognmisng = $nmisng // ($node? $node->nmisng : undef);
 	my ($nodeconfig, $nodemodel);
 
 	if ($node)
@@ -535,26 +621,8 @@ sub check_outages
 						if ($node->name eq $sel->{'node_name'}){
 					
 							$expected = $sel->{'element_name'};
-							if ($expected =~/^iregex:/){
-							
-								my @all_patterns = split("regex:",$expected);
-								my $re = $all_patterns[1];
-								my $regex = qr{$re}i;
-								$rulesmatchesElements = 0 if (!($actual =~ $regex));
-							}
-							elsif($expected =~/^regex:/)
-							{
-
-								my @all_patterns = split("regex:",$expected);
-								my $re = $all_patterns[1];
-								my $regex = qr{$re};
-								$rulesmatchesElements = 0 if (!($actual =~ $regex));
-
-							}
-							else{
-
-								$rulesmatchesElements = 0 if ( $actual ne $expected);	
-							}
+							$rulesmatchesElements = 0
+									if (!selector_entry_matches($actual, $expected, $lognmisng));
 						}
 					}
 				}
@@ -596,11 +664,7 @@ sub check_outages
 					{
 						# $rulematches = 0 if (! List::Util::any { $actual eq $_ } @$expected);
 
-						if (! List::Util::any {
-							/^iregex:(.+)$/ ? ($actual =~ qr{$1}i) :
-							/^regex:(.+)$/  ? ($actual =~ qr{$1})  :
-							($actual eq $_)
-						} @$expected){
+						if (! List::Util::any { selector_entry_matches($actual, $_, $lognmisng) } @$expected){
 							$rulematches = 0;
 						}
 						else{
@@ -615,9 +679,13 @@ sub check_outages
 					elsif ($expected =~ m!^/(.*)/(i)?$!)
 					{
 						my ($re,$options) = ($1,$2);
-						my $regex = ($options? qr{$re}i : qr{$re});
+						my $regex = eval { $options? qr{$re}i : qr{$re} };
 						# $rulematches = 0 if ($actual !~ $regex);
-						if ($actual !~ $regex){
+						if (!defined $regex){
+							$lognmisng->log->warn("outage selector: invalid regex '$expected': $@") if ($lognmisng);
+							$rulematches = 0;
+						}
+						elsif ($actual !~ $regex){
 							$rulematches = 0;
 						}
 						else{

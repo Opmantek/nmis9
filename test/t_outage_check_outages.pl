@@ -14,6 +14,8 @@
 # OMK-1113.
 #
 # What it does:
+#  - unit-tests the pure selector-entry matcher first (no config or db needed,
+#    so these assertions run even on a bare CI checkout),
 #  - spins up a throwaway MongoDB database (dropped at the end),
 #  - creates one node ("group1") with a catchall inventory,
 #  - writes an Outages table into a temp conf dir (the real conf/Outages.nmis is
@@ -44,12 +46,50 @@ use NMISNG::Outage;
 my %nvp   = %{ NMISNG::Util::get_args_multi(@ARGV) };
 my $debug = $nvp{debug};
 
+# --- pure unit tests for the selector-entry matcher ------------------------
+# these need neither config nor MongoDB, so they always run
+{
+	my $m = \&NMISNG::Outage::selector_entry_matches;
+
+	ok( $m->("group1", "group1"),   "exact entry matches" );
+	ok( !$m->("group1", "group2"),  "exact entry mismatch" );
+	ok( !$m->(undef, "group1"),     "undef actual never matches" );
+
+	ok( $m->("group1", "iregex:GROUP[0-9]"),  "iregex matches case-insensitively" );
+	ok( !$m->("group1", "regex:GROUP[0-9]"),  "regex is case-sensitive: same pattern does not match" );
+	ok( $m->("group1", "regex:^group[0-9]"),  "regex positive match" );
+	ok( $m->("Group1", "iregex:roup"),        "patterns match unanchored" );
+
+	ok( $m->("regex:", "regex:"),
+			"bare 'regex:' with no pattern falls back to exact match" );
+
+	my $res = eval { $m->("group1", "regex:[unclosed") };
+	is( $@, '', "malformed pattern does not die" );
+	ok( !$res, "malformed pattern is treated as no-match" );
+
+	# write-time compile check used by update_outage
+	my $v = \&NMISNG::Outage::invalid_selector_pattern;
+
+	ok( !defined $v->("group1"),            "plain string passes validation" );
+	ok( !defined $v->("regex:^group[0-9]"), "valid regex entry passes validation" );
+	ok( !defined $v->("iregex:GROUP"),      "valid iregex entry passes validation" );
+	ok( !defined $v->("/gr.up/i"),          "valid regex-string passes validation" );
+	ok( !defined $v->(undef),               "undef passes validation (dropped elsewhere)" );
+
+	like( $v->("regex:[unclosed"),  qr/Unmatched \[/, "malformed regex entry is rejected" );
+	like( $v->("iregex:(unclosed"), qr/Unmatched \(/, "malformed iregex entry is rejected" );
+	like( $v->("/[unclosed/"),      qr/Unmatched \[/, "malformed regex-string is rejected" );
+}
+
 # --- config + isolated database -------------------------------------------
+# from here on we need config and MongoDB; assertions have already run,
+# so on failure we finish early instead of skip_all
 my $confdir = "$FindBin::Bin/../conf";
 my $C = NMISNG::Util::loadConfTable( dir => $confdir );
 if (!$C or !keys %$C)
 {
-	plan skip_all => "cannot load config from $confdir";
+	diag("skipping integration tests: cannot load config from $confdir");
+	done_testing();
 	exit(0);
 }
 $C->{debug}   = $debug;
@@ -57,10 +97,12 @@ $C->{db_name} = "nmisng_outage_check_t_" . time;
 
 my $logger = NMISNG::Log->new( level => $debug // "warn", path => undef );
 
-my $nmisng = NMISNG->new( config => $C, log => $logger );
+# NMISNG->new dies if MongoDB is unreachable, hence the eval
+my $nmisng = eval { NMISNG->new( config => $C, log => $logger ) };
 if (!$nmisng)
 {
-	plan skip_all => "cannot construct NMISNG (MongoDB unreachable?)";
+	diag("skipping integration tests: cannot construct NMISNG (MongoDB unreachable?): $@");
+	done_testing();
 	exit(0);
 }
 $C = $nmisng->config();
@@ -90,7 +132,8 @@ $node->configuration({
 my ($ok, $err) = $node->save();
 if ($ok < 0)
 {
-	plan skip_all => "cannot save test node (MongoDB unreachable?): $err";
+	diag("skipping integration tests: cannot save test node (MongoDB unreachable?): $err");
+	done_testing();
 	exit(0);
 }
 my ($catchall, $cerr) = $node->inventory(
@@ -127,6 +170,33 @@ my %outages = (
 		frequency => "once", start => $now - $HR, end => $now + $HR,
 		options => {}, selector => { node => { group => [ "regex:zzz_nomatch" ] } },
 	},
+	out_now_regex_pos => {
+		id => "out_now_regex_pos", description => "case-sensitive regex group, matches",
+		frequency => "once", start => $now - $HR, end => $now + $HR,
+		options => {}, selector => { node => { group => [ "regex:^group[0-9]" ] } },
+	},
+	out_now_regex_case => {
+		id => "out_now_regex_case", description => "same pattern as the iregex outage but case-sensitive: no match",
+		frequency => "once", start => $now - $HR, end => $now + $HR,
+		options => {}, selector => { node => { group => [ "regex:GROUP[0-9]" ] } },
+	},
+	out_now_mixed => {
+		id => "out_now_mixed", description => "mixed exact + regex entries, regex one matches",
+		frequency => "once", start => $now - $HR, end => $now + $HR,
+		options => {}, selector => { node => { group => [ "no_such_group", "iregex:GROUP[0-9]" ] } },
+	},
+	out_now_badregex => {
+		id => "out_now_badregex", description => "malformed pattern must not crash check_outages",
+		frequency => "once", start => $now - $HR, end => $now + $HR,
+		options => {}, selector => { node => { group => [ "regex:[unclosed" ] } },
+	},
+	# note: node->save() syncs the catchall data from the node configuration,
+	# so only config-derived keys (group, netType, roleType, ...) exist in it
+	out_now_catchall => {
+		id => "out_now_catchall", description => "catchall.data property selector with pattern",
+		frequency => "once", start => $now - $HR, end => $now + $HR,
+		options => {}, selector => { node => { "catchall.data.netType" => [ "iregex:^WAN\$" ] } },
+	},
 	out_future => {
 		id => "out_future", description => "exact name, starts later",
 		frequency => "once", start => $now + $HR, end => $now + 2 * $HR,
@@ -145,7 +215,10 @@ ok( -e "$tmpconf/Outages.nmis", "temp Outages table written" );
 sub ids { return { map { $_->{id} => 1 } @{ $_[0] // [] } }; }
 
 # --- check_outages at "now": inside the window ----------------------------
-my $res = NMISNG::Outage::check_outages( nmisng => $nmisng, node => $node, time => $now );
+# eval because the table contains a malformed pattern (out_now_badregex),
+# which used to kill check_outages outright
+my $res = eval { NMISNG::Outage::check_outages( nmisng => $nmisng, node => $node, time => $now ) };
+is( $@, '', "check_outages does not die despite malformed selector pattern" );
 is( $res->{success}, 1, "check_outages succeeded at now" )
 	or diag( Dumper($res) );
 
@@ -156,15 +229,23 @@ my $pst = ids( $res->{past} );
 ok( $cur->{out_now_name},        "exact-name outage is current (in window)" );
 ok( $cur->{out_now_iregex},      "iregex outage is current (OMK-1113 match)" );
 ok( !$cur->{out_now_regex_nomatch}, "non-matching regex outage is NOT current" );
+ok( $cur->{out_now_regex_pos},   "case-sensitive regex outage is current" );
+ok( !$cur->{out_now_regex_case}, "same pattern case-sensitive is NOT current (regex vs iregex)" );
+ok( $cur->{out_now_mixed},       "mixed exact+regex selector is current (regex entry matched)" );
+ok( !$cur->{out_now_badregex},   "malformed-pattern outage is NOT current" );
+ok( $cur->{out_now_catchall},    "catchall.data property selector outage is current" );
 ok( !$cur->{out_future},         "future outage is not current" );
 ok( !$cur->{out_past},           "past outage is not current" );
 
 ok( $fut->{out_future}, "future-windowed outage is in future list" );
 ok( $pst->{out_past},   "past-windowed outage is in past list" );
 
-# the non-matching selector must not leak into any bucket
-ok( !$fut->{out_now_regex_nomatch} && !$pst->{out_now_regex_nomatch},
-	"non-matching regex outage absent from every bucket" );
+# non-matching selectors must not leak into any bucket
+for my $absent (qw(out_now_regex_nomatch out_now_regex_case out_now_badregex))
+{
+	ok( !$fut->{$absent} && !$pst->{$absent},
+		"$absent absent from every bucket" );
+}
 
 # --- same outage, time moved past its end: current -> false ---------------
 my $later = $now + 2 * $HR + 1;   # after out_now_name's end ($now + $HR)
