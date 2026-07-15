@@ -1003,6 +1003,37 @@ Compat::NMIS::checkEvent(sys => $S2, event => "Node Down", level => "Normal",
 $RI->{snmpresult} = 100;
 $RI->{wmiresult}  = undef;
 
+# --- Unscored push source (redisresult undef): must hold at reachable, not
+#     degrade to a false 80. Root cause: pollresult is the min of DEFINED
+#     per-source results, so an undef redisresult leaves pollresult undef,
+#     and Perl coerces `undef == 0` to true, firing the "ping up / poll down"
+#     branch (reachability=80) even though the source was simply never
+#     scored this poll - not a real error. No "Node Down" event is active
+#     here (cleared above), so the correct verdict is 100 (hold).
+diag("--- Compute Reachability: redis push, source unscored (undef) holds at 100 ---");
+$RIr->{pingresult}  = 100;
+$RIr->{redisresult} = undef;
+$RIr->{snmpresult}  = undef;
+$RIr->{wmiresult}   = undef;
+my $runscored = $redis_node->compute_reachability(
+	sys => $S_redis, delayupdate => 1, catchall_inventory => $redis_catchall_inv);
+is($runscored->{reachability}{value}, 100,
+	"redis push unscored source (redisresult undef, no Node Down): reachability=100 (hold, not false 80)");
+
+# --- Mirror: live-probe node (snmp), source scored 0 with a real error must
+#     still degrade to 80 exactly as today - proves the guard above is gated
+#     on the push flag (collection_probes_reachability==0) and leaves
+#     live-probe (snmp/wmi/http) behaviour untouched.
+diag("--- Compute Reachability: live-probe (snmp) failed still degrades to 80 ---");
+$RI->{pingresult} = 100;
+$RI->{snmpresult} = 0;
+$RI->{wmiresult}  = undef;
+my $liveprobe_fail = $snmp_node->compute_reachability(
+	sys => $S2, delayupdate => 1, catchall_inventory => $snmp_catchall_inv);
+is($liveprobe_fail->{reachability}{value}, 80,
+	"live-probe snmp fail: reachability=80 unchanged (guard gated on push flag)");
+$RI->{snmpresult} = 100;
+
 # ============================================================
 # Phase 5c: precise_status is generic over engines (snmp/wmi/http/redis).
 # Proves the newly-closed HTTP gap plus regression guards for the original

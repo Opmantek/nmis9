@@ -6913,6 +6913,25 @@ sub compute_reachability
 		$pollresult = $r if !defined $pollresult || $r < $pollresult;
 	}
 
+	# Defence-in-depth: a push engine (collection_probes_reachability=0, e.g.
+	# redis) that was simply never scored this poll (result undef) is not the
+	# same as scoring 0 with an error. The down-decision below does
+	# `$pollresult == 0`, and Perl coerces an undef pollresult to 0 there,
+	# which would otherwise fire the "ping up / poll down" branch and report
+	# a false 80 even though nothing actually failed. Fold the unscored case
+	# into the ping-driven verdict instead: with no source (push or
+	# live-probe) contributing a defined result, there is no down decision to
+	# make, so let pingresult carry it - 100 holds reachable, or 0 if an
+	# active "Node Down" event already forced pingresult down above. A push
+	# source that DID score - even a failure (0) - stays defined via the loop
+	# above and is unaffected, so a real push-source error still degrades
+	# exactly as before. Gated strictly on an active push engine so
+	# live-probe (snmp/wmi/http) behaviour is unchanged.
+	if ( !defined($pollresult)
+		and ( grep { $_->is_active && !$_->collection_probes_reachability } @{$S->engines} ) )
+	{
+		$pollresult = $pingresult;
+	}
 
 	$reach{cpu} = $RI->{cpu};
 	$reach{mem} = $RI->{mem};
