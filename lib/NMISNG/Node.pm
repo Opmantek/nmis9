@@ -1476,8 +1476,20 @@ sub precise_status
 		$precise{failover_ping_status} = ($backupexists || $downexists)? 0:1;
 	}
 
+	# A redis push node (HPE GreenLake/Aruba etc.) has ping/snmp/wmi all
+	# disabled, so the source-based checks below fall through to overall=1
+	# (reachable) even when the device reported OFFLINE and a Node Down event
+	# is active. Make the device-status Node Down authoritative for such nodes,
+	# mirroring coarse_status (which already keys node status off the Node Down
+	# event) and the catchall nodestatus. Scoped to redis push nodes
+	# (nmisent_engine_type set) so ping/snmp/wmi nodes are unaffected.
+	my $redis_engine = $self->configuration->{nmisent_engine_type};
+	if ($downexists and defined $redis_engine and $redis_engine ne "")
+	{
+		$precise{overall} = 0;
+	}
 	# overall status: ping disabled -> the WORSE one of snmp and wmi states is authoritative
-	if (!$precise{ping_enabled}
+	elsif (!$precise{ping_enabled}
 			and ( ($precise{wmi_enabled} and !$precise{wmi_status})
 						or ($precise{snmp_enabled} and !$precise{snmp_status}) ))
 	{
@@ -6841,6 +6853,24 @@ sub compute_reachability
 
 	# copy stashed results (produced by runPing and getnodeinfo)
 	my $pingresult = $RI->{pingresult};
+
+	# Redis push nodes (HPE GreenLake/Aruba/Meraki etc.) have ping disabled, so
+	# runPing fakes pingresult=100 and a successful redis fetch sets
+	# redisresult=100 - together those would score reachability=100 even when
+	# the device's reported status is OFFLINE. apply_redis_reachability (run
+	# earlier in collect) already mapped that status onto the "Node Down"
+	# event; key the reachability metric off that same event so it agrees with
+	# coarse_status/nodestatus and precise_status (all event-driven), treating
+	# a down device like an unpingable node. Scoped to ping-disabled redis push
+	# nodes so ping/snmp/wmi/http nodes are unaffected.
+	my $redis_engine = $self->configuration->{nmisent_engine_type};
+	if ( defined $redis_engine and $redis_engine ne ""
+		and NMISNG::Util::getbool($catchall_data->{ping}, "invert")
+		and $self->eventExist("Node Down") )
+	{
+		$pingresult = 0;
+	}
+
 	$reach{responsetime} = $RI->{pingavg};
 	$reach{loss}         = $RI->{pingloss};
 

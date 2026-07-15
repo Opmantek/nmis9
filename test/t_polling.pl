@@ -901,6 +901,109 @@ $RI->{snmpresult} = 100;
 $RI->{wmiresult}  = undef;
 
 # ============================================================
+# Phase 5b: reachability + precise_status are device-status-aware for
+#           ping-disabled redis push nodes (HPE GreenLake / Aruba).
+# A successful redis fetch of an OFFLINE payload must NOT read reachable:
+# runPing fakes pingresult=100 (ping disabled) and a successful fetch sets
+# redisresult=100, which would otherwise score reachability=100 even though
+# apply_redis_reachability already mapped the OFFLINE status onto the Node
+# Down event + nodedown flag. Both surfaces must follow the device status.
+# ============================================================
+diag("=== Phase 5b: redis push node device-status-aware reachability ===");
+
+my $redis_node = NMISNG::Node->new(uuid => NMISNG::Util::getUUID(), nmisng => $nmisng);
+$redis_node->cluster_id($C->{cluster_id});
+$redis_node->name("test_redis_push_node");
+$redis_node->configuration({
+	host                => "test_redis_push_node",
+	group               => "TestGroup",
+	netType             => "default",
+	roleType            => "default",
+	model               => "TestSnmp",
+	collect             => "true",
+	ping                => "false",
+	nmisent_engine_type => "hpe_greenlake",   # marks this a redis push node
+});
+my ($rop, $rerr) = $redis_node->save();
+ok(!$rerr, "redis push node saved without error") or diag("Save error: $rerr");
+is($redis_node->configuration->{nmisent_engine_type}, "hpe_greenlake",
+	"redis push node has nmisent_engine_type set");
+
+my ($redis_catchall_inv, $rc_err) = $redis_node->inventory(concept => "catchall", model_class => "system");
+ok(!$rc_err, "redis push node catchall inventory created") or diag("Error: $rc_err");
+
+my $rcd = $redis_catchall_inv->data_live();
+$rcd->{collect}     = "true";
+$rcd->{ping}        = "false";
+$rcd->{nodeModel}   = "TestSnmp";
+$rcd->{nodeType}    = "generic";
+$rcd->{intfTotal}   = 0;
+$rcd->{intfCollect} = 0;
+$redis_catchall_inv->save(node => $redis_node);
+
+my $S_redis = NMISNG::Sys->new(nmisng => $nmisng);
+$S_redis->init(node => $redis_node, snmp => 0, wmi => 0, update => 0,
+	catchall_inventory => $redis_catchall_inv);
+my $RIr = $S_redis->reach;
+
+# collect inputs for a ping-disabled redis push node whose fetch succeeded
+# but whose payload said OFFLINE: pingresult faked to 100, redis source ok.
+# The device-status verdict lives in the Node Down event (raised by
+# apply_redis_reachability), the same signal coarse_status/precise_status use.
+$RIr->{pingloss}    = 0;
+$RIr->{pingavg}     = 0;
+
+# --- OFFLINE: Node Down active -> both surfaces read down ---
+Compat::NMIS::notify(sys => $S_redis, event => "Node Down", element => "",
+	details => "device reported status 'OFFLINE'", inventory_id => $redis_catchall_inv->id);
+$RIr->{pingresult}  = 100;
+$RIr->{redisresult} = 100;
+$RIr->{snmpresult}  = undef;
+$RIr->{wmiresult}   = undef;
+my $roff = $redis_node->compute_reachability(
+	sys => $S_redis, delayupdate => 1, catchall_inventory => $redis_catchall_inv);
+is($roff->{reachability}{value}, 0,
+	"redis push OFFLINE (Node Down active): reachability=0 (device status, not faked ping=100)");
+{
+	my %ps = $redis_node->precise_status;
+	is($ps{overall}, 0,
+		"redis push OFFLINE (Node Down active): precise_status.overall=0 (unreachable)");
+}
+
+# --- ONLINE: Node Down cleared -> both surfaces read reachable ---
+Compat::NMIS::checkEvent(sys => $S_redis, event => "Node Down", level => "Normal",
+	element => "", details => "device reported status 'ONLINE'", inventory_id => $redis_catchall_inv->id);
+$RIr->{pingresult}  = 100;
+$RIr->{redisresult} = 100;
+my $ron = $redis_node->compute_reachability(
+	sys => $S_redis, delayupdate => 1, catchall_inventory => $redis_catchall_inv);
+is($ron->{reachability}{value}, 100,
+	"redis push ONLINE (Node Down cleared): reachability=100 (reachable)");
+{
+	my %ps = $redis_node->precise_status;
+	is($ps{overall}, 1,
+		"redis push ONLINE (Node Down cleared): precise_status.overall=1 (reachable)");
+}
+
+# Regression guard: a NON-redis node (no nmisent_engine_type) must NOT be
+# forced down by the override even with an active Node Down — the device-status
+# override is scoped to redis push nodes; a real ping/snmp node's reachability
+# stays driven by its real poll results.
+Compat::NMIS::notify(sys => $S2, event => "Node Down", element => "",
+	details => "Ping failed", inventory_id => $snmp_catchall_inv->id);
+$RI->{pingresult} = 100;
+$RI->{snmpresult} = 100;
+$RI->{wmiresult}  = undef;
+my $guard = $snmp_node->compute_reachability(
+	sys => $S2, delayupdate => 1, catchall_inventory => $snmp_catchall_inv);
+is($guard->{reachability}{value}, 100,
+	"non-redis node with active Node Down: reachability unchanged (100) - override is redis-only");
+Compat::NMIS::checkEvent(sys => $S2, event => "Node Down", level => "Normal",
+	element => "", details => "ok", inventory_id => $snmp_catchall_inv->id);
+$RI->{snmpresult} = 100;
+$RI->{wmiresult}  = undef;
+
+# ============================================================
 # Phase 6: Test Compute Summary Stats
 # ============================================================
 diag("=== Phase 6: Compute Summary Stats ===");
