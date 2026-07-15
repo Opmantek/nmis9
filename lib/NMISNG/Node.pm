@@ -2440,8 +2440,14 @@ sub apply_redis_reachability
 		# multiple of the producer's own poll interval when the model doesn't
 		# declare one) while the producer is up throughout this check (we're
 		# already past the "return if ($pstate ne 'up')" gate above).
+		# Note: the effective dark time before this escalates is roughly 2x
+		# 'freshness', not 1x - the payload must first age past 'freshness'
+		# for concept_fresh() to flip to 0 (which is what freezes
+		# last_redis_fresh_epoch below), and only then does this grace clock,
+		# measured from that frozen stamp, run for another 'freshness' before
+		# tripping. Worth knowing before tuning the model's 'freshness' value.
 		my $last_fresh = $cat->data_live->{last_redis_fresh_epoch};
-		my $grace = $common->{freshness} || ($interval ? 3 * $interval : undef);
+		my $grace = $common->{freshness} // ($interval ? 3 * $interval : undef);
 		if (defined $last_fresh && defined $grace && (time - $last_fresh) > $grace)
 		{
 			$self->handle_down(sys => $S, type => 'node',
@@ -3002,7 +3008,8 @@ sub collect_node_info
 			if ($source eq 'redis')
 			{
 				my ($eng) = grep { $_->protocol_name eq 'redis' } @{$S->engines};
-				my $concept = $S->{mdl}{system}{sys}{standard}{redis}{'-common-'}{concept};
+				my $common  = $S->{mdl}{system}{sys}{standard}{redis}{'-common-'};
+				my $concept = (ref($common) eq 'HASH') ? $common->{concept} : undef;
 				if ($eng && defined($concept) && ($eng->concept_fresh($concept) // -1) == 1)
 				{
 					$catchall_data->{last_redis_fresh_epoch} = $time_marker;
@@ -6951,7 +6958,7 @@ sub compute_reachability
 	# (= 0) pull the aggregate down so reachability degrades correctly.
 	# Iterating known_sources keeps this generic — adding a future engine to
 	# Sys::known_sources makes it participate here automatically.
-	# expands to: snmpresult, wmiresult, httpresult
+	# expands to: snmpresult, wmiresult, httpresult, redisresult
 	my $pollresult;
 	for my $source (@{ $S->known_sources })
 	{

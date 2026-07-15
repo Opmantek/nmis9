@@ -1034,15 +1034,23 @@ SKIP: {
             # the redis engine reports the concept fresh (last_poll_redis is
             # stamped even on an absent/stale poll, so it can't serve this).
             #
-            # Dedicated node: this block drives a full Node Down -> cleared
-            # cycle (like the offline/online rows above already did on $n).
-            # NMISNG::Event::check() has a known, pre-existing limitation
-            # (Event.pm ~448, logged "Duplicate event id ... TODO how do we
-            # handle this?") where renaming an active event to its "Up"
-            # companion collides with an already-existing historic "Up" doc
-            # for the same (node, event, element) - unrelated to this task.
-            # A fresh node keeps this test to the one down->up cycle every
-            # other test in this file uses, rather than tripping that gap.
+            # Dedicated node: this block drives Node Down -> cleared cycles
+            # (like the offline/online rows above already did on $n), and now
+            # runs it around twice to lock in the A3 + E1 interaction:
+            # Event::check() clears a down event by converting it in place to
+            # its "Up" companion with active(0), left non-historic. Task E1
+            # (see lib/Compat/NMIS.pm notify(), CancelingEvent cleanup) fixed
+            # a bug where that cleanup's lookup didn't pass active => 0, so it
+            # never matched the interim active=0 Up doc left by a prior
+            # clear, and the doc's (node_uuid,event,element,active) key was
+            # still occupied when the *next* down event was itself converted
+            # to up - a "Duplicate event id" fatal (Event.pm ~451). E1 is
+            # already fixed and covered directly via Compat::NMIS::notify /
+            # checkEvent in test/t_event_cancelingevent_cycle.pl; the second
+            # cycle below re-exercises the same interim-doc handoff but via
+            # the real collect()/apply_redis_reachability escalation path
+            # this task (A3) added, rather than synthetic notify calls, so
+            # the two features are proven to compose correctly together.
             {
                 my $dn = NMISNG::Node->new(uuid => NMISNG::Util::getUUID(), nmisng => $ng);
                 $dn->cluster_id($C->{cluster_id});
@@ -1114,7 +1122,7 @@ SKIP: {
                 }
 
                 # (d) recovery: a fresh online payload clears Node Down and
-                # advances the watermark again.
+                # advances the watermark again. This completes cycle 1.
                 $dset->('online');
                 $dn->collect(wantsnmp => 0, wantwmi => 0, wanthttp => 0, wantredis => 1);
                 ok(!$dn->eventExist("Node Down"),
@@ -1124,6 +1132,75 @@ SKIP: {
                 ok(defined($stamp_d) && $stamp_d > $stamp_a,
                    "recovery: fresh online payload advances last_redis_fresh_epoch")
                     or diag("stamp_a=$stamp_a stamp_d=".($stamp_d // 'undef'));
+
+                # (e)+(f) cycle 2: repeat the dark -> escalate -> recover
+                # pattern once more on the SAME node. Cycle 1's clear above
+                # left the interim, non-historic, active=0 "Node Up" doc that
+                # Event::check() creates - notify()'s CancelingEvent cleanup
+                # must retire it before this cycle's Down is (re)raised, or
+                # the (node_uuid,event,element,active) unique index collides
+                # when THIS cycle's Down is itself converted to Up (the E1
+                # bug). Count "Duplicate event id" fatals (Event.pm ~451, the
+                # pre-E1-fix symptom) and check the DB holds exactly one
+                # non-historic event doc after each half-cycle, since a
+                # regression here could silently leave an orphaned/duplicate
+                # doc without necessarily failing the plain eventExist()
+                # checks used above.
+                my $fatal_count = 0;
+                my @fatal_msgs;
+                my $diag_events = sub {
+                    my ($em) = @_;
+                    return join(",", map { ($_->{event} // '?').":active=".($_->{active} // '?')
+                        .":historic=".($_->{historic} // '?') } @{ $em->data // [] });
+                };
+                {
+                    no warnings 'redefine';
+                    my $orig_fatal = \&NMISNG::Log::fatal;
+                    local *NMISNG::Log::fatal = sub {
+                        $fatal_count++;
+                        push @fatal_msgs, $_[1] if (defined $_[1]);
+                        goto &$orig_fatal;
+                    };
+
+                    my $dn_events = sub { return $dn->get_events_model(filter => { historic => 0 }); };
+
+                    # dark again (key removed, as a genuinely dark producer
+                    # would leave it - otherwise the still-fresh 'online'
+                    # payload from cycle 1's recovery would keep concept_fresh
+                    # true and this would just re-confirm "up" instead of
+                    # escalating), far beyond the grace, producer still up ->
+                    # Node Down.
+                    delete $main::REDIS_KV{"nmisent:metrics:$du:sdwan_health"};
+                    my ($ci_e) = $dn->inventory(concept => "catchall");
+                    my $ced = $ci_e->data_live;
+                    $ced->{last_redis_fresh_epoch} = time - 100000;
+                    $ci_e->save(node => $dn);
+
+                    $dn->collect(wantsnmp => 0, wantwmi => 0, wanthttp => 0, wantredis => 1);
+                    ok($dn->eventExist("Node Down"),
+                       "cycle 2: dark device beyond the freshness grace + producer up -> Node Down raised again");
+
+                    my $em2 = $dn_events->();
+                    is($em2->error, undef, "cycle 2 down: event lookup ok") or diag($em2->error);
+                    is($em2->count, 1,
+                       "cycle 2 down: exactly one non-historic event doc (cycle 1's interim Up doc was retired, not left orphaned/duplicated)")
+                        or diag("events: ".$diag_events->($em2));
+
+                    # recover again
+                    $dset->('online');
+                    $dn->collect(wantsnmp => 0, wantwmi => 0, wanthttp => 0, wantredis => 1);
+                    ok(!$dn->eventExist("Node Down"),
+                       "cycle 2: recovery clears Node Down again");
+
+                    my $em3 = $dn_events->();
+                    is($em3->error, undef, "cycle 2 up: event lookup ok") or diag($em3->error);
+                    is($em3->count, 1,
+                       "cycle 2 up: exactly one non-historic event doc remains (consistent final DB state)")
+                        or diag("events: ".$diag_events->($em3));
+                }
+                is($fatal_count, 0,
+                   "no 'Duplicate event id' fatal logged across 2 full dark/recover cycles on the same node")
+                    or diag("fatal messages logged: ".join(" | ", @fatal_msgs));
             }
         }
     }
