@@ -561,6 +561,59 @@ SKIP: {
     ok($fl, "redis node present in due list");
     ok($fl->{redis}, "redis flavour enabled for a redis_enabled node");
 
+    # ---- Task A1: redis flavour must not depend on the redis cadence clock ----
+    # Root cause: a redis_enabled node with populated last_poll_snmp/wmi
+    # attempts is marked due by the un-gated snmp/wmi cadence clauses even
+    # though those sources are disabled. When that happens on a cycle where
+    # redis itself is not yet cadence-due, the buggy flavour value ($has_redis
+    # && $nextredis <= $now) evaluates to 0, no redis engine gets built
+    # (Sys::init gates on wantredis), and redisresult is never scored — the
+    # false reachability-80 dip. The redis fetch is a cheap local cache read;
+    # once the node is due at all, redis must always be attempted.
+    {
+        my $gap = NMISNG::Node->new(uuid => NMISNG::Util::getUUID(), nmisng => $ng);
+        $gap->cluster_id($C->{cluster_id});
+        $gap->name("t_redis_cadence_gap_node");
+        $gap->activated({ NMIS => 1 });
+        $gap->configuration({
+            host => "127.0.0.1", group => "TestGroup", netType => "default",
+            roleType => "default", model => "TestRedis", collect => "true",
+            ping => "false", nmisent_engine_type => "meraki",
+        });
+        my ($gop, $gerr) = $gap->save();
+        ok(!$gerr, "cadence-gap node saved") or diag($gerr);
+
+        # Node::save() auto-creates the catchall inventory (with cluster_id
+        # matching), so a create=>1 call afterwards just returns the
+        # existing object and ignores its 'data' arg — mutate via
+        # data_live + save, the same idiom the rest of this file uses.
+        my $gnow = time;
+        my ($gcinv, $gcierr) = $gap->inventory(
+            concept => "catchall", path_keys => [], create => 1,
+            data => { name => $gap->name, nodeType => "generic" });
+        ok(!$gcierr, "cadence-gap node catchall available") or diag($gcierr);
+        my $gcd = $gcinv->data_live;
+        $gcd->{nodeModel} = "TestRedis";    # avoid the no-nodeModel demotion branch
+        # snmp/wmi are disabled on this node, but the un-gated due-clauses
+        # only check "was there ever a poll attempt", so stale attempt
+        # markers still fire the snmp/wmi cadence.
+        $gcd->{last_poll_snmp_attempt}  = $gnow - 10000;
+        $gcd->{last_poll_wmi_attempt}   = $gnow - 10000;
+        # redis attempted very recently: redis's OWN cadence is NOT yet due
+        # at $gnow.
+        $gcd->{last_poll_redis_attempt} = $gnow;
+        $gcinv->save(node => $gap);
+
+        my $gapdue = $ng->find_due_nodes(type => 'collect');
+        ok($gapdue->{success}, "cadence-gap: find_due_nodes success");
+        ok(exists $gapdue->{nodes}{ $gap->uuid },
+           "cadence-gap: node due (via the stale snmp/wmi cadence)");
+        my $gfl = ($gapdue->{flavours} // {})->{ $gap->uuid } // {};
+        is($gfl->{redis}, 1,
+           "cadence-gap: redis flavour is on even though redis's own cadence isn't due yet")
+            or diag("flavours: ".join(",", map {"$_=".($gfl->{$_}//'undef')} qw(snmp wmi http redis)));
+    }
+
     # ---- handle_down: per-source down/up events for push + http sources ----
     # The type gate in Node::handle_down used to silently drop 'redis' and
     # 'http', so a dead source raised no event at all. Pin the contract:

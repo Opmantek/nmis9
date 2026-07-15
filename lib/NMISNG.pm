@@ -2243,7 +2243,17 @@ sub find_due_nodes
 					$flavours{$maybe}->{wmi}   = ( $nextwmi  <= $now ) ? 1 : 0;
 					$flavours{$maybe}->{snmp}  = ( $nextsnmp <= $now ) ? 1 : 0;
 					$flavours{$maybe}->{http}  = ( $has_http  && $nexthttp  <= $now ) ? 1 : 0;
-					$flavours{$maybe}->{redis} = ( $has_redis && $nextredis <= $now ) ? 1 : 0;
+					# Redis is unconditional on its own cadence clock once the
+					# node is due at all: it's just a local cache read (no
+					# network/device round trip like snmp/wmi/http), so there's
+					# no cost to always attempting it. Gating it on $nextredis
+					# left redisresult unscored (engine never built, see
+					# Sys::init) whenever the node was due via snmp/wmi's
+					# un-gated cadence but redis's own cadence hadn't elapsed
+					# yet — compute_reachability then coerced that undef into
+					# a false ping-up/poll-down 80% reachability dip for
+					# redis-only push nodes.
+					$flavours{$maybe}->{redis} = $has_redis ? 1 : 0;
 				}
 				else
 				{
