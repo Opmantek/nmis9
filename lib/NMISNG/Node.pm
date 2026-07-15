@@ -2349,19 +2349,22 @@ sub handle_down
 
 # Tri-state nmisent producer liveness for an engine, read live from the
 # configured producer node's nmisent_poll inventory.
-# returns: ('up'|'stale'|'unknown', detail). 'unknown' is indeterminate
-# (no config, node/row/fields missing). The caller is responsible for
-# raising the nmisent Producer Misconfigured event on 'unknown'.
+# returns: ('up'|'stale'|'unknown', detail, interval). 'unknown' is
+# indeterminate (no config, node/row/fields missing) and interval is undef in
+# that case. The caller is responsible for raising the nmisent Producer
+# Misconfigured event on 'unknown'. interval is the producer's own poll
+# interval for this engine (seconds) - used by apply_redis_reachability as
+# the fallback dark-device grace when the model doesn't declare one.
 sub producer_state
 {
 	my ($self, $engine) = @_;
 	my $C = $self->nmisng->config;
 	my $prodname = $C->{nmisent_producer_node};
-	return ('unknown', 'nmisent_producer_node not configured')
+	return ('unknown', 'nmisent_producer_node not configured', undef)
 		if (!defined $prodname || $prodname eq '');
 
 	my $prod = $self->nmisng->node(name => $prodname);
-	return ('unknown', "producer node '$prodname' not found") if (!$prod);
+	return ('unknown', "producer node '$prodname' not found", undef) if (!$prod);
 
 	my $ids = $prod->get_inventory_ids(concept => 'nmisent_poll');
 	my ($lse, $interval);
@@ -2374,19 +2377,24 @@ sub producer_state
 		($lse, $interval) = ($d->{last_success_epoch}, $d->{interval});
 		last;
 	}
-	return ('unknown', "no nmisent_poll row for engine '$engine'")
+	return ('unknown', "no nmisent_poll row for engine '$engine'", undef)
 		if (!defined $lse || !defined $interval || $interval <= 0);
 
 	my $age = time - $lse;
-	return ('up', "age ${age}s within 2x ${interval}s") if ($age <= 2 * $interval);
-	return ('stale', "age ${age}s exceeds 2x ${interval}s");
+	return ('up', "age ${age}s within 2x ${interval}s", $interval) if ($age <= 2 * $interval);
+	return ('stale', "age ${age}s exceeds 2x ${interval}s", $interval);
 }
 
 # Producer-gated reachability for a redis push node: map the canonical
 # device status onto Node Down, but only when the engine's producer is up
 # AND this device's node-level health payload is fresh. Otherwise hold (no
-# reachability change). Called from collect after collect_node_info, gated on
-# an active redis engine.
+# reachability change) - UNLESS the device has been dark (concept not fresh)
+# for longer than a bounded grace while the producer itself is up: that
+# combination means the producer is fine but has simply stopped refreshing
+# THIS device's key, i.e. the device has genuinely gone dark, so escalate to
+# Node Down rather than holding "reachable" forever (see
+# last_redis_fresh_epoch, stamped in collect_node_info). Called from collect
+# after collect_node_info, gated on an active redis engine.
 # args: sys (live Sys), catchall_inventory. returns: nothing.
 sub apply_redis_reachability
 {
@@ -2399,14 +2407,17 @@ sub apply_redis_reachability
 
 	my ($eng) = grep { $_->protocol_name eq 'redis' } @{$S->engines};
 	return if (!$eng);
+	return if ($eng->collection_probes_reachability);   # defence-in-depth: push engines (=0) only
 
-	# Resolve the node-level health concept from the loaded model rather than
+	# Resolve the node-level health concept (and its -common- section, for the
+	# freshness-grace default below) from the loaded model rather than
 	# hardcoding it, so this works for sdwan_health / device_health /
 	# wifi_ap_health alike. Nothing to do if the model declares none.
-	my $concept = $S->{mdl}{system}{sys}{standard}{redis}{'-common-'}{concept};
+	my $common  = $S->{mdl}{system}{sys}{standard}{redis}{'-common-'};
+	my $concept = (ref($common) eq 'HASH') ? $common->{concept} : undef;
 	return if (!defined $concept);
 
-	my ($pstate, $detail) = $self->producer_state($engine);
+	my ($pstate, $detail, $interval) = $self->producer_state($engine);
 	if ($pstate eq 'unknown')
 	{
 		Compat::NMIS::notify(
@@ -2421,7 +2432,24 @@ sub apply_redis_reachability
 		inventory_id => $cat->id);
 
 	return if ($pstate ne 'up');                   # stale -> hold
-	return if (!$eng->concept_fresh($concept));    # device data stale/absent -> hold (went dark)
+
+	if (!$eng->concept_fresh($concept))
+	{
+		# device data stale/absent -> hold, unless it's been dark for longer
+		# than the grace (model section 'freshness', falling back to a small
+		# multiple of the producer's own poll interval when the model doesn't
+		# declare one) while the producer is up throughout this check (we're
+		# already past the "return if ($pstate ne 'up')" gate above).
+		my $last_fresh = $cat->data_live->{last_redis_fresh_epoch};
+		my $grace = $common->{freshness} || ($interval ? 3 * $interval : undef);
+		if (defined $last_fresh && defined $grace && (time - $last_fresh) > $grace)
+		{
+			$self->handle_down(sys => $S, type => 'node',
+				details => "redis system concept '$concept' has not been fresh for over ${grace}s while producer is up",
+				catchall_inventory => $cat);
+		}
+		return;
+	}
 
 	my $raw = $cat->data_live->{status};
 	require NMISNG::Sys::Engine::Redis::Status;
@@ -2962,6 +2990,25 @@ sub collect_node_info
 				$self->handle_down( sys => $S, type => $source, details => $curstate->{"${source}_error"}, catchall_inventory => $catchall_inventory );
 				$RI->{"${source}result"} = 0;
 			}
+
+			# Stamp a freshness watermark for a redis push node's node-level
+			# health payload, distinct from last_poll_$source above (which is
+			# stamped even on an absent/stale poll - a fetch attempt with no
+			# error is not the same as a fresh payload). Only advance this
+			# when the redis engine itself reports the system concept fresh,
+			# so apply_redis_reachability can later detect a device that has
+			# gone genuinely dark (the producer never refreshed this device's
+			# key) versus a routine miss within the collector's own window.
+			if ($source eq 'redis')
+			{
+				my ($eng) = grep { $_->protocol_name eq 'redis' } @{$S->engines};
+				my $concept = $S->{mdl}{system}{sys}{standard}{redis}{'-common-'}{concept};
+				if ($eng && defined($concept) && ($eng->concept_fresh($concept) // -1) == 1)
+				{
+					$catchall_data->{last_redis_fresh_epoch} = $time_marker;
+				}
+			}
+
 			# Stamp the attempt time INSIDE the enabled block so disabled
 			# sources don't advance the cadence clock — otherwise
 			# find_due_nodes will keep re-arming this source's next-due

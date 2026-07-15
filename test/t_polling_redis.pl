@@ -1024,6 +1024,107 @@ SKIP: {
             $n->collect(wantsnmp => 0, wantwmi => 0, wanthttp => 0, wantredis => 1);
             ok(!$n->eventExist("Node Down"),
                'ping=0/none does not raise Node Down on its own (online + producer up)');
+
+            # ---- Task A3: dark-device escalation beyond a bounded freshness
+            # grace, and the last_redis_fresh_epoch watermark it depends on ----
+            # Today apply_redis_reachability holds unconditionally once the
+            # system concept isn't fresh (absent/stale) - a producer that has
+            # simply stopped refreshing THIS device's key would read
+            # "reachable" forever. last_redis_fresh_epoch is stamped only when
+            # the redis engine reports the concept fresh (last_poll_redis is
+            # stamped even on an absent/stale poll, so it can't serve this).
+            #
+            # Dedicated node: this block drives a full Node Down -> cleared
+            # cycle (like the offline/online rows above already did on $n).
+            # NMISNG::Event::check() has a known, pre-existing limitation
+            # (Event.pm ~448, logged "Duplicate event id ... TODO how do we
+            # handle this?") where renaming an active event to its "Up"
+            # companion collides with an already-existing historic "Up" doc
+            # for the same (node, event, element) - unrelated to this task.
+            # A fresh node keeps this test to the one down->up cycle every
+            # other test in this file uses, rather than tripping that gap.
+            {
+                my $dn = NMISNG::Node->new(uuid => NMISNG::Util::getUUID(), nmisng => $ng);
+                $dn->cluster_id($C->{cluster_id});
+                $dn->name("t_redis_dark_device_node");
+                $dn->activated({ NMIS => 1 });
+                $dn->configuration({
+                    host => "127.0.0.1", group => "TestGroup", netType => "default",
+                    roleType => "default", model => "TestRedis", collect => "true",
+                    ping => "false", nmisent_engine_type => "meraki",
+                });
+                $dn->save();
+                my $du = $dn->uuid;
+                my $dset = sub {
+                    $main::REDIS_KV{"nmisent:metrics:$du:sdwan_health"} =
+                        '{"_meta":{"collected_at_epoch":'.time().'},"data":{"status":"'.$_[0]
+                        .'","cpu_load_5min":0.1,"memory_used_pct":20}}';
+                };
+
+                # (a) a fresh poll stamps the watermark to (about) the poll time.
+                $dset->('online');
+                $dn->update(force => 1);
+                $dn->collect(wantsnmp => 0, wantwmi => 0, wanthttp => 0, wantredis => 1);
+                my ($ci_a) = $dn->inventory(concept => "catchall");
+                my $stamp_a = $ci_a->data->{last_redis_fresh_epoch};
+                ok(defined($stamp_a) && abs(time - $stamp_a) <= 5,
+                   "fresh redis system-concept poll stamps last_redis_fresh_epoch to the poll time")
+                    or diag("last_redis_fresh_epoch=".($stamp_a // 'undef'));
+
+                # (a continued) + (c): the device goes dark (key removed, as a
+                # genuinely dark producer would leave it) - the watermark must
+                # NOT advance, and being dark for one poll is well within the
+                # grace, so this must still hold (no Node Down).
+                delete $main::REDIS_KV{"nmisent:metrics:$du:sdwan_health"};
+                $dn->collect(wantsnmp => 0, wantwmi => 0, wanthttp => 0, wantredis => 1);
+                my ($ci_b) = $dn->inventory(concept => "catchall");
+                is($ci_b->data->{last_redis_fresh_epoch}, $stamp_a,
+                   "absent/stale poll does not advance last_redis_fresh_epoch");
+                ok(!$dn->eventExist("Node Down"),
+                   "dark device within the freshness grace: still holds (no Node Down)");
+
+                # (b) push the watermark far into the past (well beyond any
+                # sane grace) while the device is still dark and the producer
+                # is still up -> escalate to Node Down, and drive
+                # reachability/coarse_status/precise_status.overall to 0
+                # together (the existing ~6892 push block reads the Node Down
+                # event this raises).
+                my ($ci_c) = $dn->inventory(concept => "catchall");
+                my $ccd = $ci_c->data_live;
+                $ccd->{last_redis_fresh_epoch} = time - 100000;
+                $ci_c->save(node => $dn);
+
+                @main::RRD_CALLS = ();
+                $dn->collect(wantsnmp => 0, wantwmi => 0, wanthttp => 0, wantredis => 1);
+                ok($dn->eventExist("Node Down"),
+                   "dark device beyond the freshness grace + producer up -> Node Down raised");
+
+                my @health_calls = grep { ($_->{type} // '') eq 'health' } @main::RRD_CALLS;
+                my $health_call = $health_calls[-1];
+                is($health_call && $health_call->{data}{reachability}, 0,
+                   "escalated dark device: reachability metric driven to 0")
+                    or diag("health RRD calls: "
+                        .join(",", map { "reachability=".($_->{data}{reachability} // 'undef') } @health_calls));
+                is($dn->coarse_status, 0,
+                   "escalated dark device: coarse_status is 0 (unreachable), consistent with reachability");
+                {
+                    my %ps = $dn->precise_status;
+                    is($ps{overall}, 0,
+                       "escalated dark device: precise_status.overall is 0, consistent with reachability/coarse_status");
+                }
+
+                # (d) recovery: a fresh online payload clears Node Down and
+                # advances the watermark again.
+                $dset->('online');
+                $dn->collect(wantsnmp => 0, wantwmi => 0, wanthttp => 0, wantredis => 1);
+                ok(!$dn->eventExist("Node Down"),
+                   "recovery: fresh online payload clears Node Down");
+                my ($ci_d) = $dn->inventory(concept => "catchall");
+                my $stamp_d = $ci_d->data->{last_redis_fresh_epoch};
+                ok(defined($stamp_d) && $stamp_d > $stamp_a,
+                   "recovery: fresh online payload advances last_redis_fresh_epoch")
+                    or diag("stamp_a=$stamp_a stamp_d=".($stamp_d // 'undef'));
+            }
         }
     }
 
@@ -1274,6 +1375,14 @@ SKIP: {
         is(($dev->producer_state('hpe_greenlake'))[0], 'stale', 'aged row -> stale');
         is(($dev->producer_state('no_such_engine'))[0], 'unknown', 'missing engine row -> unknown');
         is(($dev->producer_state('fielddrop_engine'))[0], 'unknown', 'row present but fields missing -> unknown');
+
+        # third return value: the row's poll interval, used by
+        # apply_redis_reachability as the fallback dark-device grace when the
+        # model's section freshness isn't set.
+        is(($dev->producer_state('meraki'))[2], 60,
+           'fresh row also returns its interval as the third value');
+        is(($dev->producer_state('no_such_engine'))[2], undef,
+           'unknown (missing row) returns undef interval');
     }
 
     $ng->get_db()->drop();
