@@ -2254,9 +2254,21 @@ sub notify
     # if it does we get index issues. deleting it here means escalations will not be run
     # on that up event, ok because it's going down now anyway, no reason to notify it
 	# this is only called when things are going down, validate with ~normal anyway
+	#
+	# the leftover "up" doc here is always the interim companion event that
+	# Event::check() creates when clearing the down event: it converts the
+	# down doc in place to active=>0 (not yet historic, that's left for
+	# process_escalations). Event::_query() defaults active=>1 when it isn't
+	# given, so without an explicit active=>0 here this lookup never matches
+	# that interim doc and silently no-ops, which on a 2nd down->up cycle
+	# leaves the interim doc's (node_uuid,event,element,active) key still
+	# occupied and collides with the unique index when the 2nd down event is
+	# itself converted to up (OMK task E1). a genuinely *active* up event
+	# should never exist (up events are only ever created via that
+	# down->up conversion), so restricting to active=>0 is safe here.
 	my $thisevent_up =  $thisevent_control->{CancelingEvent} // undef;
 	if( $thisevent_up && $thisevent_up ne 'N/A' && $level !~ /Normal/i ) {
-		my $eventobjUP = $S->nmisng_node->event( event => $thisevent_up, element => $element, historic => 0 ); # no search for active, really no active up events should exist
+		my $eventobjUP = $S->nmisng_node->event( event => $thisevent_up, element => $element, active => 0, historic => 0 );
 		$eventobjUP->delete() if( $eventobjUP );
 	}
 
