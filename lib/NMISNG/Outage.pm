@@ -83,7 +83,9 @@ use NMISNG::Util;
 #  be set from os user of the current process)
 #
 # selector patterns ('regex:'/'iregex:' array entries, '/.../' strings)
-# are compile-checked and the whole update is rejected if one is malformed
+# are compile-checked and length-capped (config item
+# max_outage_pattern_length, default 256); the whole update is rejected
+# if one is malformed or oversized
 #
 # returns: hashref, keys success/error, id
 sub update_outage
@@ -149,6 +151,8 @@ sub update_outage
 	if ($freq eq "once" && $parsedtimes{start} >= $parsedtimes{end});
 
 	# quick/rough sanity check of selectors
+	# pattern length cap from config, default 256 (see invalid_selector_pattern)
+	my $maxpat = NMISNG::Util::loadConfTable()->{max_outage_pattern_length};
 	$newrec{selector} = {};
 	if (ref($args{selector}) eq "HASH")
 	{
@@ -159,7 +163,7 @@ sub update_outage
 				for my $onesel (@$catsel)
 				{
 					next if (ref($onesel) ne "HASH");
-					my $problem = invalid_selector_pattern($onesel->{element_name});
+					my $problem = invalid_selector_pattern($onesel->{element_name}, $maxpat);
 					return { error => "invalid regex in selector \"$cat\" entry \"$onesel->{element_name}\": $problem" }
 					if ($problem);
 				}
@@ -179,7 +183,7 @@ sub update_outage
 					my @entries = grep( defined($_), @{$catsel->{$onesel}});
 					for my $entry (@entries)
 					{
-						my $problem = invalid_selector_pattern($entry);
+						my $problem = invalid_selector_pattern($entry, $maxpat);
 						return { error => "invalid regex in selector \"$cat.$onesel\" entry \"$entry\": $problem" }
 						if ($problem);
 					}
@@ -187,7 +191,7 @@ sub update_outage
 				}
 				elsif (defined $catsel->{$onesel})
 				{
-					my $problem = invalid_selector_pattern($catsel->{$onesel});
+					my $problem = invalid_selector_pattern($catsel->{$onesel}, $maxpat);
 					return { error => "invalid regex in selector \"$cat.$onesel\": $problem" }
 					if ($problem);
 					$newrec{selector}->{$cat}->{$onesel} = $catsel->{$onesel};
@@ -491,6 +495,18 @@ sub selector_entry_matches
 	if ($entry =~ /^(i?)regex:(.+)\z/s)
 	{
 		my ($ci, $pat) = ($1, $2);
+		# enforce the same cap as write-time validation: hand-edited files
+		# bypass it, and an oversized pattern can stall polling via
+		# catastrophic backtracking. oversized means logged no-match.
+		my $max = ($nmisng && ref($nmisng->config) eq "HASH")?
+				$nmisng->config->{max_outage_pattern_length} : undef;
+		$max = 256 if (!defined $max or $max !~ /^\d+$/ or !$max);
+		if (length($pat) > $max)
+		{
+			$nmisng->log->warn("outage selector: pattern in '" . substr($entry,0,40)
+												 . "...' exceeds $max characters, treating as no-match") if ($nmisng);
+			return 0;
+		}
 		my $re = eval { $ci? qr{$pat}i : qr{$pat} };
 		if (!defined $re)
 		{
@@ -502,17 +518,20 @@ sub selector_entry_matches
 	return ($actual eq $entry)? 1 : 0;
 }
 
-# check that a selector value's pattern (if it is one) would compile.
-# handles the array-entry 'regex:'/'iregex:' prefix form and the
-# scalar '/.../' or '/.../i' regex-string form; any other value passes,
+# check that a selector value's pattern (if it is one) would compile and is
+# not oversized. handles the array-entry 'regex:'/'iregex:' prefix form and
+# the scalar '/.../' or '/.../i' regex-string form; any other value passes,
 # as it is matched by strict equality.
 #
-# args: value (one selector string)
+# args: value (one selector string),
+#  max (optional pattern length cap; callers pass the
+#  max_outage_pattern_length config item, default 256)
 # returns: undef if the value is usable, error message otherwise
 sub invalid_selector_pattern
 {
-	my ($value) = @_;
+	my ($value, $max) = @_;
 	return undef if (!defined $value or ref($value));
+	$max = 256 if (!defined $max or $max !~ /^\d+$/ or !$max);
 
 	my $pat;
 	if ($value =~ /^(i?)regex:(.+)\z/s)
@@ -527,6 +546,10 @@ sub invalid_selector_pattern
 	{
 		return undef;
 	}
+	# bound the pattern length: compiling says nothing about execution cost,
+	# and these patterns run inside polling against every candidate node.
+	# keep in lockstep with OMK::OutageSelector::validate_selector_regexes
+	return "pattern exceeds $max characters" if (length($pat) > $max);
 	my $re = eval { qr{$pat} };
 	if (!defined $re)
 	{

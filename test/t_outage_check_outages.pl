@@ -79,6 +79,23 @@ my $debug = $nvp{debug};
 	like( $v->("regex:[unclosed"),  qr/Unmatched \[/, "malformed regex entry is rejected" );
 	like( $v->("iregex:(unclosed"), qr/Unmatched \(/, "malformed iregex entry is rejected" );
 	like( $v->("/[unclosed/"),      qr/Unmatched \[/, "malformed regex-string is rejected" );
+
+	# length cap: compiling says nothing about execution cost, and these
+	# patterns run inside polling, so oversized ones are rejected at write time.
+	# the cap comes from config item max_outage_pattern_length, default 256
+	ok( !defined $v->("regex:" . ("a" x 256)), "pattern at the 256-char cap passes validation" );
+	like( $v->("regex:" . ("a" x 257)), qr/exceeds 256/, "pattern over the 256-char cap is rejected" );
+	like( $v->("/" . ("a" x 257) . "/i"), qr/exceeds 256/, "regex-string over the cap is rejected" );
+	like( $v->("regex:aaaa", 3), qr/exceeds 3/, "explicit max argument overrides the default cap" );
+	ok( !defined $v->("regex:" . ("a" x 280), 300), "raised max argument admits a longer pattern" );
+	like( $v->("regex:" . ("a" x 257), "bogus"), qr/exceeds 256/, "non-numeric max falls back to the default" );
+
+	# the matcher enforces the same cap on stored patterns (hand-edited files
+	# bypass write-time validation): oversized means logged no-match, not a stall
+	ok( !$m->(("a" x 300), "regex:" . ("a" x 257)),
+			"oversized stored pattern is refused at match time" );
+	ok( $m->(("a" x 300), "regex:" . ("a" x 256)),
+			"stored pattern at the cap still matches" );
 }
 
 # --- config + isolated database -------------------------------------------
