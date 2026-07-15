@@ -104,4 +104,19 @@ sub close_session { return undef; }
 # Default: 0.
 sub manages_own_inventory { return 0; }
 
+# Reachability semantics: does a SUCCESSFUL collection round-trip prove the
+# device is reachable?
+#   1 (default) - live-probe engines (snmp/wmi/http): the collection IS the
+#       reachability test, so a failed collection ("<Engine> Down") means the
+#       device is unreachable.
+#   0 - push engines (redis): the fetch is from a local cache/broker and
+#       succeeds even when the device is OFFLINE; "<Engine> Down" means the
+#       transport/fetch is down, NOT the device. Device reachability for such
+#       an engine comes from the payload status, which apply_redis_reachability
+#       maps onto the node-level "Node Down" event.
+# This is a DIFFERENT axis from manages_own_inventory (which is about inventory
+# lifecycle / who runs the systemHealth reconcile). Do not conflate them.
+# Default: 1.
+sub collection_probes_reachability { return 1; }
+
 1;

@@ -134,6 +134,39 @@ sub enabled_sources
 # post-processing loop all consume them.
 sub known_sources { return [qw(snmp wmi http redis)]; }
 
+# Map a known_sources name to its engine package. Single source of truth for
+# the source<->class relationship (mirrors the engine construction in init()).
+my %_engine_package = (
+	snmp  => 'NMISNG::Sys::Engine::SNMP',
+	wmi   => 'NMISNG::Sys::Engine::WMI',
+	http  => 'NMISNG::Sys::Engine::HTTP',
+	redis => 'NMISNG::Sys::Engine::Redis',
+);
+
+# Reachability capability by source NAME, for callers that have no live Sys
+# (e.g. Node::precise_status). Reads the engine class's
+# collection_probes_reachability (see NMISNG::Sys::Engine) - loading the class
+# on demand - and memoises it. Returns 1 (live-probe: a successful collection
+# proves reachability) for an unknown source or a class that fails to load, so
+# an unrecognised engine keeps the conservative, historical treatment.
+my %_probes_reachability_cache;
+sub source_probes_reachability
+{
+	my ($class, $source) = @_;
+	return $_probes_reachability_cache{$source}
+		if (defined $source && exists $_probes_reachability_cache{$source});
+	my $probes = 1;
+	if (defined $source && (my $pkg = $_engine_package{$source}))
+	{
+		if (eval "require $pkg; 1")
+		{
+			$probes = $pkg->collection_probes_reachability ? 1 : 0;
+		}
+	}
+	$_probes_reachability_cache{$source} = $probes if (defined $source);
+	return $probes;
+}
+
 # The model data-source block keys across all known engine classes (snmp,
 # wmi, http_prom, http_json, redis) — derived from the engines themselves so
 # it cannot drift, and usable without instantiated engines (e.g. by the GUI

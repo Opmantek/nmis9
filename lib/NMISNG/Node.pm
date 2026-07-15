@@ -1476,22 +1476,50 @@ sub precise_status
 		$precise{failover_ping_status} = ($backupexists || $downexists)? 0:1;
 	}
 
-	# A redis push node (HPE GreenLake/Aruba etc.) has ping/snmp/wmi all
-	# disabled, so the source-based checks below fall through to overall=1
-	# (reachable) even when the device reported OFFLINE and a Node Down event
-	# is active. Make the device-status Node Down authoritative for such nodes,
-	# mirroring coarse_status (which already keys node status off the Node Down
-	# event) and the catchall nodestatus. Scoped to redis push nodes
-	# (nmisent_engine_type set) so ping/snmp/wmi nodes are unaffected.
-	my $redis_engine = $self->configuration->{nmisent_engine_type};
-	if ($downexists and defined $redis_engine and $redis_engine ne "")
+	# Generic per-engine reachability, replacing the hardcoded snmp/wmi overall
+	# checks and the redis special-case. Each ENABLED source contributes a
+	# "device unreachable" signal: a live-probe engine
+	# (collection_probes_reachability=1: snmp/wmi/http) via its own "<X> Down"
+	# event; a push engine (=0: redis) via the device-status "Node Down" event
+	# maintained by apply_redis_reachability. This also represents HTTP, which
+	# the old two-check logic omitted. "Enabled" comes from the catchall
+	# "<X>down" marker when present (snmp/wmi/node = enabled at last collect,
+	# preserving existing behaviour) and from the derived config flag otherwise
+	# (http/redis have no marker).
+	my ($live_down, $push_down) = (0, 0);
+	my $downevents = handle_down_eventnames();
+	for my $source (@{ NMISNG::Sys->known_sources })
 	{
-		$precise{overall} = 0;
+		my $enabled = defined($catchall_data->{"${source}down"})
+			? 1 : NMISNG::Util::getbool($self->configuration->{"${source}_enabled"});
+		next if (!$enabled);
+
+		if (NMISNG::Sys->source_probes_reachability($source))
+		{
+			# live-probe: its own down event means the device is unreachable.
+			# Reuse the snmp/wmi status already computed above to avoid a second
+			# event lookup; compute the rest (e.g. http) fresh.
+			my $down = defined($precise{"${source}_status"})
+				? ($precise{"${source}_status"} ? 0 : 1)
+				: ($self->eventExist($downevents->{$source}) ? 1 : 0);
+			$live_down = 1 if ($down);
+		}
+		else
+		{
+			# push: device reachability comes from "Node Down", not from the
+			# (locally-cached) fetch succeeding.
+			$push_down = 1 if ($downexists);
+		}
 	}
-	# overall status: ping disabled -> the WORSE one of snmp and wmi states is authoritative
-	elsif (!$precise{ping_enabled}
-			and ( ($precise{wmi_enabled} and !$precise{wmi_status})
-						or ($precise{snmp_enabled} and !$precise{snmp_status}) ))
+
+	# overall status, preserving the existing severity semantics:
+	#  ping disabled + any enabled engine reports down       -> unreachable (0)
+	#  ping enabled + unpingable (Node Down)                 -> unreachable (0)
+	#  ping enabled + pingable but a live-probe source down,
+	#    or failover/backup down                             -> degraded (-1)
+	#  recently-bad status summary                           -> degraded (-1)
+	#  otherwise                                             -> reachable (1)
+	if (!$precise{ping_enabled} and ($live_down or $push_down))
 	{
 		$precise{overall} = 0;
 	}
@@ -1500,10 +1528,8 @@ sub precise_status
 	{
 		$precise{overall} = 0;
 	}
-	# ping enabled, pingable but dead snmp or dead wmi or failover -> degraded
-	# only applicable is collect eq true, handles SNMP Down incorrectness
-	elsif ( ($precise{wmi_enabled} and !$precise{wmi_status})
-					or ($precise{snmp_enabled} and !$precise{snmp_status})
+	# ping enabled, pingable but a live-probe source down or failover -> degraded
+	elsif ( $live_down
 					or (defined($precise{failover_status}) && !$precise{failover_status})
 					or (defined($precise{failover_ping_status}) && !$precise{failover_ping_status})
 			)
@@ -6854,18 +6880,17 @@ sub compute_reachability
 	# copy stashed results (produced by runPing and getnodeinfo)
 	my $pingresult = $RI->{pingresult};
 
-	# Redis push nodes (HPE GreenLake/Aruba/Meraki etc.) have ping disabled, so
-	# runPing fakes pingresult=100 and a successful redis fetch sets
-	# redisresult=100 - together those would score reachability=100 even when
-	# the device's reported status is OFFLINE. apply_redis_reachability (run
-	# earlier in collect) already mapped that status onto the "Node Down"
-	# event; key the reachability metric off that same event so it agrees with
-	# coarse_status/nodestatus and precise_status (all event-driven), treating
-	# a down device like an unpingable node. Scoped to ping-disabled redis push
-	# nodes so ping/snmp/wmi/http nodes are unaffected.
-	my $redis_engine = $self->configuration->{nmisent_engine_type};
-	if ( defined $redis_engine and $redis_engine ne ""
-		and NMISNG::Util::getbool($catchall_data->{ping}, "invert")
+	# For a ping-disabled node, a push engine (collection_probes_reachability=0,
+	# e.g. redis) reports device status through the "Node Down" event that
+	# apply_redis_reachability maintains, not through a live probe - runPing
+	# faked pingresult=100 for it, and a successful fetch sets its source result
+	# to 100, which would otherwise score the node reachable while it is
+	# OFFLINE. Treat a down device as unpingable so the reachability metric
+	# matches coarse_status/nodestatus and precise_status. Live-probe engines
+	# (snmp/wmi/http) are unaffected: a failed collection already pulls
+	# pollresult down below.
+	if ( NMISNG::Util::getbool($catchall_data->{ping}, "invert")
+		and ( grep { $_->is_active && !$_->collection_probes_reachability } @{$S->engines} )
 		and $self->eventExist("Node Down") )
 	{
 		$pingresult = 0;

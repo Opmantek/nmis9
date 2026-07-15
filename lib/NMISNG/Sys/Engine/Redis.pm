@@ -24,6 +24,11 @@ our $VERSION = "9.6.5";
 sub protocol_name         { return "redis"; }
 sub section_keys          { return ['redis']; }
 sub manages_own_inventory { return 1; }
+# Push engine: a successful fetch from redis does NOT prove the device is
+# reachable (the payload can report OFFLINE). Reachability comes from the
+# device status, mapped onto "Node Down" by apply_redis_reachability. See
+# NMISNG::Sys::Engine::collection_probes_reachability.
+sub collection_probes_reachability { return 0; }
 
 sub new
 {

@@ -1004,6 +1004,125 @@ $RI->{snmpresult} = 100;
 $RI->{wmiresult}  = undef;
 
 # ============================================================
+# Phase 5c: precise_status is generic over engines (snmp/wmi/http/redis).
+# Proves the newly-closed HTTP gap plus regression guards for the original
+# ping/snmp/wmi severity semantics (degraded vs unreachable).
+# ============================================================
+diag("=== Phase 5c: generic precise_status across engines ===");
+
+# minimal Sys for raising/clearing events on an already-saved node
+my $mksys = sub {
+	my ($n, $inv) = @_;
+	my $s = NMISNG::Sys->new(nmisng => $nmisng);
+	$s->init(node => $n, snmp => 0, wmi => 0, update => 0, catchall_inventory => $inv);
+	return $s;
+};
+
+# --- HTTP node, ping-disabled: the previously-unrepresented case ---
+my $http_node = NMISNG::Node->new(uuid => NMISNG::Util::getUUID(), nmisng => $nmisng);
+$http_node->cluster_id($C->{cluster_id});
+$http_node->name("test_http_node");
+$http_node->configuration({
+	host           => "test_http_node",
+	group          => "TestGroup",
+	netType        => "default",
+	roleType       => "default",
+	model          => "TestSnmp",
+	collect        => "true",
+	ping           => "false",
+	http_endpoints => [ { url => "http://127.0.0.1/metrics" } ],   # -> http_enabled=1
+});
+my (undef, $herr) = $http_node->save();
+ok(!$herr, "http node saved") or diag("Save error: $herr");
+is($http_node->configuration->{http_enabled}, 1, "http node has http_enabled derived");
+my ($http_inv, $hc_err) = $http_node->inventory(concept => "catchall", model_class => "system");
+ok(!$hc_err, "http node catchall created") or diag("Error: $hc_err");
+my $hcd = $http_inv->data_live();
+$hcd->{collect} = "true"; $hcd->{ping} = "false";
+$http_inv->save(node => $http_node);
+my $S_http = $mksys->($http_node, $http_inv);
+
+{
+	my %ps = $http_node->precise_status;
+	is($ps{overall}, 1, "http ping-disabled, no HTTP Down: precise_status.overall=1 (reachable)");
+}
+Compat::NMIS::notify(sys => $S_http, event => "HTTP Down", element => "",
+	details => "http endpoint down", inventory_id => $http_inv->id);
+{
+	my %ps = $http_node->precise_status;
+	is($ps{overall}, 0, "http ping-disabled with HTTP Down: precise_status.overall=0 (unreachable) [gap closed]");
+}
+Compat::NMIS::checkEvent(sys => $S_http, event => "HTTP Down", level => "Normal",
+	element => "", details => "ok", inventory_id => $http_inv->id);
+{
+	my %ps = $http_node->precise_status;
+	is($ps{overall}, 1, "http ping-disabled, HTTP Down cleared: precise_status.overall=1 (reachable)");
+}
+
+# --- SNMP node, ping-disabled: unchanged behaviour ($snmp_node has community, ping=false) ---
+my $S_snmp_ps = $mksys->($snmp_node, $snmp_catchall_inv);
+Compat::NMIS::notify(sys => $S_snmp_ps, event => "SNMP Down", element => "",
+	details => "snmp down", inventory_id => $snmp_catchall_inv->id);
+{
+	my %ps = $snmp_node->precise_status;
+	is($ps{overall}, 0, "snmp ping-disabled with SNMP Down: precise_status.overall=0 (unreachable)");
+}
+Compat::NMIS::checkEvent(sys => $S_snmp_ps, event => "SNMP Down", level => "Normal",
+	element => "", details => "ok", inventory_id => $snmp_catchall_inv->id);
+{
+	my %ps = $snmp_node->precise_status;
+	is($ps{overall}, 1, "snmp ping-disabled, SNMP Down cleared: precise_status.overall=1 (reachable)");
+}
+
+# --- SNMP node, ping-ENABLED: degraded (pingable + source down) vs unreachable (unpingable) ---
+my $ping_node = NMISNG::Node->new(uuid => NMISNG::Util::getUUID(), nmisng => $nmisng);
+$ping_node->cluster_id($C->{cluster_id});
+$ping_node->name("test_ping_snmp_node");
+$ping_node->configuration({
+	host      => "127.0.0.1",
+	group     => "TestGroup",
+	netType   => "default",
+	roleType  => "default",
+	model     => "TestSnmp",
+	collect   => "true",
+	ping      => "true",
+	community => "public",
+	version   => "snmpv2c",
+});
+my (undef, $perr) = $ping_node->save();
+ok(!$perr, "ping-enabled snmp node saved") or diag("Save error: $perr");
+my ($ping_inv, $pc_err) = $ping_node->inventory(concept => "catchall", model_class => "system");
+ok(!$pc_err, "ping-enabled node catchall created") or diag("Error: $pc_err");
+my $pcd = $ping_inv->data_live();
+$pcd->{collect} = "true"; $pcd->{ping} = "true"; $pcd->{snmpdown} = "false";  # snmp enabled marker
+$ping_inv->save(node => $ping_node);
+my $S_ping = $mksys->($ping_node, $ping_inv);
+
+# pingable (no Node Down) + SNMP Down -> degraded (-1)
+Compat::NMIS::notify(sys => $S_ping, event => "SNMP Down", element => "",
+	details => "snmp down", inventory_id => $ping_inv->id);
+{
+	my %ps = $ping_node->precise_status;
+	is($ps{overall}, -1, "ping-enabled, pingable + SNMP Down: precise_status.overall=-1 (degraded)");
+}
+# unpingable: Node Down active -> unreachable (0)
+Compat::NMIS::notify(sys => $S_ping, event => "Node Down", element => "",
+	details => "ping failed", inventory_id => $ping_inv->id);
+{
+	my %ps = $ping_node->precise_status;
+	is($ps{overall}, 0, "ping-enabled, unpingable (Node Down): precise_status.overall=0 (unreachable)");
+}
+# clear both -> reachable
+Compat::NMIS::checkEvent(sys => $S_ping, event => "Node Down", level => "Normal",
+	element => "", details => "ok", inventory_id => $ping_inv->id);
+Compat::NMIS::checkEvent(sys => $S_ping, event => "SNMP Down", level => "Normal",
+	element => "", details => "ok", inventory_id => $ping_inv->id);
+{
+	my %ps = $ping_node->precise_status;
+	is($ps{overall}, 1, "ping-enabled, no down events: precise_status.overall=1 (reachable)");
+}
+
+# ============================================================
 # Phase 6: Test Compute Summary Stats
 # ============================================================
 diag("=== Phase 6: Compute Summary Stats ===");
