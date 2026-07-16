@@ -64,11 +64,12 @@ use NMISNG::Util;
 #   if under config.
 #
 #  value: either array, or string or regex-string ('/.../' or '/.../i')
-#  array: set of acceptable values. An entry matches by strict equality
-#   unless prefixed 'regex:' (case-sensitive) or 'iregex:' (case-insensitive),
-#   which match the property as a pattern; one or more entries must match.
+#  array: set of acceptable values, one or more entries must match
+#  single string: one acceptable value
+#  string values and array entries match by strict equality, unless prefixed
+#   'regex:' (case-sensitive) or 'iregex:' (case-insensitive), which match
+#   the property as an unanchored pattern.
 #   a malformed pattern is logged and never matches (it does not raise an error)
-#  single string: strict equality
 #  regex-string: identified property must match
 
 

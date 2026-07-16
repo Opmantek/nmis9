@@ -2054,11 +2054,11 @@ sub help
    push(@lines, "                                    or array of strings.\n");
    push(@lines, "                                    Note: Arrays must be given as separate\n");
    push(@lines, "                                           indexed entries.\n");
-   push(@lines, "                                          An array entry matches exactly, unless\n");
-   push(@lines, "                                           prefixed 'regex:' (case-sensitive) or\n");
-   push(@lines, "                                           'iregex:' (case-insensitive), which\n");
-   push(@lines, "                                           match the property as an unanchored\n");
-   push(@lines, "                                           pattern.\n");
+   push(@lines, "                                          A single string or array entry matches\n");
+   push(@lines, "                                           exactly, unless prefixed 'regex:'\n");
+   push(@lines, "                                           (case-sensitive) or 'iregex:'\n");
+   push(@lines, "                                           (case-insensitive), which match the\n");
+   push(@lines, "                                           property as an unanchored pattern.\n");
    push(@lines, "                                          All selectors must match for a node to\n");
    push(@lines, "                                           be subject to the outage.\n");
    push(@lines, "     act=check-outages [node=<name>|uuid=<outage_id>] [time=<time>]\n");

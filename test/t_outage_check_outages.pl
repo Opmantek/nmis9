@@ -218,7 +218,9 @@ my %outages = (
 	},
 	# scalar (non-array) selector values: the prefix form must behave the same
 	# as an array entry, and an oversized stored /.../ regex-string must be a
-	# no-match instead of running uncapped
+	# no-match instead of running uncapped. the oversized pattern WOULD match
+	# the node's group if the cap were ignored, so the assertion discriminates
+	# cap enforcement, not merely no-crash
 	out_now_scalar_regex => {
 		id => "out_now_scalar_regex", description => "scalar regex: selector value, matches",
 		frequency => "once", start => $now - $HR, end => $now + $HR,
@@ -227,7 +229,7 @@ my %outages = (
 	out_now_scalar_slash_long => {
 		id => "out_now_scalar_slash_long", description => "oversized scalar /.../ regex-string, capped to no-match",
 		frequency => "once", start => $now - $HR, end => $now + $HR,
-		options => {}, selector => { node => { group => "/" . ("a" x 300) . "/" } },
+		options => {}, selector => { node => { group => "/group" . ("(?:)" x 70) . "/" } },
 	},
 	out_future => {
 		id => "out_future", description => "exact name, starts later",
