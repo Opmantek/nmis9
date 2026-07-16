@@ -21,6 +21,10 @@ use lib "/usr/local/nmis9/conf/plugins";
 
 use Test::More;
 
+# The OTel helpers/maps now live in the shared NMISNG::OTel module (used by
+# both this plugin and the MCP server) rather than being defined in the plugin.
+use NMISNG::OTel qw(get_description);
+
 # ---------------------------------------------------------------------------
 # 1. Plugin loads and exports expected symbols
 # ---------------------------------------------------------------------------
@@ -107,8 +111,8 @@ my $desc_tests = [
 for my $t (@$desc_tests)
 {
 	my ($concept, $data, $expected, $label) = @$t;
-	my $got = mqttobservations::_get_description($concept, $data);
-	is($got, $expected, "_get_description: $label");
+	my $got = get_description($concept, $data);
+	is($got, $expected, "get_description: $label");
 }
 
 # ---------------------------------------------------------------------------

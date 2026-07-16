@@ -34,6 +34,12 @@
 
 		# Set to 1 to enable verbose per-message debug logging
 		'extra_logging' => 0,
+
+		# Permit plaintext-MQTT login (sets MQTT_SIMPLE_ALLOW_INSECURE_LOGIN).
+		# This plugin only speaks plaintext MQTT, so this must be true (the
+		# default when the key is absent) for observations to publish. Set to 0
+		# only to deliberately disable this plugin's publishing.
+		'allow_insecure' => 1,
 	},
 
 	# Optional secondary MQTT broker. If configured, every message is also

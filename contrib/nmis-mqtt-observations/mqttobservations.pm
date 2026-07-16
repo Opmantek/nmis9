@@ -45,173 +45,9 @@ use lib "$FindBin::Bin/../../lib";
 use JSON::XS;
 use NMISNG;
 use NMISNG::Util;
-
-
-# Maps concept names to the inventory data fields that best describe an instance.
-# The first defined, non-empty field found is used.
-my %DESCRIPTION_FIELDS = (
-	'interface'        => [qw(ifDescr Description)],
-	'catchall'         => [qw(sysDescr sysName nodeType)],
-	'Host_Storage'     => [qw(hrStorageDescr)],
-	'Host_File_System' => [qw(hrFSMountPoint hrFSType)],
-	'Host_Partition'   => [qw(hrPartitionLabel hrPartitionID)],
-	'entityMib'        => [qw(entPhysicalName entPhysicalDescr)],
-	'cdp'              => [qw(cdpCacheDeviceId cdpCacheDevicePort)],
-	'lldp'             => [qw(lldpRemSysName lldpRemPortDesc)],
-	'bgp'              => [qw(bgpPeerIdentifier)],
-	'vlan'             => [qw(vlanName vtpVlanName)],
-	'mpls'             => [qw(mplsVpnVrfName)],
-	'cbqos'            => [qw(CbQosPolicyMapName)],
-	'addressTable'     => [qw(dot1dTpFdbAddress)],
-	'diskIOTable'      => [qw(diskIODevice)],
-	'env-temp'         => [qw(lmTempSensorsDevice)],
-	'storage'          => [qw(hrStorageDescr)],
-	'service'          => [qw(service)],
-	'ping'             => [qw(host)],
-	'device'           => [qw(index)],
-);
-
-# Fallback field names tried in order when concept is not in the map above.
-my @FALLBACK_DESCRIPTION_FIELDS = qw(Description description Name name ifDescr);
-
-# Rename concepts for clearer MQTT topic/payload naming.
-my %CONCEPT_RENAME = (
-	'device' => 'cpuLoad',
-);
-
-# Maps NMIS field names to OTel semantic convention names, keyed by concept/subconcept.
-# Fields not listed here are passed through with a "nmis." prefix.
-my %FIELD_RENAME = (
-
-	# --- Interface (system.network.*) ---
-	'interface' => {
-		'ifInOctets'        => 'system.network.io.receive',
-		'ifOutOctets'       => 'system.network.io.transmit',
-		'ifInUcastPkts'     => 'system.network.packets.receive',
-		'ifOutUcastPkts'    => 'system.network.packets.transmit',
-		'ifInErrors'        => 'system.network.errors.receive',
-		'ifOutErrors'       => 'system.network.errors.transmit',
-		'ifInDiscards'      => 'system.network.dropped.receive',
-		'ifOutDiscards'     => 'system.network.dropped.transmit',
-		'ifSpeed'           => 'system.network.speed',
-		'ifOperStatus'      => 'system.network.status',
-	},
-
-	# --- CPU/memory (device concept, renamed to cpuLoad in topics) ---
-	'device' => {
-		'cpuLoad'           => 'system.cpu.utilization',
-		'cpu1min'           => 'system.cpu.utilization.1m',
-		'cpu5min'           => 'system.cpu.utilization.5m',
-		'memUtil'           => 'system.memory.utilization',
-		'memAvail'          => 'system.memory.usage.available',
-	},
-
-	# --- Host Storage ---
-	'Host_Storage' => {
-		'hrStorageUsed'            => 'system.filesystem.usage.used',
-		'hrStorageSize'            => 'system.filesystem.usage.total',
-		'hrStorageAllocationUnits' => 'system.filesystem.allocation_unit',
-		'hrStorageType'            => 'system.filesystem.type',
-	},
-
-	# --- Disk IO ---
-	'diskIOTable' => {
-		'diskIOReads'       => 'system.disk.operations.read',
-		'diskIOWrites'      => 'system.disk.operations.write',
-		'diskIOReadBytes'   => 'system.disk.io.read',
-		'diskIOWriteBytes'  => 'system.disk.io.write',
-	},
-
-	# --- Catchall: health ---
-	'health' => {
-		'reachability'       => 'nmis.node.reachability',
-		'availability'       => 'nmis.node.availability',
-		'health'             => 'nmis.node.health',
-		'responsetime'       => 'nmis.node.response_time_ms',
-		'loss'               => 'nmis.node.packet_loss',
-		'intfCollect'        => 'nmis.node.intf_collect',
-		'intfColUp'          => 'nmis.node.intf_collect_up',
-		'reachabilityHealth' => 'nmis.node.reachability_health',
-		'availabilityHealth' => 'nmis.node.availability_health',
-		'responseHealth'     => 'nmis.node.response_health',
-		'cpuHealth'          => 'nmis.node.cpu_health',
-		'memHealth'          => 'nmis.node.mem_health',
-		'intHealth'          => 'nmis.node.int_health',
-		'diskHealth'         => 'nmis.node.disk_health',
-		'swapHealth'         => 'nmis.node.swap_health',
-	},
-
-	# --- Catchall: Host_Health ---
-	'Host_Health' => {
-		'hrSystemProcesses' => 'system.process.count',
-		'hrSystemNumUsers'  => 'system.users.count',
-	},
-
-	# --- Catchall: laload (load averages) ---
-	'laload' => {
-		'laLoad1'           => 'system.cpu.load_average.1m',
-		'laLoad5'           => 'system.cpu.load_average.5m',
-	},
-
-	# --- Catchall: mib2ip (IP statistics) ---
-	'mib2ip' => {
-		'ipInReceives'      => 'system.network.ip.in_receives',
-		'ipInHdrErrors'     => 'system.network.ip.in_header_errors',
-		'ipInAddrErrors'    => 'system.network.ip.in_address_errors',
-		'ipForwDatagrams'   => 'system.network.ip.forwarded',
-		'ipInUnknownProtos' => 'system.network.ip.in_unknown_protos',
-		'ipInDiscards'      => 'system.network.ip.in_discards',
-		'ipInDelivers'      => 'system.network.ip.in_delivers',
-		'ipOutRequests'     => 'system.network.ip.out_requests',
-		'ipOutDiscards'     => 'system.network.ip.out_discards',
-		'ipReasmReqds'      => 'system.network.ip.reassembly_required',
-		'ipReasmOKs'        => 'system.network.ip.reassembly_ok',
-		'ipReasmFails'      => 'system.network.ip.reassembly_failed',
-		'ipFragOKs'         => 'system.network.ip.fragmentation_ok',
-		'ipFragCreates'     => 'system.network.ip.fragments_created',
-		'ipFragFails'       => 'system.network.ip.fragmentation_failed',
-	},
-
-	# --- Catchall: systemStats (UCD-SNMP-MIB) ---
-	'systemStats' => {
-		'ssCpuRawUser'      => 'system.cpu.time.user',
-		'ssCpuRawNice'      => 'system.cpu.time.nice',
-		'ssCpuRawSystem'    => 'system.cpu.time.system',
-		'ssCpuRawIdle'      => 'system.cpu.time.idle',
-		'ssCpuRawWait'      => 'system.cpu.time.wait',
-		'ssCpuRawKernel'    => 'system.cpu.time.kernel',
-		'ssCpuRawInterrupt' => 'system.cpu.time.interrupt',
-		'ssCpuRawSoftIRQ'   => 'system.cpu.time.soft_irq',
-		'ssIORawSent'       => 'system.disk.io.sent',
-		'ssIORawReceived'   => 'system.disk.io.received',
-		'ssRawInterrupts'   => 'system.cpu.interrupts',
-		'ssRawContexts'     => 'system.cpu.context_switches',
-		'ssRawSwapIn'       => 'system.memory.swap.in',
-		'ssRawSwapOut'      => 'system.memory.swap.out',
-	},
-
-	# --- Catchall: tcp (TCP-MIB) ---
-	'tcp' => {
-		'tcpActiveOpens'    => 'system.network.tcp.connections.opened.active',
-		'tcpPassiveOpens'   => 'system.network.tcp.connections.opened.passive',
-		'tcpAttemptFails'   => 'system.network.tcp.connections.failed',
-		'tcpEstabResets'    => 'system.network.tcp.connections.reset',
-		'tcpCurrEstab'      => 'system.network.tcp.connections.established',
-		'tcpInSegs'         => 'system.network.tcp.segments.received',
-		'tcpOutSegs'        => 'system.network.tcp.segments.sent',
-		'tcpRetransSegs'    => 'system.network.tcp.segments.retransmitted',
-		'tcpInErrs'         => 'system.network.tcp.errors.received',
-		'tcpOutRsts'        => 'system.network.tcp.resets.sent',
-	},
-
-	# --- Ping ---
-	'ping' => {
-		'avg_ping_time'     => 'network.peer.rtt.avg_ms',
-		'max_ping_time'     => 'network.peer.rtt.max_ms',
-		'min_ping_time'     => 'network.peer.rtt.min_ms',
-		'ping_loss'         => 'network.peer.packet_loss',
-	},
-);
+# OTel rename maps and helpers are shared with the NMIS MCP server; see
+# lib/NMISNG/OTel.pm. CONCEPT_RENAME is referenced fully-qualified below.
+use NMISNG::OTel qw(apply_field_rename get_description filter_derived filter_derived_flat);
 
 sub collect_plugin
 {
@@ -268,6 +104,17 @@ sub collect_plugin
 	my $retries       = int($mqtt_config->{retries} // 1);
 	my $base_topic    = $mqtt_config->{topic} // 'obs/nmis';
 
+	# This plugin only ever talks plaintext MQTT (Net::MQTT::Simple, never the
+	# TLS subclass), and login() croaks unless MQTT_SIMPLE_ALLOW_INSECURE_LOGIN
+	# is set. allow_insecure defaults ON when the key is absent so existing
+	# configs keep publishing; set it to 0 to explicitly forbid plaintext auth.
+	my $allow_insecure = defined($mqtt_config->{allow_insecure})
+		? NMISNG::Util::getbool($mqtt_config->{allow_insecure})
+		: 1;
+	my $allow_insecure_secondary = ($mqtt_secondary && defined($mqtt_secondary->{allow_insecure}))
+		? NMISNG::Util::getbool($mqtt_secondary->{allow_insecure})
+		: 1;
+
 	# Build the OTel-inspired resource envelope included in every message
 	my $node_uuid = $S->nmisng_node->uuid() // '';
 	my %envelope = (
@@ -322,7 +169,7 @@ sub collect_plugin
 			$topic_index =~ s/\s+/_/g;
 
 			# Determine the best human-readable description for this instance
-			my $description = _get_description($concept, $inv_data);
+			my $description = get_description($concept, $inv_data);
 
 			# Get latest data for this inventory instance (reads from latest_data collection)
 			my $latest = $inventory->get_newest_timed_data();
@@ -345,9 +192,9 @@ sub collect_plugin
 					my $sub_data = $latest->{data}{$subconcept};
 					next if (!$sub_data || ref($sub_data) ne 'HASH');
 
-					my $renamed_data    = _apply_field_rename($subconcept, $sub_data);
-					my $renamed_derived = _apply_field_rename($subconcept,
-						_filter_derived($latest->{derived_data}{$subconcept}));
+					my $renamed_data    = apply_field_rename($subconcept, $sub_data);
+					my $renamed_derived = apply_field_rename($subconcept,
+						filter_derived($latest->{derived_data}{$subconcept}));
 
 					push @messages, {
 						topic   => "$base_topic/$node/$subconcept",
@@ -365,7 +212,7 @@ sub collect_plugin
 			}
 			else
 			{
-				my $topic_concept = $CONCEPT_RENAME{$concept} // $concept;
+				my $topic_concept = $NMISNG::OTel::CONCEPT_RENAME{$concept} // $concept;
 
 				# Flatten all subconcept data into one hash for this inventory instance
 				my %raw_data;
@@ -374,9 +221,9 @@ sub collect_plugin
 					my $sub_data = $latest->{data}{$sub};
 					%raw_data = (%raw_data, %$sub_data) if ref($sub_data) eq 'HASH';
 				}
-				my $renamed_data    = _apply_field_rename($concept, \%raw_data);
-				my $renamed_derived = _apply_field_rename($concept,
-					_filter_derived_flat($latest->{derived_data}));
+				my $renamed_data    = apply_field_rename($concept, \%raw_data);
+				my $renamed_derived = apply_field_rename($concept,
+					filter_derived_flat($latest->{derived_data}));
 
 				push @messages, {
 					topic   => "$base_topic/$node/$topic_concept/" . do {
@@ -405,13 +252,14 @@ sub collect_plugin
 
 				my $encoded = $json_encoder->encode($msg->{payload});
 				my $pub_error = publishMqtt(
-					topic    => $msg->{topic},
-					message  => $encoded,
-					retain   => $retain,
-					retries  => $retries,
-					server   => $mqtt_config->{server},
-					username => $mqtt_config->{username},
-					password => $mqtt_config->{password},
+					topic          => $msg->{topic},
+					message        => $encoded,
+					retain         => $retain,
+					retries        => $retries,
+					server         => $mqtt_config->{server},
+					username       => $mqtt_config->{username},
+					password       => $mqtt_config->{password},
+					allow_insecure => $allow_insecure,
 				);
 				if ($pub_error)
 				{
@@ -427,13 +275,14 @@ sub collect_plugin
 					$NG->log->debug("MqttObservations: Publishing to secondary $sec_topic") if $extra_logging;
 
 					my $sec_error = publishMqtt(
-						topic    => $sec_topic,
-						message  => $encoded,
-						retain   => $retain,
-						retries  => $retries,
-						server   => $mqtt_secondary->{server},
-						username => $mqtt_secondary->{username},
-						password => $mqtt_secondary->{password},
+						topic          => $sec_topic,
+						message        => $encoded,
+						retain         => $retain,
+						retries        => $retries,
+						server         => $mqtt_secondary->{server},
+						username       => $mqtt_secondary->{username},
+						password       => $mqtt_secondary->{password},
+						allow_insecure => $allow_insecure_secondary,
 					);
 					if ($sec_error)
 					{
@@ -447,68 +296,6 @@ sub collect_plugin
 	return (0, undef);    # We publish externally; no NMIS node data was modified
 }
 
-# Filter a single derived_data hash: exclude keys beginning with "08" or "16"
-# args: hashref (may be undef)
-# returns: hashref (possibly empty)
-sub _filter_derived
-{
-	my ($src) = @_;
-	return {} if (!$src || ref($src) ne 'HASH');
-	my %filtered = map { $_ => $src->{$_} }
-		grep { $_ !~ /^(?:08|16)/ } keys %$src;
-	return \%filtered;
-}
-
-# Flatten a derived_data hash (keyed by subconcept) and filter 08/16 keys.
-# args: hashref of subconcept => hashref (may be undef)
-# returns: flat hashref (possibly empty)
-sub _filter_derived_flat
-{
-	my ($derived) = @_;
-	return {} if (!$derived || ref($derived) ne 'HASH');
-	my %out;
-	for my $sub (keys %$derived)
-	{
-		my $filtered = _filter_derived($derived->{$sub});
-		%out = (%out, %$filtered);
-	}
-	return \%out;
-}
-
-# Apply OTel field renaming to a flat hashref.
-# Known fields are renamed per %FIELD_RENAME; unknown fields get a "nmis." prefix.
-sub _apply_field_rename
-{
-	my ($concept, $src) = @_;
-	return {} if (!$src || ref($src) ne 'HASH');
-	my $map = $FIELD_RENAME{$concept} // {};
-	my %out;
-	for my $k (keys %$src)
-	{
-		next if $k =~ /_raw$/i;    # exclude raw counter fields
-		my $new_k = $map->{$k} // "nmis.$k";
-		$out{$new_k} = $src->{$k};
-	}
-	return \%out;
-}
-
-# Return the best description string for an inventory instance.
-# Tries concept-specific field names first, then generic fallbacks.
-sub _get_description
-{
-	my ($concept, $data) = @_;
-
-	my @fields = @{$DESCRIPTION_FIELDS{$concept} // []};
-	push @fields, @FALLBACK_DESCRIPTION_FIELDS;
-
-	for my $field (@fields)
-	{
-		return $data->{$field}
-			if defined $data->{$field} && $data->{$field} ne '';
-	}
-	return '';
-}
-
 sub publishMqtt {
 	my %arg = @_;
 	my $topic = $arg{topic};
@@ -518,8 +305,12 @@ sub publishMqtt {
 	my $server = $arg{server};
 	my $username = $arg{username};
 	my $password = $arg{password};
+	my $allow_insecure = $arg{allow_insecure};
 
-	$ENV{MQTT_SIMPLE_ALLOW_INSECURE_LOGIN} = 1;
+	# Net::MQTT::Simple refuses plaintext-MQTT login() unless this env var is
+	# set. Only opt in when the caller's config allows it, and localize the
+	# change so we don't mutate the process environment for everything else.
+	local $ENV{MQTT_SIMPLE_ALLOW_INSECURE_LOGIN} = $allow_insecure ? 1 : $ENV{MQTT_SIMPLE_ALLOW_INSECURE_LOGIN};
 
 	my $last_error;
 	for my $attempt (0 .. $retries)
