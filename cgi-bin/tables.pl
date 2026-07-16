@@ -55,7 +55,7 @@ my $C = NMISNG::Util::loadConfTable(debug=>$Q->{debug});
 die "failed to load configuration!\n" if (!$C or ref($C) ne "HASH" or !keys %$C);
 
 # if arguments present, then called from command line
-if ( @ARGV ) { $C->{auth_require} = 0; } # bypass auth
+if ( @ARGV and not $ENV{GATEWAY_INTERFACE} ) { $C->{auth_require} = 0; } # bypass auth for CLI only
 
 # variables used for the security mods
 my $headeropts = {type=>'text/html',expires=>'now'};
