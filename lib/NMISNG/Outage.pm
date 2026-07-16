@@ -64,9 +64,12 @@ use NMISNG::Util;
 #   if under config.
 #
 #  value: either array, or string or regex-string ('/.../' or '/.../i')
-#  array: set of acceptable values; one or more must meet strict equality
-#   test for the selector succeed
-#  single string: strict equality
+#  array: set of acceptable values, one or more entries must match
+#  single string: one acceptable value
+#  string values and array entries match by strict equality, unless prefixed
+#   'regex:' (case-sensitive) or 'iregex:' (case-insensitive), which match
+#   the property as an unanchored pattern.
+#   a malformed pattern is logged and never matches (it does not raise an error)
 #  regex-string: identified property must match
 
 
@@ -79,6 +82,12 @@ use NMISNG::Util;
 # meta (hash, optional, for audit logging, keys user and details.
 #  if missing, user will
 #  be set from os user of the current process)
+#
+# selector patterns ('regex:'/'iregex:' array entries, '/.../' strings)
+# are compile-checked and length-capped (config item
+# max_outage_pattern_length, default 256); the whole update is rejected
+# if one is malformed or oversized
+#
 # returns: hashref, keys success/error, id
 sub update_outage
 {
@@ -143,6 +152,8 @@ sub update_outage
 	if ($freq eq "once" && $parsedtimes{start} >= $parsedtimes{end});
 
 	# quick/rough sanity check of selectors
+	# pattern length cap from config, default 256 (see invalid_selector_pattern)
+	my $maxpat = NMISNG::Util::loadConfTable()->{max_outage_pattern_length};
 	$newrec{selector} = {};
 	if (ref($args{selector}) eq "HASH")
 	{
@@ -150,6 +161,13 @@ sub update_outage
 		{
 			my $catsel = $args{selector}->{$cat};
 			if ($cat eq 'element' && ref($catsel) eq 'ARRAY'){
+				for my $onesel (@$catsel)
+				{
+					next if (ref($onesel) ne "HASH");
+					my $problem = invalid_selector_pattern($onesel->{element_name}, $maxpat);
+					return { error => "invalid regex in selector \"$cat\" entry \"$onesel->{element_name}\": $problem" }
+					if ($problem);
+				}
 				$newrec{selector}->{$cat} = $catsel;
 			}
 			next if (ref($catsel) ne "HASH");
@@ -163,10 +181,20 @@ sub update_outage
 				if (ref($catsel->{$onesel}) eq "ARRAY")
 				{
 					# fix up any holes if item N was deleted but N+1... exist
-					$newrec{selector}->{$cat}->{$onesel} = [ grep( defined($_), @{$catsel->{$onesel}}) ];
+					my @entries = grep( defined($_), @{$catsel->{$onesel}});
+					for my $entry (@entries)
+					{
+						my $problem = invalid_selector_pattern($entry, $maxpat);
+						return { error => "invalid regex in selector \"$cat.$onesel\" entry \"$entry\": $problem" }
+						if ($problem);
+					}
+					$newrec{selector}->{$cat}->{$onesel} = \@entries;
 				}
 				elsif (defined $catsel->{$onesel})
 				{
+					my $problem = invalid_selector_pattern($catsel->{$onesel}, $maxpat);
+					return { error => "invalid regex in selector \"$cat.$onesel\": $problem" }
+					if ($problem);
 					$newrec{selector}->{$cat}->{$onesel} = $catsel->{$onesel};
 				}
 				else
@@ -453,6 +481,88 @@ sub purge_outages
 		success => @problems? 0 : 1 };
 }
 
+# match one selector entry (array element or scalar value) against the
+# actual property value.
+# entry is a fixed string, or an 'iregex:' (case-insensitive) or 'regex:'
+# (case-sensitive) prefixed pattern, matched unanchored.
+# a malformed pattern is logged and treated as no-match; it never dies.
+#
+# args: actual value, entry, nmisng (optional, for logging only)
+# returns: 1 if the entry matches, 0 otherwise
+sub selector_entry_matches
+{
+	my ($actual, $entry, $nmisng) = @_;
+	return 0 if (!defined $actual or !defined $entry);
+
+	if ($entry =~ /^(i?)regex:(.+)\z/s)
+	{
+		my ($ci, $pat) = ($1, $2);
+		# enforce the same cap as write-time validation, which hand-edited
+		# files bypass. this only bounds pattern size; it does not prevent
+		# catastrophic backtracking (a short nested-quantifier pattern can
+		# still be expensive). oversized means logged no-match.
+		my $max = ($nmisng && ref($nmisng->config) eq "HASH")?
+				$nmisng->config->{max_outage_pattern_length} : undef;
+		$max = 256 if (!defined $max or $max !~ /^\d+$/ or !$max);
+		if (length($pat) > $max)
+		{
+			$nmisng->log->warn("outage selector: pattern in '" . substr($entry,0,40)
+												 . "...' exceeds $max characters, treating as no-match") if ($nmisng);
+			return 0;
+		}
+		my $re = eval { $ci? qr{$pat}i : qr{$pat} };
+		if (!defined $re)
+		{
+			$nmisng->log->warn("outage selector: invalid regex '$entry': $@") if ($nmisng);
+			return 0;
+		}
+		return ($actual =~ $re)? 1 : 0;
+	}
+	return ($actual eq $entry)? 1 : 0;
+}
+
+# check that a selector value's pattern (if it is one) would compile and is
+# not oversized. handles the array-entry 'regex:'/'iregex:' prefix form and
+# the scalar '/.../' or '/.../i' regex-string form; any other value passes,
+# as it is matched by strict equality.
+#
+# args: value (one selector string),
+#  max (optional pattern length cap; callers pass the
+#  max_outage_pattern_length config item, default 256)
+# returns: undef if the value is usable, error message otherwise
+sub invalid_selector_pattern
+{
+	my ($value, $max) = @_;
+	return undef if (!defined $value or ref($value));
+	$max = 256 if (!defined $max or $max !~ /^\d+$/ or !$max);
+
+	my $pat;
+	if ($value =~ /^(i?)regex:(.+)\z/s)
+	{
+		$pat = $2;
+	}
+	elsif ($value =~ m!^/(.*)/(i)?$!)
+	{
+		$pat = $1;
+	}
+	else
+	{
+		return undef;
+	}
+	# bound the pattern length: compiling says nothing about execution cost,
+	# and these patterns run inside polling against every candidate node.
+	# keep in lockstep with OMK::OutageSelector::validate_selector_regexes
+	return "pattern exceeds $max characters" if (length($pat) > $max);
+	my $re = eval { qr{$pat} };
+	if (!defined $re)
+	{
+		my $problem = $@;
+		$problem =~ s/ at \S+ line \d+\.?\s*$//s; # the eval location is just noise
+		return $problem;
+	}
+	return undef;
+}
+
 # find active/future/past outages for a given context,
 # ie. one node and a time - or potential outages, if only
 # given time.
@@ -489,6 +599,9 @@ sub check_outages
 	# get the data for selectors: node object links to nmisng, has global config;
 	# node object has own config, and catchall inventory has the nodeModel.
 	my $globalconfig = $nmisng? $nmisng->config : $node->nmisng->config;
+	# the nmisng arg may be absent on node-only calls; the selector matcher
+	# needs one for logging bad patterns
+	my $lognmisng = $nmisng // ($node? $node->nmisng : undef);
 	my ($nodeconfig, $nodemodel);
 
 	if ($node)
@@ -534,26 +647,8 @@ sub check_outages
 						if ($node->name eq $sel->{'node_name'}){
 					
 							$expected = $sel->{'element_name'};
-							if ($expected =~/^iregex:/){
-							
-								my @all_patterns = split("regex:",$expected);
-								my $re = $all_patterns[1];
-								my $regex = qr{$re}i;
-								$rulesmatchesElements = 0 if (!($actual =~ $regex));
-							}
-							elsif($expected =~/^regex:/)
-							{
-
-								my @all_patterns = split("regex:",$expected);
-								my $re = $all_patterns[1];
-								my $regex = qr{$re};
-								$rulesmatchesElements = 0 if (!($actual =~ $regex));
-
-							}
-							else{
-
-								$rulesmatchesElements = 0 if ( $actual ne $expected);	
-							}
+							$rulesmatchesElements = 0
+									if (!selector_entry_matches($actual, $expected, $lognmisng));
 						}
 					}
 				}
@@ -587,15 +682,15 @@ sub check_outages
 							$actual = $nodeconfig->{$propname};
 						}
 					}
-					# choices can be: regex, or fixed string, or array of fixed strings
+					# choices can be: a regex-string, a fixed string or 'regex:'/'iregex:' pattern, or an array of fixed strings and/or 'regex:'/'iregex:' patterns
 					my $expected = $maybeout->{selector}->{$selcat}->{$propname};
 
-					# list of precise matches
+					# array of match entries: each is a fixed string, or a 'regex:'/'iregex:' prefixed pattern
 					if (ref($expected) eq "ARRAY")
 					{
 						# $rulematches = 0 if (! List::Util::any { $actual eq $_ } @$expected);
 
-						if (! List::Util::any { $actual eq $_ } @$expected){
+						if (! List::Util::any { selector_entry_matches($actual, $_, $lognmisng) } @$expected){
 							$rulematches = 0;
 						}
 						else{
@@ -610,9 +705,22 @@ sub check_outages
 					elsif ($expected =~ m!^/(.*)/(i)?$!)
 					{
 						my ($re,$options) = ($1,$2);
-						my $regex = ($options? qr{$re}i : qr{$re});
+						# same length cap as the prefixed entry form: write-time
+						# validation is bypassed by hand-edited files and by entries
+						# stored before validation existed
+						my $max = (ref($globalconfig) eq "HASH")?
+								$globalconfig->{max_outage_pattern_length} : undef;
+						$max = 256 if (!defined $max or $max !~ /^\d+$/ or !$max);
+						my $regex = (length($re) > $max)? undef
+								: eval { $options? qr{$re}i : qr{$re} };
 						# $rulematches = 0 if ($actual !~ $regex);
-						if ($actual !~ $regex){
+						if (!defined $regex){
+							my $why = (length($re) > $max)?
+									"exceeds $max characters" : $@;
+							$lognmisng->log->warn("outage selector: unusable regex '$expected': $why") if ($lognmisng);
+							$rulematches = 0;
+						}
+						elsif ($actual !~ $regex){
 							$rulematches = 0;
 						}
 						else{
@@ -621,10 +729,13 @@ sub check_outages
 								}
 						}
 					}
-					# or a single precise match
+					# or a fixed string or a 'regex:'/'iregex:' prefixed pattern:
+					# scalar values go through the same matcher as array entries,
+					# so the prefixes behave identically in both forms (and the
+					# write-time validator agrees with what runs here)
 					else
 					{
-						 if ($actual ne $expected){
+						 if (!selector_entry_matches($actual, $expected, $lognmisng)){
 								$rulematches = 0;
 						 }
 						 else{
@@ -632,7 +743,6 @@ sub check_outages
 									$rulematches = 0;
 								}
 						 }
-						# $rulematches = 0 if ($actual ne $expected);
 					}
 					last if (!$rulematches);
 				}
