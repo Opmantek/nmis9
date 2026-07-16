@@ -480,7 +480,8 @@ sub purge_outages
 		success => @problems? 0 : 1 };
 }
 
-# match one selector array entry against the actual property value.
+# match one selector entry (array element or scalar value) against the
+# actual property value.
 # entry is a fixed string, or an 'iregex:' (case-insensitive) or 'regex:'
 # (case-sensitive) prefixed pattern, matched unanchored.
 # a malformed pattern is logged and treated as no-match; it never dies.
@@ -495,9 +496,10 @@ sub selector_entry_matches
 	if ($entry =~ /^(i?)regex:(.+)\z/s)
 	{
 		my ($ci, $pat) = ($1, $2);
-		# enforce the same cap as write-time validation: hand-edited files
-		# bypass it, and an oversized pattern can stall polling via
-		# catastrophic backtracking. oversized means logged no-match.
+		# enforce the same cap as write-time validation, which hand-edited
+		# files bypass. this only bounds pattern size; it does not prevent
+		# catastrophic backtracking (a short nested-quantifier pattern can
+		# still be expensive). oversized means logged no-match.
 		my $max = ($nmisng && ref($nmisng->config) eq "HASH")?
 				$nmisng->config->{max_outage_pattern_length} : undef;
 		$max = 256 if (!defined $max or $max !~ /^\d+$/ or !$max);
@@ -679,7 +681,7 @@ sub check_outages
 							$actual = $nodeconfig->{$propname};
 						}
 					}
-					# choices can be: a regex-string, a fixed string, or an array of fixed strings and/or 'regex:'/'iregex:' patterns
+					# choices can be: a regex-string, a fixed string or 'regex:'/'iregex:' pattern, or an array of fixed strings and/or 'regex:'/'iregex:' patterns
 					my $expected = $maybeout->{selector}->{$selcat}->{$propname};
 
 					# array of match entries: each is a fixed string, or a 'regex:'/'iregex:' prefixed pattern
@@ -702,10 +704,19 @@ sub check_outages
 					elsif ($expected =~ m!^/(.*)/(i)?$!)
 					{
 						my ($re,$options) = ($1,$2);
-						my $regex = eval { $options? qr{$re}i : qr{$re} };
+						# same length cap as the prefixed entry form: write-time
+						# validation is bypassed by hand-edited files and by entries
+						# stored before validation existed
+						my $max = (ref($globalconfig) eq "HASH")?
+								$globalconfig->{max_outage_pattern_length} : undef;
+						$max = 256 if (!defined $max or $max !~ /^\d+$/ or !$max);
+						my $regex = (length($re) > $max)? undef
+								: eval { $options? qr{$re}i : qr{$re} };
 						# $rulematches = 0 if ($actual !~ $regex);
 						if (!defined $regex){
-							$lognmisng->log->warn("outage selector: invalid regex '$expected': $@") if ($lognmisng);
+							my $why = (length($re) > $max)?
+									"exceeds $max characters" : $@;
+							$lognmisng->log->warn("outage selector: unusable regex '$expected': $why") if ($lognmisng);
 							$rulematches = 0;
 						}
 						elsif ($actual !~ $regex){
@@ -717,10 +728,13 @@ sub check_outages
 								}
 						}
 					}
-					# or a single precise match
+					# or a fixed string or a 'regex:'/'iregex:' prefixed pattern:
+					# scalar values go through the same matcher as array entries,
+					# so the prefixes behave identically in both forms (and the
+					# write-time validator agrees with what runs here)
 					else
 					{
-						 if ($actual ne $expected){
+						 if (!selector_entry_matches($actual, $expected, $lognmisng)){
 								$rulematches = 0;
 						 }
 						 else{
@@ -728,7 +742,6 @@ sub check_outages
 									$rulematches = 0;
 								}
 						 }
-						# $rulematches = 0 if ($actual ne $expected);
 					}
 					last if (!$rulematches);
 				}

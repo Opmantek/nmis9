@@ -101,8 +101,10 @@ my $debug = $nvp{debug};
 # --- config + isolated database -------------------------------------------
 # from here on we need config and MongoDB; assertions have already run,
 # so on failure we finish early instead of skip_all
+# only attempt the load if conf/ already exists (loadConfTable would create
+# the directory as a side effect in a bare checkout), and never die on it
 my $confdir = "$FindBin::Bin/../conf";
-my $C = NMISNG::Util::loadConfTable( dir => $confdir );
+my $C = (-d $confdir)? eval { NMISNG::Util::loadConfTable( dir => $confdir ) } : undef;
 if (!$C or !keys %$C)
 {
 	diag("skipping integration tests: cannot load config from $confdir");
@@ -214,6 +216,19 @@ my %outages = (
 		frequency => "once", start => $now - $HR, end => $now + $HR,
 		options => {}, selector => { node => { "catchall.data.netType" => [ "iregex:^WAN\$" ] } },
 	},
+	# scalar (non-array) selector values: the prefix form must behave the same
+	# as an array entry, and an oversized stored /.../ regex-string must be a
+	# no-match instead of running uncapped
+	out_now_scalar_regex => {
+		id => "out_now_scalar_regex", description => "scalar regex: selector value, matches",
+		frequency => "once", start => $now - $HR, end => $now + $HR,
+		options => {}, selector => { node => { group => "regex:^group[0-9]" } },
+	},
+	out_now_scalar_slash_long => {
+		id => "out_now_scalar_slash_long", description => "oversized scalar /.../ regex-string, capped to no-match",
+		frequency => "once", start => $now - $HR, end => $now + $HR,
+		options => {}, selector => { node => { group => "/" . ("a" x 300) . "/" } },
+	},
 	out_future => {
 		id => "out_future", description => "exact name, starts later",
 		frequency => "once", start => $now + $HR, end => $now + 2 * $HR,
@@ -251,6 +266,8 @@ ok( !$cur->{out_now_regex_case}, "same pattern case-sensitive is NOT current (re
 ok( $cur->{out_now_mixed},       "mixed exact+regex selector is current (regex entry matched)" );
 ok( !$cur->{out_now_badregex},   "malformed-pattern outage is NOT current" );
 ok( $cur->{out_now_catchall},    "catchall.data property selector outage is current" );
+ok( $cur->{out_now_scalar_regex}, "scalar regex: selector value is honoured as a pattern" );
+ok( !$cur->{out_now_scalar_slash_long}, "oversized scalar regex-string is NOT current (capped)" );
 ok( !$cur->{out_future},         "future outage is not current" );
 ok( !$cur->{out_past},           "past outage is not current" );
 

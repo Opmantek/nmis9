@@ -226,10 +226,11 @@ outage.selector: any number of criteria for selecting devices for this outage
   selector keys: node.X or config.Y, node config or global config properties
   selector values: single string, /regex string/ or array of strings.
   arrays must be given as separate indexed entries.
-  an array entry matches exactly, unless prefixed 'regex:' (case-sensitive)
-  or 'iregex:' (case-insensitive), which match the property as an
-  unanchored pattern. these prefixes are reserved: a value starting with
-  one is always treated as a pattern, never matched literally.
+  a single string or array entry matches exactly, unless prefixed 'regex:'
+  (case-sensitive) or 'iregex:' (case-insensitive), which match the
+  property as an unanchored pattern. non-empty 'regex:PATTERN' and
+  'iregex:PATTERN' forms are reserved and never matched literally;
+  a bare prefix with no pattern is matched literally.
   all selectors must match for a node to be subject to the outage.
 
 example: $PROGNAME act=create-outage \\
