@@ -55,14 +55,23 @@ The install script will:
    ```perl
    %hash = (
      'mqtt' => {
-       'topic'         => 'nmis/event',
-       'server'        => 'your.mqtt.server:1883',
-       'username'      => 'your_mqtt_username',
-       'password'      => 'your_mqtt_password',
-       'extra_logging' => 0,
+       'topic'          => 'nmis/event',
+       'server'         => 'your.mqtt.server:1883',
+       'username'       => 'your_mqtt_username',
+       'password'       => 'your_mqtt_password',
+       'extra_logging'  => 0,
+       'allow_insecure' => 1,
      }
    );
    ```
+
+   **`allow_insecure`** controls whether plaintext-MQTT login is permitted
+   (it sets `MQTT_SIMPLE_ALLOW_INSECURE_LOGIN` for `Net::MQTT::Simple`, which
+   otherwise refuses to send a username/password over an unencrypted
+   connection). This plugin only ever uses plaintext MQTT, so it **must** be
+   enabled for events to publish. It defaults to on when the key is absent, so
+   existing configs keep working after upgrading; set it to `0` only to
+   deliberately stop this notifier from publishing.
 
 2. *(Optional)* Edit `/usr/local/nmis9/conf/mqttIgnoreList.txt` with one regex per line to filter events:
 

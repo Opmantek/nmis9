@@ -105,9 +105,14 @@ sub sendNotification
 	$extraLogging = NMISNG::Util::getbool($mqttConfig->{mqtt}{extra_logging});
 	$retain = int($mqttConfig->{mqtt}{retain} // 1);
 	$retries = int($mqttConfig->{mqtt}{retries} // 1);
-	# Opt-in: must be set in config before we permit plaintext-MQTT auth
-	# (i.e. set MQTT_SIMPLE_ALLOW_INSECURE_LOGIN in Net::MQTT::Simple).
-	$allow_insecure = NMISNG::Util::getbool($mqttConfig->{mqtt}{allow_insecure});
+	# This plugin only ever talks plaintext MQTT (Net::MQTT::Simple, never the
+	# TLS subclass), and login() croaks unless MQTT_SIMPLE_ALLOW_INSECURE_LOGIN
+	# is set. To keep every existing deployment working, allow_insecure
+	# defaults ON when the key is absent; set it to 0 only to explicitly
+	# forbid plaintext auth (which stops this notifier publishing).
+	$allow_insecure = defined($mqttConfig->{mqtt}{allow_insecure})
+		? NMISNG::Util::getbool($mqttConfig->{mqtt}{allow_insecure})
+		: 1;
 
 	# get the ignorelist from conf/ or conf-default/
 	# ignore list file in the form of regexes to match against the event 
@@ -210,7 +215,9 @@ sub sendNotification
 						server => $mqttConfig->{mqtt_secondary}{server},
 						username => $mqttConfig->{mqtt_secondary}{username},
 						password => $mqttConfig->{mqtt_secondary}{password},
-						allow_insecure => NMISNG::Util::getbool($mqttConfig->{mqtt_secondary}{allow_insecure}),
+						allow_insecure => defined($mqttConfig->{mqtt_secondary}{allow_insecure})
+							? NMISNG::Util::getbool($mqttConfig->{mqtt_secondary}{allow_insecure})
+							: 1,
 					);
 				
 				if ($error)

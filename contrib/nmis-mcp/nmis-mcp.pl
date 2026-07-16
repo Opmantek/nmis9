@@ -24,7 +24,11 @@
 #
 # Protocol: JSON-RPC 2.0 over HTTP POST (stateless)
 # Endpoint: /cgi-nmis9/nmis-mcp.pl
-# Auth:     Bearer token (conf/nmis-mcp.nmis) or NMIS cookie auth
+# Auth:     Bearer / X-API-Token / ?token= against conf/nmis-mcp.nmis
+#
+# The runtime (CGI dispatch) only executes when this file is run directly.
+# When loaded via require/do (e.g. from the test suite) the guard at the
+# bottom is skipped, so the tool subs can be exercised in isolation.
 #
 # *****************************************************************************
 
@@ -37,160 +41,19 @@ use warnings;
 use CGI;
 use JSON::XS;
 use NMISNG::Util;
-use NMISNG::Sys;
-use NMISNG::Auth;
 use Compat::NMIS;
+use NMISNG::OTel qw(apply_field_rename filter_derived filter_derived_flat get_description);
 
 my $VERSION = "1.0.0";
 
 # ---------------------------------------------------------------------------
-# OTel field rename maps and description fields (from mqttobservations.pm)
+# MCP tool definitions.
+#
+# Single source of truth: each entry carries its MCP metadata *and* its
+# handler coderef. tools/list strips the handler; tools/call dispatches on it.
 # ---------------------------------------------------------------------------
 
-my %DESCRIPTION_FIELDS = (
-	'interface'        => [qw(ifDescr Description)],
-	'catchall'         => [qw(sysDescr sysName nodeType)],
-	'Host_Storage'     => [qw(hrStorageDescr)],
-	'Host_File_System' => [qw(hrFSMountPoint hrFSType)],
-	'Host_Partition'   => [qw(hrPartitionLabel hrPartitionID)],
-	'entityMib'        => [qw(entPhysicalName entPhysicalDescr)],
-	'cdp'              => [qw(cdpCacheDeviceId cdpCacheDevicePort)],
-	'lldp'             => [qw(lldpRemSysName lldpRemPortDesc)],
-	'bgp'              => [qw(bgpPeerIdentifier)],
-	'vlan'             => [qw(vlanName vtpVlanName)],
-	'mpls'             => [qw(mplsVpnVrfName)],
-	'cbqos'            => [qw(CbQosPolicyMapName)],
-	'addressTable'     => [qw(dot1dTpFdbAddress)],
-	'diskIOTable'      => [qw(diskIODevice)],
-	'env-temp'         => [qw(lmTempSensorsDevice)],
-	'storage'          => [qw(hrStorageDescr)],
-	'service'          => [qw(service)],
-	'ping'             => [qw(host)],
-	'device'           => [qw(index)],
-);
-
-my @FALLBACK_DESCRIPTION_FIELDS = qw(Description description Name name ifDescr);
-
-# This concept renaming is done because of the reverse compatibility, the list of CPU names is available here.
-my %CONCEPT_RENAME = (
-	'device' => 'cpuLoad',
-);
-
-my %FIELD_RENAME = (
-	'interface' => {
-		'ifInOctets'        => 'system.network.io.receive',
-		'ifOutOctets'       => 'system.network.io.transmit',
-		'ifInUcastPkts'     => 'system.network.packets.receive',
-		'ifOutUcastPkts'    => 'system.network.packets.transmit',
-		'ifInErrors'        => 'system.network.errors.receive',
-		'ifOutErrors'       => 'system.network.errors.transmit',
-		'ifInDiscards'      => 'system.network.dropped.receive',
-		'ifOutDiscards'     => 'system.network.dropped.transmit',
-		'ifSpeed'           => 'system.network.speed',
-		'ifOperStatus'      => 'system.network.status',
-	},
-	'device' => {
-		'cpuLoad'           => 'system.cpu.utilization',
-		'cpu1min'           => 'system.cpu.utilization.1m',
-		'cpu5min'           => 'system.cpu.utilization.5m',
-		'memUtil'           => 'system.memory.utilization',
-		'memAvail'          => 'system.memory.usage.available',
-	},
-	'Host_Storage' => {
-		'hrStorageUsed'            => 'system.filesystem.usage.used',
-		'hrStorageSize'            => 'system.filesystem.usage.total',
-		'hrStorageAllocationUnits' => 'system.filesystem.allocation_unit',
-		'hrStorageType'            => 'system.filesystem.type',
-	},
-	'diskIOTable' => {
-		'diskIOReads'       => 'system.disk.operations.read',
-		'diskIOWrites'      => 'system.disk.operations.write',
-		'diskIOReadBytes'   => 'system.disk.io.read',
-		'diskIOWriteBytes'  => 'system.disk.io.write',
-	},
-	'health' => {
-		'reachability'       => 'nmis.node.reachability',
-		'availability'       => 'nmis.node.availability',
-		'health'             => 'nmis.node.health',
-		'responsetime'       => 'nmis.node.response_time_ms',
-		'loss'               => 'nmis.node.packet_loss',
-		'intfCollect'        => 'nmis.node.intf_collect',
-		'intfColUp'          => 'nmis.node.intf_collect_up',
-		'reachabilityHealth' => 'nmis.node.reachability_health',
-		'availabilityHealth' => 'nmis.node.availability_health',
-		'responseHealth'     => 'nmis.node.response_health',
-		'cpuHealth'          => 'nmis.node.cpu_health',
-		'memHealth'          => 'nmis.node.mem_health',
-		'intHealth'          => 'nmis.node.int_health',
-		'diskHealth'         => 'nmis.node.disk_health',
-		'swapHealth'         => 'nmis.node.swap_health',
-	},
-	'Host_Health' => {
-		'hrSystemProcesses' => 'system.process.count',
-		'hrSystemNumUsers'  => 'system.users.count',
-	},
-	'laload' => {
-		'laLoad1'           => 'system.cpu.load_average.1m',
-		'laLoad5'           => 'system.cpu.load_average.5m',
-	},
-	'mib2ip' => {
-		'ipInReceives'      => 'system.network.ip.in_receives',
-		'ipInHdrErrors'     => 'system.network.ip.in_header_errors',
-		'ipInAddrErrors'    => 'system.network.ip.in_address_errors',
-		'ipForwDatagrams'   => 'system.network.ip.forwarded',
-		'ipInUnknownProtos' => 'system.network.ip.in_unknown_protos',
-		'ipInDiscards'      => 'system.network.ip.in_discards',
-		'ipInDelivers'      => 'system.network.ip.in_delivers',
-		'ipOutRequests'     => 'system.network.ip.out_requests',
-		'ipOutDiscards'     => 'system.network.ip.out_discards',
-		'ipReasmReqds'      => 'system.network.ip.reassembly_required',
-		'ipReasmOKs'        => 'system.network.ip.reassembly_ok',
-		'ipReasmFails'      => 'system.network.ip.reassembly_failed',
-		'ipFragOKs'         => 'system.network.ip.fragmentation_ok',
-		'ipFragCreates'     => 'system.network.ip.fragments_created',
-		'ipFragFails'       => 'system.network.ip.fragmentation_failed',
-	},
-	'systemStats' => {
-		'ssCpuRawUser'      => 'system.cpu.time.user',
-		'ssCpuRawNice'      => 'system.cpu.time.nice',
-		'ssCpuRawSystem'    => 'system.cpu.time.system',
-		'ssCpuRawIdle'      => 'system.cpu.time.idle',
-		'ssCpuRawWait'      => 'system.cpu.time.wait',
-		'ssCpuRawKernel'    => 'system.cpu.time.kernel',
-		'ssCpuRawInterrupt' => 'system.cpu.time.interrupt',
-		'ssCpuRawSoftIRQ'   => 'system.cpu.time.soft_irq',
-		'ssIORawSent'       => 'system.disk.io.sent',
-		'ssIORawReceived'   => 'system.disk.io.received',
-		'ssRawInterrupts'   => 'system.cpu.interrupts',
-		'ssRawContexts'     => 'system.cpu.context_switches',
-		'ssRawSwapIn'       => 'system.memory.swap.in',
-		'ssRawSwapOut'      => 'system.memory.swap.out',
-	},
-	'tcp' => {
-		'tcpActiveOpens'    => 'system.network.tcp.connections.opened.active',
-		'tcpPassiveOpens'   => 'system.network.tcp.connections.opened.passive',
-		'tcpAttemptFails'   => 'system.network.tcp.connections.failed',
-		'tcpEstabResets'    => 'system.network.tcp.connections.reset',
-		'tcpCurrEstab'      => 'system.network.tcp.connections.established',
-		'tcpInSegs'         => 'system.network.tcp.segments.received',
-		'tcpOutSegs'        => 'system.network.tcp.segments.sent',
-		'tcpRetransSegs'    => 'system.network.tcp.segments.retransmitted',
-		'tcpInErrs'         => 'system.network.tcp.errors.received',
-		'tcpOutRsts'        => 'system.network.tcp.resets.sent',
-	},
-	'ping' => {
-		'avg_ping_time'     => 'network.peer.rtt.avg_ms',
-		'max_ping_time'     => 'network.peer.rtt.max_ms',
-		'min_ping_time'     => 'network.peer.rtt.min_ms',
-		'ping_loss'         => 'network.peer.packet_loss',
-	},
-);
-
-# ---------------------------------------------------------------------------
-# MCP tool definitions
-# ---------------------------------------------------------------------------
-
-my @TOOL_DEFINITIONS = (
+our @TOOLS = (
 	{
 		name        => "nmis_list_nodes",
 		description => "List all NMIS monitored nodes with basic status (name, group, type, host, health, reachability). Returns a summary for every node.",
@@ -198,6 +61,7 @@ my @TOOL_DEFINITIONS = (
 			type       => "object",
 			properties => {},
 		},
+		handler => \&tool_list_nodes,
 	},
 	{
 		name        => "nmis_get_node_status",
@@ -209,6 +73,7 @@ my @TOOL_DEFINITIONS = (
 			},
 			required => ["node"],
 		},
+		handler => \&tool_get_node_status,
 	},
 	{
 		name        => "nmis_get_latest_metrics",
@@ -221,6 +86,7 @@ my @TOOL_DEFINITIONS = (
 			},
 			required => ["node", "concept"],
 		},
+		handler => \&tool_get_latest_metrics,
 	},
 	{
 		name        => "nmis_list_events",
@@ -228,9 +94,11 @@ my @TOOL_DEFINITIONS = (
 		inputSchema => {
 			type       => "object",
 			properties => {
-				node => { type => "string", description => "Optional: filter events by node name" },
+				node  => { type => "string", description => "Optional: filter events by node name" },
+				limit => { type => "integer", description => "Optional: maximum number of events to return (default 1000)" },
 			},
 		},
+		handler => \&tool_list_events,
 	},
 	{
 		name        => "nmis_list_inventory",
@@ -243,19 +111,32 @@ my @TOOL_DEFINITIONS = (
 			},
 			required => ["node", "concept"],
 		},
+		handler => \&tool_list_inventory,
 	},
 	{
 		name        => "nmis_get_node_precise_status",
-		description => "Get precise reachability status for nodes. Returns overall status (reachable/degraded/unreachable), per-protocol status (SNMP, WMI, ping), failover state, uptime, and reachability. Query all nodes, a group, or a single node.",
+		description => "Get precise reachability status for nodes. Returns overall status (reachable/degraded/unreachable), per-protocol status (SNMP, WMI, ping), failover state, uptime, and reachability. Query all nodes, a group, or a single node. On large fleets, scope with group or limit — each node requires a live status computation.",
 		inputSchema => {
 			type       => "object",
 			properties => {
-				node  => { type => "string", description => "Optional: specific node name" },
-				group => { type => "string", description => "Optional: filter by node group" },
+				node  => { type => "string",  description => "Optional: specific node name" },
+				group => { type => "string",  description => "Optional: filter by node group" },
+				limit => { type => "integer", description => "Optional: maximum number of nodes to evaluate" },
 			},
 		},
+		handler => \&tool_get_node_precise_status,
 	},
 );
+
+# Derived views: the tools/list payload (no handler) and the name->handler map.
+# Exposed as package vars so the test suite can introspect the real tables.
+our @TOOL_DEFINITIONS = map {
+	my %copy = %$_;
+	delete $copy{handler};
+	\%copy;
+} @TOOLS;
+
+our %TOOL_HANDLERS = map { $_->{name} => $_->{handler} } @TOOLS;
 
 # ---------------------------------------------------------------------------
 # JSON-RPC dispatch table
@@ -267,144 +148,140 @@ my %DISPATCH = (
 	'tools/call' => \&handle_tools_call,
 );
 
+# JSON encoders, initialised by the runtime block. The response helpers close
+# over these; they are only ever used while actually serving a request.
+my $json;
+my $json_pretty;
+
 # ---------------------------------------------------------------------------
-# Main
+# Runtime (CGI request handling) — skipped when this file is require'd.
 # ---------------------------------------------------------------------------
 
-my $q = CGI->new;
-my $json = JSON::XS->new->utf8->canonical;
-my $json_pretty = JSON::XS->new->utf8->pretty->canonical;
-
-# Load NMIS config
-my $C = NMISNG::Util::loadConfTable();
-if (!$C)
+unless (caller)
 {
-	print $q->header(-type => 'application/json', -status => '500');
-	print $json->encode({ jsonrpc => "2.0", id => undef,
-		error => { code => -32603, message => "Failed to load NMIS configuration" }});
-	exit 0;
-}
+	my $q = CGI->new;
+	$json        = JSON::XS->new->utf8->canonical;
+	$json_pretty = JSON::XS->new->utf8->pretty->canonical;
 
-# Non-POST requests get a helpful message
-if (($ENV{REQUEST_METHOD} // '') ne 'POST')
-{
-	print $q->header(-type => 'application/json');
-	print $json->encode({
-		name    => "nmis9-mcp",
-		version => $VERSION,
-		message => "NMIS9 MCP Server. Send JSON-RPC 2.0 POST requests to this endpoint.",
-		auth    => "Use X-API-Token header, Authorization: Bearer header, or ?token= query parameter.",
-		example => '{"jsonrpc":"2.0","id":1,"method":"tools/list"}',
-	});
-	exit 0;
-}
-
-# Read and parse JSON-RPC request from POST body
-# CGI->new already consumed STDIN, so retrieve via POSTDATA param
-my $body = $q->param('POSTDATA') // $q->param('keywords') // '';
-my $request = eval { JSON::XS::decode_json($body) };
-if (!$request || ref($request) ne 'HASH')
-{
-	print $q->header(-type => 'application/json');
-	send_json_rpc_error(undef, -32700, "Parse error: invalid JSON");
-	exit 0;
-}
-
-my $method = $request->{method};
-my $id     = $request->{id};
-
-if (!$method || ($request->{jsonrpc} // '') ne '2.0')
-{
-	print $q->header(-type => 'application/json');
-	send_json_rpc_error($id, -32600, "Invalid Request: must be JSON-RPC 2.0 with a method field");
-	exit 0;
-}
-
-# Authentication
-my $authenticated = 0;
-
-# Try to extract API token from multiple sources:
-# 1. Authorization: Bearer <token> header (may be stripped by Apache without CGIPassAuth On)
-# 2. X-API-Token custom header (Apache passes X-* headers to CGI)
-# 3. ?token=<token> query parameter (useful for simple testing)
-my $token;
-my $auth_header = $ENV{HTTP_AUTHORIZATION} // '';
-if ($auth_header =~ /^Bearer\s+(\S+)$/)
-{
-	$token = $1;
-}
-elsif ($ENV{HTTP_X_API_TOKEN})
-{
-	$token = $ENV{HTTP_X_API_TOKEN};
-}
-elsif ($q->param('token'))
-{
-	$token = $q->param('token');
-}
-
-if ($token)
-{
-	my $mcp_config = NMISNG::Util::loadTable(dir => 'conf', name => 'nmis-mcp', conf => $C);
-	if ($mcp_config && ref($mcp_config) eq 'HASH'
-		&& $mcp_config->{api_token} && $mcp_config->{api_token} ne 'change-me-to-a-secure-token'
-		&& _ct_eq($token, $mcp_config->{api_token}))
+	# Load NMIS config
+	my $C = NMISNG::Util::loadConfTable();
+	if (!$C)
 	{
-		$authenticated = 1;
+		print $q->header(-type => 'application/json', -status => '500');
+		print $json->encode({ jsonrpc => "2.0", id => undef,
+			error => { code => -32603, message => "Failed to load NMIS configuration" }});
+		exit 0;
 	}
-}
 
-# Fallback: NMIS cookie auth (for browser-based testing)
-if (!$authenticated)
-{
-	my $AU = NMISNG::Auth->new(conf => $C);
-	if ($AU->Require)
+	# Non-POST requests get a helpful message
+	if (($ENV{REQUEST_METHOD} // '') ne 'POST')
 	{
-		my $user = $AU->verify_id();
-		$authenticated = 1 if $user;
+		print $q->header(-type => 'application/json');
+		print $json->encode({
+			name    => "nmis9-mcp",
+			version => $VERSION,
+			message => "NMIS9 MCP Server. Send JSON-RPC 2.0 POST requests with Content-Type: application/json.",
+			auth    => "Use X-API-Token header, Authorization: Bearer header, or ?token= query parameter.",
+			example => '{"jsonrpc":"2.0","id":1,"method":"tools/list"}',
+		});
+		exit 0;
+	}
+
+	# Read the raw JSON-RPC request body. CGI->new has already consumed STDIN;
+	# for a Content-Type: application/json POST it stashes the unparsed body
+	# under the POSTDATA pseudo-param. We deliberately do NOT fall back to
+	# form-field parsing (param('keywords') etc.) — that mangles JSON bodies
+	# that contain '=', '+', spaces or %XX sequences.
+	my $body = $q->param('POSTDATA') // '';
+	my $request = eval { JSON::XS::decode_json($body) };
+	if (!$request || ref($request) ne 'HASH')
+	{
+		print $q->header(-type => 'application/json');
+		send_json_rpc_error(undef, -32700, "Parse error: invalid JSON (send the request body as Content-Type: application/json)");
+		exit 0;
+	}
+
+	my $method = $request->{method};
+	my $id     = $request->{id};
+
+	if (!$method || ($request->{jsonrpc} // '') ne '2.0')
+	{
+		print $q->header(-type => 'application/json');
+		send_json_rpc_error($id, -32600, "Invalid Request: must be JSON-RPC 2.0 with a method field");
+		exit 0;
+	}
+
+	# --- Authentication: API token only ------------------------------------
+	# Token sources (first match wins):
+	#   1. Authorization: Bearer <token>  (needs CGIPassAuth On in Apache)
+	#   2. X-API-Token: <token>           (Apache passes X-* headers to CGI)
+	#   3. ?token=<token> query parameter (url_param: reads QUERY_STRING even
+	#      on a POST, which plain param() does not)
+	my $token;
+	my $auth_header = $ENV{HTTP_AUTHORIZATION} // '';
+	if ($auth_header =~ /^Bearer\s+(\S+)$/)
+	{
+		$token = $1;
+	}
+	elsif ($ENV{HTTP_X_API_TOKEN})
+	{
+		$token = $ENV{HTTP_X_API_TOKEN};
+	}
+	elsif ($q->url_param('token'))
+	{
+		$token = $q->url_param('token');
+	}
+
+	my $authenticated = 0;
+	if ($token)
+	{
+		my $mcp_config = NMISNG::Util::loadTable(dir => 'conf', name => 'nmis-mcp', conf => $C);
+		if ($mcp_config && ref($mcp_config) eq 'HASH'
+			&& $mcp_config->{api_token} && $mcp_config->{api_token} ne 'change-me-to-a-secure-token'
+			&& _ct_eq($token, $mcp_config->{api_token}))
+		{
+			$authenticated = 1;
+		}
+	}
+
+	if (!$authenticated)
+	{
+		print $q->header(-type => 'application/json', -status => '401');
+		send_json_rpc_error($id, -32000, "Authentication required. Provide a valid API token via X-API-Token or Authorization: Bearer.");
+		exit 0;
+	}
+
+	# Initialize NMISNG
+	my $nmisng = Compat::NMIS::new_nmisng();
+
+	# JSON-RPC 2.0: a request without an "id" member is a Notification.
+	# Notifications MUST NOT receive any response per the spec, and MCP's
+	# notifications/* methods are always notifications.
+	my $is_notification = (!exists $request->{id} || $method =~ m{^notifications/});
+
+	if ($is_notification)
+	{
+		# 204 No Content — no body, no Content-Type. No handler dispatch, since
+		# notifications must not produce response output.
+		print $q->header(-status => '204 No Content');
+		exit 0;
+	}
+
+	# Print response header
+	print $q->header(-type => 'application/json', -charset => 'utf-8');
+
+	# Dispatch
+	if (my $handler = $DISPATCH{$method})
+	{
+		$handler->($request, $id, $nmisng);
 	}
 	else
 	{
-		$authenticated = 1;    # auth not required in config
+		send_json_rpc_error($id, -32601, "Method not found: $method");
 	}
-}
 
-if (!$authenticated)
-{
-	print $q->header(-type => 'application/json', -status => '401');
-	send_json_rpc_error($id, -32000, "Authentication required. Use Authorization: Bearer <token> header.");
 	exit 0;
 }
-
-# Initialize NMISNG
-my $nmisng = Compat::NMIS::new_nmisng();
-
-# JSON-RPC 2.0: a request without an "id" member is a Notification.
-# Notifications MUST NOT receive any response per the spec, and MCP's
-# notifications/* methods are always notifications.
-my $is_notification = (!exists $request->{id} || $method =~ m{^notifications/});
-
-if ($is_notification)
-{
-	# 204 No Content — no body, no Content-Type. No handler dispatch, since
-	# notifications must not produce response output.
-	print $q->header(-status => '204 No Content');
-	exit 0;
-}
-
-# Print response header
-print $q->header(-type => 'application/json', -charset => 'utf-8');
-
-# Dispatch
-if (my $handler = $DISPATCH{$method})
-{
-	$handler->($request, $id, $nmisng);
-}
-else
-{
-	send_json_rpc_error($id, -32601, "Method not found: $method");
-}
-
-exit 0;
 
 # ---------------------------------------------------------------------------
 # MCP protocol handlers
@@ -440,16 +317,7 @@ sub handle_tools_call
 	my $tool_name = $request->{params}{name} // '';
 	my $arguments = $request->{params}{arguments} // {};
 
-	my %TOOLS = (
-		nmis_list_nodes       => \&tool_list_nodes,
-		nmis_get_node_status  => \&tool_get_node_status,
-		nmis_get_latest_metrics => \&tool_get_latest_metrics,
-		nmis_list_events      => \&tool_list_events,
-		nmis_list_inventory   => \&tool_list_inventory,
-		nmis_get_node_precise_status => \&tool_get_node_precise_status,
-	);
-
-	my $handler = $TOOLS{$tool_name};
+	my $handler = $TOOL_HANDLERS{$tool_name};
 	if (!$handler)
 	{
 		send_json_rpc_error($id, -32602, "Unknown tool: $tool_name");
@@ -491,17 +359,15 @@ sub tool_list_nodes
 		}
 	);
 
+	# One query for every node's catchall inventory, keyed by node_uuid,
+	# instead of instantiating a Node object + inventory per node.
+	my %catchall_by_uuid = _catchall_by_uuid($nmisng);
+
 	my @nodes;
 	for my $nd (@{$model->data()})
 	{
-		my $conf = $nd->{configuration} // {};
-		my $node_obj = $nmisng->node(uuid => $nd->{uuid});
-		my $catchall_data = {};
-		if ($node_obj)
-		{
-			my ($inv, $err) = $node_obj->inventory(concept => 'catchall');
-			$catchall_data = $inv->data() if ($inv && !$err);
-		}
+		my $conf          = $nd->{configuration} // {};
+		my $catchall_data = $catchall_by_uuid{ $nd->{uuid} } // {};
 
 		push @nodes, {
 			name         => $nd->{name},
@@ -523,15 +389,17 @@ sub tool_get_node_status
 	my $node_name = $args->{node}
 		or return ({ error => "Missing required parameter: node" }, 1);
 
-	my $S = NMISNG::Sys->new;
-	my $ok = $S->init(name => $node_name, snmp => 'false');
-	return ({ error => "Node '$node_name' not found or init failed" }, 1) unless $ok;
+	# Look the node up directly; Sys::init would Carp::confess on an unknown
+	# node rather than returning a falsey value.
+	my $node_obj = $nmisng->node(name => $node_name)
+		or return ({ error => "Node '$node_name' not found" }, 1);
 
-	my ($inv, $err) = $S->inventory(concept => 'catchall');
-	return ({ error => "Failed to get catchall inventory: $err" }, 1) if $err;
+	# Node::inventory returns (object, error); check both.
+	my ($inv, $err) = $node_obj->inventory(concept => 'catchall');
+	return ({ error => "Failed to get catchall inventory for '$node_name': " . ($err // 'not found') }, 1)
+		if (!$inv || $err);
 
 	my %overall_labels = ( 1 => 'reachable', 0 => 'unreachable', -1 => 'degraded' );
-	my $node_obj = $nmisng->node(name => $node_name);
 	my %precise = $node_obj->precise_status();
 	my $overall_label = $overall_labels{ $precise{overall} } // 'unknown';
 
@@ -542,7 +410,7 @@ sub tool_get_node_status
 	my $health_metrics = {};
 	if ($latest->{success} && $latest->{data} && $latest->{data}{health})
 	{
-		$health_metrics = _apply_field_rename('health', $latest->{data}{health});
+		$health_metrics = apply_field_rename('health', $latest->{data}{health});
 	}
 
 	return {
@@ -571,24 +439,26 @@ sub tool_get_latest_metrics
 	my $concept = $args->{concept}
 		or return ({ error => "Missing required parameter: concept" }, 1);
 
-	my $S = NMISNG::Sys->new;
-	my $ok = $S->init(name => $node_name, snmp => 'false');
-	return ({ error => "Node '$node_name' not found or init failed" }, 1) unless $ok;
+	my $node_obj = $nmisng->node(name => $node_name)
+		or return ({ error => "Node '$node_name' not found" }, 1);
 
-	my $ids = $S->nmisng_node->get_inventory_ids(
+	# One model query for every instance of this concept, then instantiate.
+	my $inv_model = $node_obj->get_inventory_model(
 		concept => $concept,
 		filter  => { historic => 0 },
 	);
-	return ({ error => "No inventory for concept '$concept' on node '$node_name'" }, 1) unless @$ids;
+	return ({ error => "Failed to query inventory: " . $inv_model->error }, 1) if $inv_model->error;
+
+	my $objres = $inv_model->objects;
+	return ({ error => "Failed to load inventory: $objres->{error}" }, 1) if $objres->{error};
+	my @inventories = @{ $objres->{objects} // [] };
+	return ({ error => "No inventory for concept '$concept' on node '$node_name'" }, 1) unless @inventories;
 
 	my @instances;
-	for my $inv_id (@$ids)
+	for my $inventory (@inventories)
 	{
-		my ($inventory, $err) = $S->nmisng_node->inventory(_id => $inv_id);
-		next if $err;
-
 		my $inv_data    = $inventory->data();
-		my $description = _get_description($concept, $inv_data);
+		my $description = get_description($concept, $inv_data);
 		my $index       = $inv_data->{index} // '0';
 		my $latest      = $inventory->get_newest_timed_data();
 		next unless $latest->{success} && $latest->{data};
@@ -600,9 +470,9 @@ sub tool_get_latest_metrics
 				my $sub_data = $latest->{data}{$subconcept};
 				next unless $sub_data && ref($sub_data) eq 'HASH';
 
-				my $renamed = _apply_field_rename($subconcept, $sub_data);
-				my $renamed_derived = _apply_field_rename($subconcept,
-					_filter_derived($latest->{derived_data}{$subconcept}));
+				my $renamed = apply_field_rename($subconcept, $sub_data);
+				my $renamed_derived = apply_field_rename($subconcept,
+					filter_derived($latest->{derived_data}{$subconcept}));
 
 				push @instances, {
 					subconcept  => $subconcept,
@@ -621,12 +491,12 @@ sub tool_get_latest_metrics
 				my $sub_data = $latest->{data}{$sub};
 				%raw_data = (%raw_data, %$sub_data) if ref($sub_data) eq 'HASH';
 			}
-			my $renamed = _apply_field_rename($concept, \%raw_data);
-			my $renamed_derived = _apply_field_rename($concept,
-				_filter_derived_flat($latest->{derived_data}));
+			my $renamed = apply_field_rename($concept, \%raw_data);
+			my $renamed_derived = apply_field_rename($concept,
+				filter_derived_flat($latest->{derived_data}));
 
 			push @instances, {
-				concept     => $CONCEPT_RENAME{$concept} // $concept,
+				concept     => $NMISNG::OTel::CONCEPT_RENAME{$concept} // $concept,
 				index       => $index,
 				description => $description,
 				timestamp   => $latest->{time} // time(),
@@ -651,7 +521,24 @@ sub tool_list_events
 		$filter{node_uuid} = $node_obj->uuid;
 	}
 
-	my $events_model = $nmisng->events->get_events_model(filter => \%filter);
+	# Push the field projection and a result cap down to the DB rather than
+	# pulling every active event as a full document.
+	my $limit = ($args->{limit} && $args->{limit} =~ /^\d+$/) ? $args->{limit} + 0 : 1000;
+
+	my $events_model = $nmisng->events->get_events_model(
+		filter      => \%filter,
+		limit       => $limit,
+		fields_hash => {
+			node_name => 1,
+			event     => 1,
+			level     => 1,
+			element   => 1,
+			details   => 1,
+			startdate => 1,
+			ack       => 1,
+			escalate  => 1,
+		},
+	);
 
 	my @events;
 	for my $ev (@{$events_model->data})
@@ -679,24 +566,25 @@ sub tool_list_inventory
 	my $concept = $args->{concept}
 		or return ({ error => "Missing required parameter: concept" }, 1);
 
-	my $S = NMISNG::Sys->new;
-	my $ok = $S->init(name => $node_name, snmp => 'false');
-	return ({ error => "Node '$node_name' not found or init failed" }, 1) unless $ok;
+	my $node_obj = $nmisng->node(name => $node_name)
+		or return ({ error => "Node '$node_name' not found" }, 1);
 
-	my $ids = $S->nmisng_node->get_inventory_ids(
-		concept => $concept,
-		filter  => { historic => 0 },
+	# One model query; we only need the raw data documents, no objects.
+	my $inv_model = $node_obj->get_inventory_model(
+		concept     => $concept,
+		filter      => { historic => 0 },
+		fields_hash => { data => 1 },
 	);
-	return ({ error => "No inventory for concept '$concept' on node '$node_name'" }, 1) unless @$ids;
+	return ({ error => "Failed to query inventory: " . $inv_model->error }, 1) if $inv_model->error;
+
+	my $docs = $inv_model->data();
+	return ({ error => "No inventory for concept '$concept' on node '$node_name'" }, 1) unless @$docs;
 
 	my @instances;
-	for my $inv_id (@$ids)
+	for my $doc (@$docs)
 	{
-		my ($inventory, $err) = $S->nmisng_node->inventory(_id => $inv_id);
-		next if $err;
-
-		my $inv_data    = $inventory->data();
-		my $description = _get_description($concept, $inv_data);
+		my $inv_data    = $doc->{data} // {};
+		my $description = get_description($concept, $inv_data);
 		my $index       = $inv_data->{index} // '0';
 
 		push @instances, {
@@ -715,6 +603,7 @@ sub tool_get_node_precise_status
 
 	my $node_name  = $args->{node};
 	my $group_name = $args->{group};
+	my $limit      = ($args->{limit} && $args->{limit} =~ /^\d+$/) ? $args->{limit} + 0 : undef;
 
 	# Build filter for get_nodes_model
 	my %filter;
@@ -735,6 +624,7 @@ sub tool_get_node_precise_status
 			'configuration.host'  => 1,
 		},
 		(%filter ? (filter => \%filter) : ()),
+		(defined $limit ? (limit => $limit) : ()),
 	);
 
 	my $nodes_data = $model->data();
@@ -744,6 +634,10 @@ sub tool_get_node_precise_status
 	{
 		return ({ error => "Node '$node_name' not found" }, 1);
 	}
+
+	# Batch the catchall inventory for uptime/reachability/availability so we
+	# don't reload it (plus timed data) per node on top of precise_status.
+	my %catchall_by_uuid = _catchall_by_uuid($nmisng);
 
 	my %overall_labels = ( 1 => 'reachable', 0 => 'unreachable', -1 => 'degraded' );
 
@@ -760,24 +654,7 @@ sub tool_get_node_precise_status
 
 		my $overall_label = $overall_labels{ $precise{overall} } // 'unknown';
 
-		# Get uptime and reachability from catchall inventory
-		my $uptime_sec;
-		my $reachability;
-		my $availability;
-
-		my ($inv, $err) = $node_obj->inventory(concept => 'catchall');
-		if ($inv && !$err)
-		{
-			my $catchall_data = $inv->data();
-			$uptime_sec = $catchall_data->{sysUpTimeSec};
-
-			my $latest = $inv->get_newest_timed_data();
-			if ($latest->{success} && $latest->{data} && $latest->{data}{health})
-			{
-				$reachability = $latest->{data}{health}{reachability};
-				$availability = $latest->{data}{health}{availability};
-			}
-		}
+		my $catchall_data = $catchall_by_uuid{ $nd->{uuid} } // {};
 
 		push @results, {
 			node                 => $nd->{name},
@@ -794,9 +671,9 @@ sub tool_get_node_precise_status
 			failover_status      => $precise{failover_status},
 			failover_ping_status => $precise{failover_ping_status},
 			primary_ping_status  => $precise{primary_ping_status},
-			uptime_seconds       => $uptime_sec,
-			reachability         => $reachability,
-			availability         => $availability,
+			uptime_seconds       => $catchall_data->{sysUpTimeSec},
+			reachability         => $catchall_data->{reachability},
+			availability         => $catchall_data->{availability},
 		};
 	}
 
@@ -804,57 +681,25 @@ sub tool_get_node_precise_status
 }
 
 # ---------------------------------------------------------------------------
-# OTel helpers (from mqttobservations.pm)
+# Helpers
 # ---------------------------------------------------------------------------
 
-sub _apply_field_rename
+# Fetch every node's catchall inventory data in a single query, returned as a
+# (node_uuid => data hashref) map. Returns an empty list on error.
+sub _catchall_by_uuid
 {
-	my ($concept, $src) = @_;
-	return {} if (!$src || ref($src) ne 'HASH');
-	my $map = $FIELD_RENAME{$concept} // {};
-	my %out;
-	for my $k (keys %$src)
+	my ($nmisng) = @_;
+	my %by_uuid;
+	my $inv_model = $nmisng->get_inventory_model(
+		concept     => 'catchall',
+		fields_hash => { node_uuid => 1, data => 1 },
+	);
+	return %by_uuid if $inv_model->error;
+	for my $doc (@{ $inv_model->data() })
 	{
-		next if $k =~ /_raw$/i;
-		my $new_k = $map->{$k} // "nmis.$k";
-		$out{$new_k} = $src->{$k};
+		$by_uuid{ $doc->{node_uuid} } = $doc->{data} // {};
 	}
-	return \%out;
-}
-
-sub _filter_derived
-{
-	my ($src) = @_;
-	return {} if (!$src || ref($src) ne 'HASH');
-	my %filtered = map { $_ => $src->{$_} }
-		grep { $_ !~ /^(?:08|16)/ } keys %$src;
-	return \%filtered;
-}
-
-sub _filter_derived_flat
-{
-	my ($derived) = @_;
-	return {} if (!$derived || ref($derived) ne 'HASH');
-	my %out;
-	for my $sub (keys %$derived)
-	{
-		my $filtered = _filter_derived($derived->{$sub});
-		%out = (%out, %$filtered);
-	}
-	return \%out;
-}
-
-sub _get_description
-{
-	my ($concept, $data) = @_;
-	my @fields = @{$DESCRIPTION_FIELDS{$concept} // []};
-	push @fields, @FALLBACK_DESCRIPTION_FIELDS;
-	for my $field (@fields)
-	{
-		return $data->{$field}
-			if defined $data->{$field} && $data->{$field} ne '';
-	}
-	return '';
+	return %by_uuid;
 }
 
 # ---------------------------------------------------------------------------
@@ -892,3 +737,5 @@ sub _ct_eq
 	$r |= ord(substr($a, $_, 1)) ^ ord(substr($b, $_, 1)) for 0 .. length($a) - 1;
 	return $r == 0;
 }
+
+1;

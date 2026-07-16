@@ -57,14 +57,25 @@ CONF_FILE="${NMIS_CONF}/nmis-mcp.nmis"
 GENERATED_TOKEN=0
 
 if [[ -f "$CONF_FILE" ]]; then
-    # Read existing token
-    API_TOKEN=$(perl -ne "print \$1 if /'api_token'\s*=>\s*'([^']+)'/" "$CONF_FILE" 2>/dev/null || true)
+    # Read existing token ([^']* so an empty '' value is matched, not skipped)
+    API_TOKEN=$(perl -ne "print \$1 if /'api_token'\s*=>\s*'([^']*)'/" "$CONF_FILE" 2>/dev/null || true)
     if [[ -z "$API_TOKEN" || "$API_TOKEN" == "change-me-to-a-secure-token" ]]; then
-        # Config exists but token is placeholder — generate and update it
-        API_TOKEN=$(openssl rand -base64 48 | tr -d '/+=' | head -c 64)
-        perl -i -pe "s/'api_token'\s*=>\s*'[^']+'/'api_token' => '$API_TOKEN'/" "$CONF_FILE"
-        GENERATED_TOKEN=1
-        echo "  Updated ${CONF_FILE} with new API token"
+        # Config exists but token is placeholder/empty — generate and update it
+        NEW_TOKEN=$(openssl rand -base64 48 | tr -d '/+=' | head -c 64)
+        perl -i -pe "s/'api_token'\s*=>\s*'[^']*'/'api_token' => '$NEW_TOKEN'/" "$CONF_FILE"
+        # Verify the substitution actually landed (it silently no-ops if the
+        # value used double quotes or an unexpected layout) before we claim
+        # success and hand the operator a token that was never written.
+        WRITTEN_TOKEN=$(perl -ne "print \$1 if /'api_token'\s*=>\s*'([^']*)'/" "$CONF_FILE" 2>/dev/null || true)
+        if [[ "$WRITTEN_TOKEN" == "$NEW_TOKEN" ]]; then
+            API_TOKEN="$NEW_TOKEN"
+            GENERATED_TOKEN=1
+            echo "  Updated ${CONF_FILE} with new API token"
+        else
+            echo "Error: could not update 'api_token' in ${CONF_FILE}." >&2
+            echo "       Edit it by hand and set a single-quoted api_token value." >&2
+            exit 1
+        fi
     else
         echo "  ${CONF_FILE} (exists — keeping existing token)"
     fi

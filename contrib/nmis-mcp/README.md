@@ -32,15 +32,27 @@ The CGI script is served by Apache at `/cgi-nmis9/nmis-mcp.pl` using the existin
 
 ## Authentication
 
-The server supports three authentication methods:
+The server authenticates every request against the `api_token` in
+`conf/nmis-mcp.nmis`. There is no cookie/session fallback — a valid token is
+required (and the placeholder `change-me-to-a-secure-token` is rejected), so
+requests with no matching token get a `401`.
+
+The token may be supplied three ways:
 
 | Method | Header/Parameter | Notes |
 |--------|-----------------|-------|
 | Custom header | `X-API-Token: <token>` | Recommended. Apache passes `X-*` headers to CGI. |
 | Bearer token | `Authorization: Bearer <token>` | Standard, but requires `CGIPassAuth On` in Apache. |
-| Query parameter | `?token=<token>` | For quick testing only. |
+| Query parameter | `?token=<token>` | For quick testing only. Read from the URL query string even on a POST. |
 
-All methods check the token against `api_token` in `conf/nmis-mcp.nmis`. If no token matches, the server falls back to NMIS cookie authentication (for browser-based testing).
+## Request format
+
+All JSON-RPC calls are HTTP `POST` requests and **must** be sent with
+`Content-Type: application/json` — the raw JSON body is read directly and is
+not form-decoded. Sending the body as `application/x-www-form-urlencoded`
+(curl's `-d` default) corrupts JSON that contains spaces, `=`, `+` or `%`
+sequences, so add `-H "Content-Type: application/json"` (or use curl's
+`--json`) as shown in the examples below.
 
 ## Using NMIS MCP in Claude Desktop
 
@@ -95,6 +107,7 @@ List all monitored nodes with basic status.
 ```bash
 curl -s -X POST http://localhost/cgi-nmis9/nmis-mcp.pl \
   -H "X-API-Token: YOUR_TOKEN" \
+  -H "Content-Type: application/json" \
   -d '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"nmis_list_nodes","arguments":{}}}'
 ```
 
@@ -111,6 +124,7 @@ The `health` object contains OTel-renamed metrics from the health subconcept (re
 ```bash
 curl -s -X POST http://localhost/cgi-nmis9/nmis-mcp.pl \
   -H "X-API-Token: YOUR_TOKEN" \
+  -H "Content-Type: application/json" \
   -d '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"nmis_get_node_status","arguments":{"node":"myrouter"}}}'
 ```
 
@@ -127,6 +141,7 @@ Get the latest collected metrics for a node and inventory concept.
 ```bash
 curl -s -X POST http://localhost/cgi-nmis9/nmis-mcp.pl \
   -H "X-API-Token: YOUR_TOKEN" \
+  -H "Content-Type: application/json" \
   -d '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"nmis_get_latest_metrics","arguments":{"node":"myrouter","concept":"interface"}}}'
 ```
 
@@ -134,13 +149,14 @@ curl -s -X POST http://localhost/cgi-nmis9/nmis-mcp.pl \
 
 List active (non-historic) NMIS events and alerts.
 
-**Parameters:** `node` (optional, filter by node name)
+**Parameters:** `node` (optional, filter by node name), `limit` (optional, default 1000)
 
 **Returns:** array of `{node, event, level, element, details, startdate, ack, escalate}`
 
 ```bash
 curl -s -X POST http://localhost/cgi-nmis9/nmis-mcp.pl \
   -H "X-API-Token: YOUR_TOKEN" \
+  -H "Content-Type: application/json" \
   -d '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"nmis_list_events","arguments":{}}}'
 ```
 
@@ -155,6 +171,7 @@ List inventory instances for a node and concept, showing index, description, and
 ```bash
 curl -s -X POST http://localhost/cgi-nmis9/nmis-mcp.pl \
   -H "X-API-Token: YOUR_TOKEN" \
+  -H "Content-Type: application/json" \
   -d '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"nmis_list_inventory","arguments":{"node":"myrouter","concept":"Host_Storage"}}}'
 ```
 
@@ -162,7 +179,7 @@ curl -s -X POST http://localhost/cgi-nmis9/nmis-mcp.pl \
 
 Get precise reachability status for nodes, including per-protocol (SNMP, WMI, ping) status, failover state, uptime, and reachability metrics. Uses the `NMISNG::Node::precise_status()` method.
 
-**Parameters:** `node` (optional), `group` (optional). Omit both for all nodes.
+**Parameters:** `node` (optional), `group` (optional), `limit` (optional). Omit all for every node — but note each node requires a live status computation (a catchall read plus several event lookups), so on large fleets scope the query with `group` or `limit`.
 
 **Returns:** array of `{node, group, host, overall, overall_status, snmp_enabled, snmp_status, wmi_enabled, wmi_status, ping_enabled, ping_status, failover_status, failover_ping_status, primary_ping_status, uptime_seconds, reachability, availability}`
 
@@ -172,16 +189,19 @@ The `overall_status` field is a human-readable label: `reachable`, `degraded`, o
 # All nodes
 curl -s -X POST http://localhost/cgi-nmis9/nmis-mcp.pl \
   -H "X-API-Token: YOUR_TOKEN" \
+  -H "Content-Type: application/json" \
   -d '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"nmis_get_node_precise_status","arguments":{}}}'
 
 # Single node
 curl -s -X POST http://localhost/cgi-nmis9/nmis-mcp.pl \
   -H "X-API-Token: YOUR_TOKEN" \
+  -H "Content-Type: application/json" \
   -d '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"nmis_get_node_precise_status","arguments":{"node":"myrouter"}}}'
 
 # By group
 curl -s -X POST http://localhost/cgi-nmis9/nmis-mcp.pl \
   -H "X-API-Token: YOUR_TOKEN" \
+  -H "Content-Type: application/json" \
   -d '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"nmis_get_node_precise_status","arguments":{"group":"Core"}}}'
 ```
 
