@@ -1228,7 +1228,7 @@
     'descr' => 'Write access to table Services',
     'group' => 'access',
     'level0' => '1',
-    'level1' => '1',
+    'level1' => '0',
     'level2' => '0',
     'level3' => '0',
     'level4' => '0',
