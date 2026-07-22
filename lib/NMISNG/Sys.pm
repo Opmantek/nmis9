@@ -1666,12 +1666,16 @@ sub eval_string
 			return "Error: CVAR$varuse used but not defined in expression \"$input\""
 				if ( !exists $cvar{$varuse} );
 
-			$rebuiltcalc .= $cvar{$varuse};    # sub in the actual value
+			# OMK-12689: the CVAR value can be device-controlled (raw SNMP/WMI data).
+			# Do NOT concatenate it into the code to be eval'd. Emit a reference to a
+			# lexical bound below, so the value is data and can never be executed.
+			$rebuiltcalc .= "\$CVAR{" . ( 0 + $varuse ) . "}";
 		}
 	}
 	$rebuiltcalc .= $consumeme;                # and the non-CVAR-containing remainder.
 
 	my $r = $context;                          # backwards compat naming: allow $r inside expression
+	my %CVAR = %cvar;                          # OMK-12689: CVAR values bound as data, referenced as $CVAR{n}
 	$r = eval $rebuiltcalc;
 
 	$self->nmisng->log->debug3("calc translated \"$input\" into \"$rebuiltcalc\", used variables: "
@@ -2466,6 +2470,25 @@ sub parseString
 		# must be done longest-first or we'll wreck $ifSpeedIn by replacing it with <value of ifSpeed>In...
 		for my $maybe ( sort { length($b) <=> length($a) } keys %$extras )
 		{
+			# OMK-12689: in eval mode, do not splice the (possibly device-controlled)
+			# value into the code to be eval'd. Substitute a reference into the lexical
+			# %EXTRAS bound just before the eval below, so the value stays data and can
+			# never be executed. The fragile single-quote stripping/wrapping "defence"
+			# is dropped for this path (it corrupted values and was escapable).
+			# Applies whenever eval is on, regardless of filter: eval mode must never
+			# fall back to the escapable quote-splice path. (filterName is only used by
+			# name-building callers, which pass eval => 0.)
+			if ( $eval )
+			{
+				my $ref      = "\$EXTRAS{'" . $maybe . "'}";
+				my $presubst = $str;
+				if ( $str =~ s/(\$$maybe|\$\{$maybe\})/$ref/g )
+				{
+					$self->nmisng->log->debug3( sub { "bound '$maybe' as data, str before '$presubst', after '$str'" } );
+				}
+				next;
+			}
+
 			# used to quote with double quotes, changed to single quotes and remove any single quotes to make sure our quoting is not interrupted
 			# NOTE: Is there any reason not to quote every time?
 			$extras->{$maybe} =~ s/'//g; # remove any single quotes because we will be quoting with them
@@ -2502,6 +2525,7 @@ sub parseString
 		Carp::confess("parseString failed to fully expand \"$str\"!");
 	}
 
+	my %EXTRAS = ( ref($extras) eq "HASH" ) ? %$extras : ();    # OMK-12689: eval-mode $EXTRAS{...} refs resolve here, as data
 	my $product = ($eval) ? eval $str : $str;
 	$self->nmisng->log->error("($node_name) parseString failed for str:$str, error:$@") if($@);
 	$self->nmisng->log->debug3(sub { "parseString:: result is str=$product"});
