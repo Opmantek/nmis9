@@ -94,36 +94,7 @@ sub error {
 # returns: nothing
 sub rrdDraw
 {
-	my %args = @_;
-
-	# Break the query up for the names
-	my $type = $Q->{obj};
-	my $nodename = $Q->{node};
-	my $debug = $Q->{debug};
-	my $grp = $Q->{group};
-	my $graphtype = $Q->{graphtype};
-	my $graphstart = $Q->{graphstart};
-	my $width = $Q->{width};
-	my $height = $Q->{height};
-	my $start = $Q->{start};
-	my $end = $Q->{end};
-	my $intf = $Q->{intf};
-	my $item = $Q->{item};
-	my $filename = $Q->{filename};
-	my $when = $Q->{time};
-
-	my $result = NMISNG::rrdfunc::draw(node => $nodename,
-																		 group => $grp,
-																		 graphtype => $graphtype,
-																		 intf => $intf,
-																		 item => $item,
-																		 width => $width,
-																		 height => $height,
-																		 filename => $filename,
-																		 start => $start,
-																		 end => $end,
-																		 debug => $debug,
-																		 time => $when);
+	my $result = NMISNG::rrdfunc::draw(NMISNG::rrdfunc::rrdDraw_web_args(%$Q));
 	if (!$result->{success})
 	{
 		error("rrddraw failed: $result->{error}");
