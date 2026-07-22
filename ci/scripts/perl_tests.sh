@@ -25,6 +25,11 @@ working_tests=(
     t_duplicate_event.pl
     t_event_cancelingevent_cycle.pl
     t_event_query_isolation.pl
+    t_event.pl
+    t_model_overrides.pl
+    t_plugin_nodeobj.pl
+    notify_depend.t
+    t_nmisng_node_nomodel.pl
 )
 
 for i in "${working_tests[@]}"; do
