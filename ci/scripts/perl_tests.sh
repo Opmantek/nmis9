@@ -23,6 +23,7 @@ working_tests=(
     t_node_lock_stale.pl
     t_duplicate_event.pl
     t_eval_injection.pl
+    t_report_filename.t
 )
 
 for i in "${working_tests[@]}"; do
