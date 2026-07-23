@@ -1805,6 +1805,16 @@ sub purge_files
 
 #===============
 
+# Validate a stored report filename.
+# Returns the filename unchanged if valid, undef otherwise.
+sub validate_report_filename
+{
+	my ($name) = @_;
+	return undef if !defined($name) || $name eq '';
+	return undef if $name !~ m{^\w[\w\-\.]*\.html\z};
+	return $name;
+}
+
 sub fileReport {
 
 	print header($headeropts);
@@ -1812,7 +1822,22 @@ sub fileReport {
 
 	return unless $AU->CheckAccess('rpt_stored'); # same as menu
 
-	if (sysopen(HTML, "$C->{report_root}/$Q->{file}", O_RDONLY)) {
+	my $report_file = validate_report_filename($Q->{file} // '');
+	if (!defined $report_file)
+	{
+		print Tr(td({class=>'error'}, "Invalid report file name"));
+		print Compat::NMIS::pageEnd if (not $Q->{print} and not $wantwidget);
+		return;
+	}
+	my $report_path = "$C->{report_root}/$report_file";
+	if (-l $report_path)
+	{
+		print Tr(td({class=>'error'}, "Invalid report file name"));
+		print Compat::NMIS::pageEnd if (not $Q->{print} and not $wantwidget);
+		return;
+	}
+
+	if (sysopen(HTML, $report_path, O_RDONLY | O_NOFOLLOW)) {
 		while (<HTML>){
 			my $line = $_;
 			$line =~ s/<a[^>]*>(.*?)<\/a>/$1/g; # remove links
@@ -1821,7 +1846,7 @@ sub fileReport {
 		print Compat::NMIS::pageEnd if (not $Q->{print} and not $wantwidget);
 		close HTML;
 	} else {
-		print Tr(td({class=>'error'},"Cannot read report file $C->{report_root}/$Q->{file}"));
+		print Tr(td({class=>'error'},"Cannot read report file"));
 		print Compat::NMIS::pageEnd if (not $Q->{print} and not $wantwidget);
 	}
 }
