@@ -298,6 +298,12 @@ elsif ( $schema and -r $schemaFileDefault ) {
 else {
 	$schema = 0;
 }
+# OMK-12696: readFiletoHash returns an error string (not a hashref) when it
+# refuses an unsafe (world-writable) or unreadable schema; surface that cleanly
+# instead of crashing on the first deref below.
+if ( $schema and defined $modelSchema and ref($modelSchema) ne "HASH" ) {
+	die "cannot load model schema: $modelSchema\n";
+}
 
 if ($nodes) {
 	checkNodes();
@@ -506,6 +512,9 @@ sub printDiscoverySummary {
 
 	# do some basic model changes
 	if ( defined $newModelName ) {
+		# OMK-12696: refuse-to-eval makes readFiletoHash return an error string;
+		# surface it rather than crash dereferencing a string below.
+		die "cannot load model template '$modelTemplate': $newModel\n" if (!ref($newModel));
 		$newModel->{'system'}{'nodeModel'} = $newModelName;
 		$newModel->{'system'}{'nodeModelComment'} = "Auto Generated Model by model_discovery.pl";
 	}
@@ -853,16 +862,20 @@ sub processModelFile {
 		$modelType = "Common" if ( $file =~ /Common/ );
 	
 		print &indent . "Processing $curModel: $file\n" if debug();
-		my $model = NMISNG::Util::readFiletoHash(file=>"$dir/$file");		
+		my $model = NMISNG::Util::readFiletoHash(file=>"$dir/$file");
 		#Recurse into structure, handing off anything which is a HASH to be handled?
 		# track the modelType not using the path.
 		#push(@path,$modelType);
 		$modLevel = 0;
-		if ( $model ) {
+		# OMK-12696: readFiletoHash returns an error string (which is truthy) when
+		# it refuses an unsafe/unreadable model; require a hashref so an error
+		# string falls through to the MODEL ERROR branch instead of a deref crash.
+		if ( ref($model) eq "HASH" ) {
 			processData($model,$modelType,$file);
 		}
 		else {
-			print indent(). "MODEL ERROR: Could not load $file\n";
+			print indent(). "MODEL ERROR: Could not load $file"
+				. (defined($model) && !ref($model) ? ": $model" : "") . "\n";
 		}
 		pop(@path);
 

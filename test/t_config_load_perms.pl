@@ -74,8 +74,17 @@ my $benign  = qq{( alpha => 1, beta => "two" )\n};
 	unlink $marker;
 	my $p = write_nmis("evil-world-conf.nmis", 0666,
 		qq{system("touch $marker"); ( database => { db_name => "x" } )\n});
+	my @warnings;
+	local $SIG{__WARN__} = sub { push @warnings, $_[0] };
 	my @r = NMISNG::Util::_load_and_flatten($p);
 	ok(!-e $marker, '_load_and_flatten: world-writable config is NOT evaluated');
+	is(scalar(@r), 3, '_load_and_flatten: returns a 3-element list on refusal');
+	ok(!defined($r[0]) && !defined($r[1]) && !defined($r[2]),
+		'_load_and_flatten: returns (undef,undef,undef) on refusal, not a partial hash');
+	ok((grep { /world-writable/ } @warnings),
+		'_load_and_flatten: warns that the file is world-writable');
+	ok((grep { /chmod o-w/ } @warnings),
+		'_load_and_flatten: warning carries the remediation (chmod o-w)');
 }
 {
 	my $p = write_nmis("group-conf.nmis", 0664, qq{( database => { db_name => "nmisng" } )\n});
@@ -87,6 +96,60 @@ my $benign  = qq{( alpha => 1, beta => "two" )\n};
 	my $p = write_nmis("good-conf.nmis", 0644, qq{( database => { db_name => "nmisng" } )\n});
 	my ($flat) = NMISNG::Util::_load_and_flatten($p);
 	is(ref($flat), 'HASH', '_load_and_flatten: 0644 config still loads');
+}
+
+# ============================================================
+# loadTable — merges conf.d/<table>/*.nmis fragments. readFiletoHash returns an
+# error STRING (not a hashref) for a world-writable fragment; the merge
+# ({%$table, %$extfile}) must tolerate that string, not die dereferencing it.
+# getDir(dir=>"conf") returns $conf->{"<nmis_conf>"}, so we can point loadTable
+# at the temp dir with a minimal conf hash.
+# ============================================================
+sub setup_table_with_evil_fragment
+{
+	my ($table_name) = @_;    # e.g. "MyTable"
+	write_nmis("$table_name.nmis", 0644, qq{( main_key => "ok" )\n});
+	mkdir "$dir/conf.d"              unless -d "$dir/conf.d";
+	mkdir "$dir/conf.d/$table_name"  unless -d "$dir/conf.d/$table_name";
+	my $frag = "$dir/conf.d/$table_name/evil.nmis";
+	open(my $fh, '>', $frag) or die "cannot write $frag: $!";
+	print $fh qq{system("touch $marker"); ( frag_key => "evil" )\n};
+	close $fh;
+	chmod(0666, $frag) or die "chmod failed: $!";
+}
+
+# cached (non-lock) path
+{
+	unlink $marker;
+	setup_table_with_evil_fragment("CachedTable");
+	my $conf = { "<nmis_conf>" => "$dir" };
+	my $table = eval {
+		NMISNG::Util::loadTable(dir => "conf", name => "CachedTable.nmis", conf => $conf);
+	};
+	ok(!$@, 'loadTable (cached): world-writable fragment does not crash the merge')
+		or diag("died: $@");
+	ok(!-e $marker, 'loadTable (cached): world-writable fragment is NOT evaluated');
+	is(ref($table), 'HASH', 'loadTable (cached): returns a hash despite the unsafe fragment');
+	is($table->{main_key}, 'ok', 'loadTable (cached): safe main-table content is preserved');
+	ok(!exists $table->{frag_key}, 'loadTable (cached): unsafe fragment content is dropped');
+}
+
+# lock path. NOTE: loadTable(lock=>1) returns readFiletoHash's ($data,$handle)
+# in scalar context, i.e. the lock handle, not the data (pre-existing behaviour,
+# unrelated to OMK-12696). So we assert only the I3 guarantee here: a
+# world-writable fragment must not be evaluated and must not cause an opaque
+# string-deref crash in the merge.
+{
+	unlink $marker;
+	setup_table_with_evil_fragment("LockedTable");
+	my $conf = { "<nmis_conf>" => "$dir" };
+	eval {
+		NMISNG::Util::loadTable(dir => "conf", name => "LockedTable.nmis", conf => $conf, lock => 1);
+		1;
+	};
+	ok($@ !~ /HASH ref/, 'loadTable (lock): world-writable fragment does not cause a string-deref crash')
+		or diag("died: $@");
+	ok(!-e $marker, 'loadTable (lock): world-writable fragment is NOT evaluated');
 }
 
 done_testing();

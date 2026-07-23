@@ -1010,7 +1010,15 @@ sub _config_perms_error
 	# CORE::stat: this package imports File::stat, which overrides stat() to
 	# return an object rather than the 13-element list we need for the mode.
 	my @st = CORE::stat($fh);    # fstat on the open handle we are about to eval
-	return undef if (!@st);      # cannot stat: leave existing handling to cope
+	# Fail closed: if we cannot determine the mode of a file we are about to eval
+	# as root, refuse it rather than assume it is safe. fstat on an open handle
+	# essentially never fails, so this is not expected to reject legitimate files.
+	if (!@st)
+	{
+		return "refusing to evaluate config file '$file': cannot determine its"
+			. " permissions (stat failed: $!); refusing rather than eval an"
+			. " unknown file as root.";
+	}
 	my $mode = $st[2];
 	if ($mode & 0002)            # writable by other (any local user)
 	{
@@ -1449,12 +1457,20 @@ sub loadTable
 	if ($lock) {
 		my $table = NMISNG::Util::readFiletoHash(file=>$file, lock=>$lock, conf => $conf);
 
-		foreach (@$externalFiles) {
-			# Read and mix
-			my $lock = NMISNG::Util::getbool($args{lock});
-			my $extfile = NMISNG::Util::readFiletoHash(file=>$_, lock=>$lock, conf => $conf);
-			$table = {%$table, %$extfile};
-		}		
+		# OMK-12696: readFiletoHash returns an error string (not a hashref) when it
+		# refuses an unsafe (e.g. world-writable) or unreadable file. Preserve that
+		# error return for the main table (callers test ref()); only merge fragments
+		# into a real hash, and skip any fragment we refused rather than die
+		# dereferencing a string.
+		if (ref($table)) {
+			foreach (@$externalFiles) {
+				# Read and mix
+				my $lock = NMISNG::Util::getbool($args{lock});
+				my $extfile = NMISNG::Util::readFiletoHash(file=>$_, lock=>$lock, conf => $conf);
+				if (!ref($extfile)) { warn("loadTable: skipping external file: $extfile\n"); next; }
+				$table = {%$table, %$extfile};
+			}
+		}
 		return $table;
 	}
 	
@@ -1466,10 +1482,15 @@ sub loadTable
 	{
 		my $table = NMISNG::Util::readFiletoHash(file=>$file, conf => $conf);
 
-		foreach (@$externalFiles) {
-			# Read and mix
-			my $extfile = NMISNG::Util::readFiletoHash(file=>$_, conf => $conf);
-			$table = {%$table, %$extfile};
+		# OMK-12696: see the note in the lock branch above. Preserve the main-table
+		# error-string return; only merge real hashref fragments; skip refused ones.
+		if (ref($table)) {
+			foreach (@$externalFiles) {
+				# Read and mix
+				my $extfile = NMISNG::Util::readFiletoHash(file=>$_, conf => $conf);
+				if (!ref($extfile)) { warn("loadTable: skipping external file: $extfile\n"); next; }
+				$table = {%$table, %$extfile};
+			}
 		}
 		# nope, reread
 		$cache{$file} = { "data" => $table,
