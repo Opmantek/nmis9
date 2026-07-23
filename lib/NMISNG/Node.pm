@@ -6314,50 +6314,32 @@ sub handle_custom_alerts
 					my ( $test, $value, $alert, $test_value, $test_result );
 
 					# do this for test and value
+					# OMK-12689: evaluate through the hardened Sys::eval_string so CVAR
+					# values (which include raw device data from $data) are bound as data
+					# and never concatenated into the code that gets eval'd. This removes
+					# the second injection sink that duplicated eval_string's logic.
 					for my $thingie ( ['test', \$test_result], ['value', \$test_value] )
 					{
 						my ( $key, $target ) = @$thingie;
-
 						my $origexpr = $CA->{$sect}{$alrt}{$key};
-						my ( $rebuilt, @CVAR );
 
-						# rip apart expression, rebuild it with var substitutions
-						while ( $origexpr =~ s/^(.*?)(CVAR(\d)=(\w+);|\$CVAR(\d))// )
+						my ( $everr, $evres ) = $S->eval_string(
+							string    => $origexpr,
+							context   => '',          # this alert path historically leaves $r unset
+							variables => [ $data ],
+						);
+						if ( defined $everr )
 						{
-							$rebuilt .= $1;    # the unmatched, non-cvar stuff at the begin
-							my ( $varnum, $decl, $varuse ) = ( $3, $4, $5 );    # $2 is the whole |-group
-
-							if ( defined $varnum )                              # cvar declaration
-							{
-								$CVAR[$varnum] = $data->{$decl};
-								$self->nmisng->log->error("CVAR$varnum references unknown object \"$decl\" in \""
-										. $CA->{$sect}{$alrt}{$key}  ." of section $sect, alert $alrt, key $key, model $nodemodel" )
-									if ( !exists $data->{$decl} );
-							}
-							elsif ( defined $varuse )                           # cvar use
-							{
-								$self->nmisng->log->error("CVAR$varuse used but not defined in test \""
-										. $CA->{$sect}{$alrt}{$key} ." of section $sect, alert $alrt, key $key, model $nodemodel" )
-									if ( !exists $CVAR[$varuse] );
-
-								$rebuilt .= $CVAR[$varuse];                     # sub in the actual value
-							}
-							else                                                # shouldn't be reached, ever
-							{
-								$self->nmisng->log->error( "CVAR parsing failure for \"" .
-																					 $CA->{$sect}{$alrt}{$key}
-																					 . " of section $sect, alert $alrt, key $key, model $nodemodel");
-
-								$rebuilt = $origexpr = '';
-								last;
-							}
+							$self->nmisng->log->error("alert eval failed for key $key, section $sect, "
+									. "alert $alrt, model $nodemodel: $everr");
+							$$target = undef;
 						}
-						$rebuilt .= $origexpr;    # and the non-CVAR-containing remainder.
-
-						$$target = eval { eval $rebuilt; };
-						$self->nmisng->log->debug2("substituted $key sect=$sect index=$index, orig=\""
-								. $CA->{$sect}{$alrt}{$key}
-								. "\", expr=\"$rebuilt\", result=$$target");
+						else
+						{
+							$$target = $evres;
+						}
+						$self->nmisng->log->debug2("evaluated $key sect=$sect index=$index, orig=\""
+								. $origexpr . "\", result=" . ( defined $$target ? $$target : "<undef>" ) );
 					}
 
 					if ( $test_value =~ /^[\+-]?\d+\.\d+$/ )
