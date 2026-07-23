@@ -2477,19 +2477,23 @@ sub parseString
 		{
 			# OMK-12689: in eval mode, do not splice the (possibly device-controlled)
 			# value into the code to be eval'd. Substitute a reference into the lexical
-			# %EXTRAS bound just before the eval below, so the value stays data and can
-			# never be executed. The fragile single-quote stripping/wrapping "defence"
-			# is dropped for this path (it corrupted values and was escapable).
+			# %EXTRAS_BY_ID bound below, so the value stays data and can never be
+			# executed. The fragile single-quote stripping/wrapping "defence" is
+			# dropped for this path (it corrupted values and was escapable).
 			# Applies whenever eval is on, regardless of filter: eval mode must never
 			# fall back to the escapable quote-splice path. (filterName is only used by
 			# name-building callers, which pass eval => 0.)
 			if ( $eval )
 			{
-				# reference a generated lexical slot; the key name never enters the
-				# eval'd source, and quotemeta keeps a metacharacter-bearing key from
-				# corrupting the match.
+				# Substitute a sentinel placeholder that contains no '$', so a later
+				# (shorter) key cannot re-match it and corrupt the source: e.g. a key
+				# 'E' would otherwise match the '$E' inside an already-substituted
+				# $EXTRAS_BY_ID{0}. Placeholders are converted to $EXTRAS_BY_ID{n}
+				# refs after ALL key substitution completes (below). The key name never
+				# enters the eval'd source; quotemeta keeps a metacharacter-bearing key
+				# from corrupting the match.
 				my $id       = $bind_id;
-				my $ref      = "\$EXTRAS_BY_ID{$id}";
+				my $ref      = "\x00EXTRASBIND${id}\x00";
 				my $presubst = $str;
 				if ( $str =~ s/(\$\Q$maybe\E|\$\{\Q$maybe\E\})/$ref/g )
 				{
@@ -2513,12 +2517,14 @@ sub parseString
 			# this substitutes $varname and ${varname},
 			# the latter is safer b/c the former has trouble with varnames sharing a prefix.
 			# no look-ahead assertion is possible, we don't know what the string is used for...
-			if ( $str =~ s/(\$$maybe|\$\{$maybe\})/$extras->{$maybe}/g )
+			# OMK-12689 (re-review M2): quotemeta the key so a metacharacter-bearing
+			# key matches literally (not CWE-94 here - eval is off - a correctness fix).
+			if ( $str =~ s/(\$\Q$maybe\E|\$\{\Q$maybe\E\})/$extras->{$maybe}/g )
 			{
 				if ($filter) {
 					$str = $presubst;
 					my $str2 = NMISNG::Util::filterName($extras->{$maybe});
-					$str =~ s/(\$$maybe|\$\{$maybe\})/$str2/g;
+					$str =~ s/(\$\Q$maybe\E|\$\{\Q$maybe\E\})/$str2/g;
 					$self->nmisng->log->debug3(sub { "substituted '$maybe', str before '$presubst', after '$str'" });
 				}
 			
@@ -2535,6 +2541,11 @@ sub parseString
 		$self->nmisng->log->fatal("($node_name) parseString failed to fully expand \"$str\"! extras were: ".Dumper($extras));
 		Carp::confess("parseString failed to fully expand \"$str\"!");
 	}
+
+	# OMK-12689 (re-review I1): now that all key substitution is complete, convert
+	# the sentinel placeholders to lexical %EXTRAS_BY_ID references. Done after the
+	# loop so a placeholder can never be re-matched by a later key during it.
+	$str =~ s/\x00EXTRASBIND(\d+)\x00/\$EXTRAS_BY_ID{$1}/g if ($eval);
 
 	# %EXTRAS_BY_ID (declared above) holds the bound values; eval-mode $EXTRAS_BY_ID{n} refs resolve here, as data
 	my $product = ($eval) ? eval $str : $str;

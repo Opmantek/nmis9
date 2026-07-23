@@ -115,7 +115,8 @@ sub payload_touching
 # inherited from sink 1 above. These are STRUCTURAL checks that the independent
 # eval sink is gone and the shared hardened evaluator is used; they are NOT a
 # behavioural no-execution RED->GREEN. Behavioural coverage of the alert path is
-# t_sys.pl (alert fire/normal, tests ~61-63), run in the in-container CI gate.
+# t_polling.pl, which drives handle_custom_alerts (calls at ~721/980), run in the
+# in-container CI gate.
 # ============================================================
 {
 	my $node_pm = "$FindBin::Bin/../lib/NMISNG/Node.pm";
@@ -209,6 +210,9 @@ sub payload_touching
 	# quote breaks the string literal and the eval syntax-errors (result undef) -
 	# proof the key reached the code. After the fix the key is bound by generated
 	# id ($EXTRAS_BY_ID{n}) and never appears in the source, so the value returns.
+	# NOTE: this RED->GREEN is against the intermediate commit d29cf0b6 (which
+	# introduced the $EXTRAS{'<key>'} splice), NOT the merge base 2ba2f45, which
+	# never had the key-splice and is green here - the PR nets to no new injection.
 	my $key = q{ab'cd};
 	my $res = $sys->parseString(
 		string => '${' . $key . '}',
@@ -225,6 +229,33 @@ sub payload_touching
 		eval   => 1,
 	);
 	is( $res, 1, 'sink3/parseString: multi-key expression still evaluates correctly' );
+}
+
+# ============================================================
+# Sink 3 hardening (re-review I1): the generated bind token must not be
+# re-matched by a later, shorter extras key. Substitution runs longest-first and
+# rewrites $str in place; a key like 'E' (a prefix of "EXTRAS_BY_ID") could match
+# the '$E' inside an already-substituted $EXTRAS_BY_ID{0}, corrupting the source
+# to eval-error/undef. Reachable via ordinary inventory field names.
+# ============================================================
+{
+	# the collision key 'E' is present but NOT referenced by the expression; its
+	# mere presence corrupted the already-bound token pre-fix (returned undef).
+	my $res = $sys->parseString(
+		string => '$foo',
+		extras => { foo => 123, E => 999 },
+		eval   => 1,
+	);
+	is( $res, 123, 'sink3/parseString: prefix-collision key does not corrupt an already-bound token' );
+}
+{
+	# both the colliding key and its sibling are referenced: both must bind as data.
+	my $res = $sys->parseString(
+		string => '$E + $foo',
+		extras => { foo => 123, E => 999 },
+		eval   => 1,
+	);
+	is( $res, 1122, 'sink3/parseString: prefix-collision key and its sibling both bind correctly' );
 }
 
 done_testing();
