@@ -1,0 +1,19 @@
+{
+   "activated" : { "NMIS" : 1 },
+   "configuration" : {
+      "active" : 1,
+      "collect" : 0,
+      "community" : "public",
+      "group" : "NMIS9",
+      "host" : "127.0.0.2",
+      "model" : "automatic",
+      "netType" : "lan",
+      "ping" : 1,
+      "port" : 161,
+      "roleType" : "access",
+      "threshold" : 0,
+      "version" : "snmpv2c"
+   },
+   "name" : "ci-testnode-2",
+   "uuid" : "aaaa0000-0000-4000-8000-000000000002"
+}
