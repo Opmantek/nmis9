@@ -112,9 +112,10 @@ sub payload_touching
 # This path cannot be driven without Mongo (it walks inventory), so the fix is
 # a delegation refactor: the duplicated CVAR loop and its own string eval are
 # replaced by a call to the hardened eval_string. The security property is then
-# inherited from sink 1 above; here we assert the invariant that the independent
-# eval sink is gone and the safe evaluator is used. Behavioural alert regression
-# is covered by t_sys.pl in the in-container gate.
+# inherited from sink 1 above. These are STRUCTURAL checks that the independent
+# eval sink is gone and the shared hardened evaluator is used; they are NOT a
+# behavioural no-execution RED->GREEN. Behavioural coverage of the alert path is
+# t_sys.pl (alert fire/normal, tests ~61-63), run in the in-container CI gate.
 # ============================================================
 {
 	my $node_pm = "$FindBin::Bin/../lib/NMISNG/Node.pm";
@@ -125,14 +126,14 @@ sub payload_touching
 
 	# isolate the handle_custom_alerts sub body
 	my ($body) = $src =~ /\nsub handle_custom_alerts\b(.*?)\nsub /s;
-	ok( defined $body && length $body, 'sink2: located handle_custom_alerts body' );
+	ok( defined $body && length $body, 'sink2 (structural): located handle_custom_alerts body' );
 
 	unlike( $body, qr/eval \s* \{ \s* eval \s* \$rebuilt/x,
-		'sink2: the independent string-eval of device CVAR data is removed' );
+		'sink2 (structural): the independent string-eval of device CVAR data is removed' );
 	unlike( $body, qr/\$rebuilt \s* \.= \s* \$CVAR\[/x,
-		'sink2: the duplicated raw-value CVAR concatenation is removed' );
+		'sink2 (structural): the duplicated raw-value CVAR concatenation is removed' );
 	like( $body, qr/eval_string/,
-		'sink2: alert test/value now go through the hardened eval_string' );
+		'sink2 (structural): alert test/value delegate to the hardened eval_string' );
 }
 
 # ============================================================
@@ -156,19 +157,11 @@ sub payload_touching
 	is( $res, 1, 'sink3/parseString: single-quote value preserved as data (not stripped)' );
 }
 
-# Security invariant: a value crafted to break out of the quoting must not
-# execute. Guaranteed post-fix by data-binding.
-{
-	my $dir     = File::Temp->newdir();
-	my $marker  = "$dir/pwned_control";
-	my $payload = 'z' . chr(92);    # value ending in a backslash (escapes the wrap quote)
-	my $res = $sys->parseString(
-		string => '($a, $b) ? 1 : 0',
-		extras => { a => $payload, b => ', system("touch ' . $marker . '"), 1' },
-		eval   => 1,
-	);
-	ok( !-e $marker, 'sink3/parseString: quote-escape breakout does not execute' );
-}
+# (An earlier breakout-payload assertion was removed: parseString's paren+quote
+# wrapper makes it a compile error rather than execution on the pre-fix base, so
+# it passed on both base and HEAD and proved nothing. The genuine sink-3 evidence
+# is the data-binding assertions above/below - single-quote value preserved (13),
+# eval+filter binds as data (16), and the quote-bearing key test (I5).)
 
 # Functionality guard: numeric control comparison still works.
 {
@@ -202,6 +195,36 @@ sub payload_touching
 		eval   => 0,
 	);
 	is( $res, 'prefix-router1-suffix', 'sink3: non-eval textual substitution preserved' );
+}
+
+# ============================================================
+# Sink 3 hardening (OMK-12689 review I5): parseString must not splice the
+# EXTRAS *key* into the eval'd source. Keys include arbitrary inventory-data
+# field names; a key containing a quote could otherwise break out of
+# $EXTRAS{'...'} and inject code.
+# ============================================================
+{
+	# A key containing a single quote is substituted into the expression. On the
+	# pre-fix code it is spliced into $EXTRAS{'<key>'} in the eval source, where the
+	# quote breaks the string literal and the eval syntax-errors (result undef) -
+	# proof the key reached the code. After the fix the key is bound by generated
+	# id ($EXTRAS_BY_ID{n}) and never appears in the source, so the value returns.
+	my $key = q{ab'cd};
+	my $res = $sys->parseString(
+		string => '${' . $key . '}',
+		extras => { $key => 'safevalue' },
+		eval   => 1,
+	);
+	is( $res, 'safevalue', 'sink3/parseString: quote-bearing EXTRAS key binds as data, not code' );
+}
+{
+	# normal multi-key expression still evaluates (guards the bind-by-id refactor)
+	my $res = $sys->parseString(
+		string => '($ifType == 6 and $ifSpeed > 100) ? 1 : 0',
+		extras => { ifType => 6, ifSpeed => 1000 },
+		eval   => 1,
+	);
+	is( $res, 1, 'sink3/parseString: multi-key expression still evaluates correctly' );
 }
 
 done_testing();

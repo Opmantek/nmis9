@@ -2465,6 +2465,11 @@ sub parseString
 	#
 	# if the extras substitution were to be done first, then the identically named
 	# but OCCASIONALLY DIFFERENT hardcoded global values will clash and we get breakage all over the place.
+	# OMK-12689 (review I5): bind substituted values by generated id, not by key
+	# name, so a (possibly device-derived) extras KEY is never spliced into the
+	# eval'd source. Populated in the eval branch below, referenced at the eval.
+	my %EXTRAS_BY_ID;
+	my $bind_id = 0;
 	if ( ref($extras) eq "HASH" && keys %$extras)
 	{
 		# must be done longest-first or we'll wreck $ifSpeedIn by replacing it with <value of ifSpeed>In...
@@ -2480,11 +2485,17 @@ sub parseString
 			# name-building callers, which pass eval => 0.)
 			if ( $eval )
 			{
-				my $ref      = "\$EXTRAS{'" . $maybe . "'}";
+				# reference a generated lexical slot; the key name never enters the
+				# eval'd source, and quotemeta keeps a metacharacter-bearing key from
+				# corrupting the match.
+				my $id       = $bind_id;
+				my $ref      = "\$EXTRAS_BY_ID{$id}";
 				my $presubst = $str;
-				if ( $str =~ s/(\$$maybe|\$\{$maybe\})/$ref/g )
+				if ( $str =~ s/(\$\Q$maybe\E|\$\{\Q$maybe\E\})/$ref/g )
 				{
-					$self->nmisng->log->debug3( sub { "bound '$maybe' as data, str before '$presubst', after '$str'" } );
+					$EXTRAS_BY_ID{$id} = $extras->{$maybe};
+					$bind_id++;
+					$self->nmisng->log->debug3( sub { "bound '$maybe' as data (id $id), str before '$presubst', after '$str'" } );
 				}
 				next;
 			}
@@ -2525,7 +2536,7 @@ sub parseString
 		Carp::confess("parseString failed to fully expand \"$str\"!");
 	}
 
-	my %EXTRAS = ( ref($extras) eq "HASH" ) ? %$extras : ();    # OMK-12689: eval-mode $EXTRAS{...} refs resolve here, as data
+	# %EXTRAS_BY_ID (declared above) holds the bound values; eval-mode $EXTRAS_BY_ID{n} refs resolve here, as data
 	my $product = ($eval) ? eval $str : $str;
 	$self->nmisng->log->error("($node_name) parseString failed for str:$str, error:$@") if($@);
 	$self->nmisng->log->debug3(sub { "parseString:: result is str=$product"});
