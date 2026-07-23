@@ -989,6 +989,38 @@ sub getConfigDefaults
 # Load a .nmis config file and flatten its two-level hash to a single level.
 # Uses shared lock to avoid reading partially-written files.
 # Returns: ($flattened_hashref, $section_map_hashref, $raw_two_level_hashref)
+# OMK-12696: a .nmis config/table/model file is loaded by eval'ing its contents
+# as Perl, and the poller runs as root, so a file an attacker can write is root
+# code execution. Refuse to evaluate any config file that is WORLD-writable
+# (writable by any local user).
+#
+# We deliberately allow GROUP-writable config: NMIS ships config group-writable
+# (fixperms does chmod -R g+rw) so httpd, which the installer places in the nmis
+# group, can edit config through the GUI. Closing the group-member/httpd -> root
+# escalation requires root-owning config plus a privileged write path for the
+# GUI, tracked as a separate architectural fix; a mode check cannot make that
+# distinction.
+#
+# Uses fstat on the already-open handle (TOCTOU-safe: it is the same open file
+# we are about to read/eval). Returns an error string when unsafe, undef when
+# the file is safe to evaluate.
+sub _config_perms_error
+{
+	my ($fh, $file) = @_;
+	# CORE::stat: this package imports File::stat, which overrides stat() to
+	# return an object rather than the 13-element list we need for the mode.
+	my @st = CORE::stat($fh);    # fstat on the open handle we are about to eval
+	return undef if (!@st);      # cannot stat: leave existing handling to cope
+	my $mode = $st[2];
+	if ($mode & 0002)            # writable by other (any local user)
+	{
+		return "refusing to evaluate config file '$file': it is world-writable"
+			. sprintf(" (mode %04o)", $mode & 07777)
+			. "; a world-writable config file is arbitrary code execution. Fix with 'chmod o-w'.";
+	}
+	return undef;
+}
+
 sub _load_and_flatten
 {
 	my ($filepath) = @_;
@@ -1005,6 +1037,13 @@ sub _load_and_flatten
 	};
 	local $/;
 	my $content = <$fh>;
+	# OMK-12696: never eval a config file that an attacker could have written
+	if (my $permerr = _config_perms_error($fh, $filepath))
+	{
+		warn($permerr . "\n");
+		close($fh);
+		return (undef, undef, undef);
+	}
 	close($fh);
 
 	# no strict 'vars' needed because .nmis files use %hash = (...) without declaring it
@@ -1775,6 +1814,12 @@ sub readFiletoHash
 			}
 			else											# perl
 			{
+				# OMK-12696: never eval a config file that an attacker could have written
+				if (my $permerr = NMISNG::Util::_config_perms_error($handle, $file))
+				{
+					close $handle;
+					return $permerr;
+				}
 				# convert data to hash. this is really very yucky.
 				%hash = eval $data;
 				if ($@)
