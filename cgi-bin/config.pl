@@ -49,7 +49,9 @@ use Data::Dumper;
 my $q = new CGI; # This processes all parameters passed via GET and POST
 my $Q = $q->Vars; # values in hash
 
-$Q = NMISNG::Util::filter_params($Q) if ($Q->{item} ne "hide_groups");
+# always filter params (OMK-12723). hide_groups is multi-value but is saved
+# via $q->multi_param (raw), so filtering $Q does not affect the saved values.
+$Q = NMISNG::Util::filter_params($Q);
 
 my $C = NMISNG::Util::loadConfTable(debug=>$Q->{debug});
 die "failed to load configuration!\n" if (!$C or ref($C) ne "HASH" or !keys %$C);
