@@ -26,6 +26,7 @@ working_tests=(
     t_report_filename.t
     t_util_escape.pl
     t_xss_modules_render.pl
+    t_cgi_xss_escaping.t
 )
 
 for i in "${working_tests[@]}"; do
