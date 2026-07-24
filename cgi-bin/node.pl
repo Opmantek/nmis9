@@ -207,7 +207,9 @@ sub typeGraph
 	{
 		if ( !$AU->InGroup($NT->{$node}{group}) or !exists $GT->{$NT->{$node}{group}} )
 		{
-			print "Not Authorized to view graphs on node '$node' in group $NT->{$node}{group}";
+			# $node is a filtered CGI param; the group comes from the node table
+			# (stored config) and is untrusted on output (OMK-12702)
+			print "Not Authorized to view graphs on node '$node' in group ".escapeHTML($NT->{$node}{group});
 			return 0;
 		}
 	}
@@ -712,7 +714,7 @@ sub show_export_options
 			if ($graphtype ne "nmis" && $graphtype ne "metrics");
 	if (defined $label && defined $property)
 	{
-		print qq|<tr><td class="header">$label</td><td>|.escapeHTML($property).qq|</td></tr>|;
+		print qq|<tr><td class="header">|.escapeHTML($label).qq|</td><td>|.escapeHTML($property).qq|</td></tr>|;
 	}
 
 	my $graphhours =$C->{graph_amount};

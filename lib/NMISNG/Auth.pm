@@ -945,22 +945,31 @@ EOHTML
 	NMISNG::Util::logAuth("DEBUG: do_login: sending cookie to remove existing cookies=$cookie") if $self->{debug};
 	print CGI::header(-target=>"_top", -type=>"text/html", -expires=>'now', -cookie=>[$cookie]);
 
+	# login page is served pre-authentication; config values are untrusted on
+	# output (OMK-12702). Escape the title and scheme-check/escape asset URLs.
+	my $login_title    = NMISNG::Util::escape_html($self->{config}->{auth_login_title});
+	my $login_favicon  = NMISNG::Util::escape_html(NMISNG::Util::safe_url($self->{config}->{'nmis_favicon'}));
+	my $login_jqui_css = NMISNG::Util::escape_html(NMISNG::Util::safe_url($self->{config}->{'jquery_ui_css'}));
+	my $login_styles   = NMISNG::Util::escape_html(NMISNG::Util::safe_url($self->{config}->{'styles'}));
+	my $login_jquery   = NMISNG::Util::escape_html(NMISNG::Util::safe_url($self->{config}->{'jquery'}));
+	my $login_jqui     = NMISNG::Util::escape_html(NMISNG::Util::safe_url($self->{config}->{'jquery_ui'}));
+
 	print qq
 |<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN" "http://www.w3.org/TR/html4/loose.dtd">
 <html>
   <head>
-    <title>$self->{config}->{auth_login_title}</title>
+    <title>$login_title</title>
     <meta http-equiv="Content-Type" content="text/html; charset=iso-8859-1" />
     <meta http-equiv="Pragma" content="no-cache" />
     <meta http-equiv="Cache-Control" content="no-cache, no-store" />
     <meta http-equiv="Expires" content="-1" />
     <meta http-equiv="Robots" content="none" />
     <meta http-equiv="Googlebot" content="noarchive" />
-    <link type="image/x-icon" rel="shortcut icon" href="$self->{config}->{'nmis_favicon'}" />
-    <link type="text/css" rel="stylesheet" href="$self->{config}->{'jquery_ui_css'}" />
-    <link type="text/css" rel="stylesheet" href="$self->{config}->{'styles'}" />
-    <script src="$self->{config}->{'jquery'}" type="text/javascript"></script>
-    <script src="$self->{config}->{'jquery_ui'}" type="text/javascript"></script>
+    <link type="image/x-icon" rel="shortcut icon" href="$login_favicon" />
+    <link type="text/css" rel="stylesheet" href="$login_jqui_css" />
+    <link type="text/css" rel="stylesheet" href="$login_styles" />
+    <script src="$login_jquery" type="text/javascript"></script>
+    <script src="$login_jqui" type="text/javascript"></script>
   </head>
   <body>
 |;
@@ -977,13 +986,16 @@ EOHTML
 	print CGI::start_table({class=>""});
 
 	if ( $self->{config}->{'company_logo'} ne "" ) {
-		print CGI::Tr(CGI::td({class=>"info Plain",colspan=>'2'}, qq|<img class="logo" src="$self->{config}->{'company_logo'}"/>|));
+		my $company_logo = NMISNG::Util::escape_html(NMISNG::Util::safe_url($self->{config}->{'company_logo'}));
+		print CGI::Tr(CGI::td({class=>"info Plain",colspan=>'2'}, qq|<img class="logo" src="$company_logo"/>|));
 	}
 
 	my $motd = "Authentication required: Please log in with your appropriate username and password in order to gain access to this system";
 	$motd = $self->{config}->{auth_login_motd} if $self->{config}->{auth_login_motd} ne "";
 
-	print CGI::Tr(CGI::td({class=>'infolft Plain',colspan=>'2'},$motd));
+	# motd is admin config rendered on the pre-auth page: escape it (now shown as
+	# text, not HTML) so a config-write attacker cannot inject script here
+	print CGI::Tr(CGI::td({class=>'infolft Plain',colspan=>'2'},NMISNG::Util::escape_html($motd)));
 
 	print CGI::Tr(CGI::td({class=>'info Plain'},"Username") . CGI::td({class=>'info Plain'},textfield({name=>'auth_username'})));
 	print CGI::Tr(CGI::td({class=>'info Plain'},"Password") . CGI::td({class=>'info Plain'},password_field({name=>'auth_password'}) ));
@@ -991,7 +1003,7 @@ EOHTML
 
 
 	if ( $self->{config}->{'auth_sso_domain'} ne "" and $self->{config}->{'auth_sso_domain'} ne ".domain.com" ) {
-		print CGI::Tr(CGI::td({class=>"info",colspan=>'2'}, "Single Sign On configured with \"$self->{config}->{'auth_sso_domain'}\""));
+		print CGI::Tr(CGI::td({class=>"info",colspan=>'2'}, "Single Sign On configured with \"".NMISNG::Util::escape_html($self->{config}->{'auth_sso_domain'})."\""));
 	}
 
 	print CGI::Tr(CGI::td({colspan=>'2'},p({style=>"color: red"}, "&nbsp;$msg&nbsp;"))) if $msg ne "";
