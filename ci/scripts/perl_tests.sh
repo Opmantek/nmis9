@@ -24,6 +24,8 @@ working_tests=(
     t_duplicate_event.pl
     t_eval_injection.pl
     t_report_filename.t
+    t_util_escape.pl
+    t_xss_modules_render.pl
 )
 
 for i in "${working_tests[@]}"; do
