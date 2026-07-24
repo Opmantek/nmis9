@@ -96,7 +96,7 @@ sub moduleMenu {
 	if ( $Q->{module} and $MOD->{$Q->{module}}{description} ) {
 		print Tr(th({class=>"title",colspan=>"3"}, "NMIS $Q->{module} Module"));
 		print Tr(td({class=>"lft",width=>"33%"}, "The $Q->{module} module is not currently installed."),td({class=>"Plain",width=>"33%"},"&nbsp;"),td({class=>"Plain",width=>"33%"},"&nbsp;"));
-		print Tr(td({class=>"lft",width=>"33%"}, "$MOD->{$Q->{module}}{description}"),td({class=>"Plain",width=>"33%"},"&nbsp;"),td({class=>"Plain",width=>"33%"},"&nbsp;"));
+		print Tr(td({class=>"lft",width=>"33%"}, NMISNG::Util::escape_html($MOD->{$Q->{module}}{description})),td({class=>"Plain",width=>"33%"},"&nbsp;"),td({class=>"Plain",width=>"33%"},"&nbsp;"));
 		print Tr(td({class=>"lft",width=>"33%"}, "More information and contact information available at ",a({href=>"http://opmantek.com/Modules"},"Opmantek Modules")),td({class=>"Plain",width=>"33%"},"&nbsp;"),td({class=>"Plain",width=>"33%"},"&nbsp;"));
 	}
 	else {

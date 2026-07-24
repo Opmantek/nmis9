@@ -1014,29 +1014,44 @@ EOHTML
 
 	print "\n      </div>\n";
 
-	if (ref($listmodules) eq "ARRAY" and @$listmodules)
-	{
-		print qq|
-      <div>&nbsp;</div>
-      <div id='login_dialog' class='ui-dialog ui-widget ui-widget-content ui-corner-all'>
-        <div class='header'>Available NMIS Modules</div>
-        <table>
-|;
-		for my $entry (@$listmodules)
-		{
-			my ($name, $link, $descr) = @$entry;
-			print "          <tr><td class='lft Plain'><a href=\"$link\" target='_blank'>$name</a> - $descr</td></tr>\n";
-		}
-		print qq|        </table>
-      </div>
-|;
-	}
+	print NMISNG::Auth::login_modules_html($listmodules);
 
 		print qq|
     </div>
 |;
 
 	print CGI::end_html;
+}
+
+# login_modules_html: build the "Available NMIS Modules" block shown on the
+# unauthenticated login page from a getModuleLinks-style arrayref of
+# [name, link, tagline] triples. Every field is config-sourced and untrusted, so
+# names and taglines are HTML-escaped and links are scheme-checked (OMK-12703).
+# args: arrayref of [name, link, descr] (may be undef or empty)
+# returns: the HTML block, or "" when there is nothing to show
+sub login_modules_html
+{
+	my ($listmodules) = @_;
+	return "" if (ref($listmodules) ne "ARRAY" or !@$listmodules);
+
+	my $html = qq|
+      <div>&nbsp;</div>
+      <div id='login_dialog' class='ui-dialog ui-widget ui-widget-content ui-corner-all'>
+        <div class='header'>Available NMIS Modules</div>
+        <table>
+|;
+	for my $entry (@$listmodules)
+	{
+		my ($name, $link, $descr) = @$entry;
+		my $safelink  = NMISNG::Util::escape_html(NMISNG::Util::safe_url($link));
+		my $safename  = NMISNG::Util::escape_html($name);
+		my $safedescr = NMISNG::Util::escape_html($descr);
+		$html .= "          <tr><td class='lft Plain'><a href=\"$safelink\" target='_blank'>$safename</a> - $safedescr</td></tr>\n";
+	}
+	$html .= qq|        </table>
+      </div>
+|;
+	return $html;
 }
 
 ##############################################################################
