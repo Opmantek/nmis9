@@ -4918,5 +4918,48 @@ sub spew_file
     }
 }
 
+# escape_html: HTML-escape a string for safe output in element or attribute context.
+# Encodes & < > " ' so attacker-supplied config or device data cannot break out of the
+# surrounding markup. Returns "" for undef so callers can drop the result straight into
+# a template without an undef warning.
+# args: a scalar string
+# returns: the escaped string (never undef)
+sub escape_html
+{
+	my ($str) = @_;
+	return "" if (!defined $str);
+	return encode_entities($str, q{&<>"'});
+}
+
+# safe_url: validate a URL before it is placed in an href/src/value attribute.
+# Permits http, https and mailto absolute URLs plus scheme-relative, root-relative,
+# relative and fragment URLs. Anything carrying another scheme (javascript:, data:,
+# vbscript: ...) or an ASCII control character is rejected and "" is returned.
+# The result must still be passed through escape_html for attribute-safe output.
+# args: a scalar URL string
+# returns: the URL if allowed, otherwise ""
+sub safe_url
+{
+	my ($url) = @_;
+	return "" if (!defined $url || $url eq "");
+
+	# reject any ASCII control character (real URLs percent-encode these); this also
+	# closes scheme-obfuscation tricks such as "java\tscript:".
+	return "" if ($url =~ /[\x00-\x1f\x7f]/);
+
+	# browsers ignore leading whitespace before the scheme, so strip it before testing
+	$url =~ s/^\s+//;
+
+	# a leading scheme must be on the allowlist; no scheme (relative, root-relative,
+	# scheme-relative, fragment or query only) is always fine
+	if ($url =~ /^([a-zA-Z][a-zA-Z0-9+.\-]*):/)
+	{
+		my $scheme = lc($1);
+		return "" if (!grep { $scheme eq $_ } qw(http https mailto));
+	}
+
+	return $url;
+}
+
 
 1;
