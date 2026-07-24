@@ -1526,7 +1526,7 @@ sub selectLarge
 							. uri_escape($node),
 						id => "node_view_$idsafenode"
 					},
-					$NT->{$node}{name}
+					escapeHTML($NT->{$node}{name})
 				);
 			}
 			else
@@ -2950,13 +2950,14 @@ operAvail totalUtil ifSpeed ipAdEntAddr ifLastChange collect nocollect display_n
 
 
 	# first column, misnomer; subtable
-	print qq|<td valign='top' width='50%'><table><tr><th class='title' colspan='2' width='50%'>Interface Details - ${node}::$thisintf->{ifDescr}</th></tr>|;
+	print qq|<td valign='top' width='50%'><table><tr><th class='title' colspan='2' width='50%'>Interface Details - ${node}::|.escapeHTML($thisintf->{ifDescr}).qq|</th></tr>|;
 
 	for my $k (@wantedproperties)
 	{
 		my $color;
 		my $title = $titles{$k};
-		my $content = $thisintf->{$k};
+		# collected values are untrusted on output (OMK-12702)
+		my $content = escapeHTML($thisintf->{$k});
 
 		# massage special cases
 		if ($k =~ /^if(Admin|Oper)Status$/)
@@ -3383,7 +3384,9 @@ escalate ));
 			my $color;
 			$color = "#cccccc" if (!NMISNG::Util::getbool($thisintf->{collect}));
 
-			my $content = $thisintf->{$k};
+			# collected values are untrusted on output (OMK-12702); the special
+			# cases below re-wrap this already-escaped value in their own markup
+			my $content = escapeHTML($thisintf->{$k});
 			# massage these special cases
 			if ( $k eq 'ifDescr' )
 			{
@@ -3410,7 +3413,7 @@ escalate ));
 			}
 			elsif ( $k eq 'Description' )
 			{
-				$content = "$thisintf->{Description}";
+				$content = escapeHTML($thisintf->{Description});
 				my $cnt = 1;
 				while ( defined( $thisintf->{"ipAdEntAddr$cnt"} ) and defined( $thisintf->{"ipAdEntNetMask$cnt"} ) )
 				{
@@ -3606,7 +3609,9 @@ sub viewActivePort
 			my $color;
 			$color = "#cccccc" if (!NMISNG::Util::getbool($thisintf->{collect}));
 
-			my $content = $thisintf->{$k};
+			# collected values are untrusted on output (OMK-12702); the special
+			# cases below re-wrap this already-escaped value in their own markup
+			my $content = escapeHTML($thisintf->{$k});
 			# massage these special cases
 			if ( $k eq 'ifDescr' )
 			{
@@ -3628,7 +3633,7 @@ sub viewActivePort
 			}
 			elsif ($k eq 'Description')
 			{
-				$content = "$thisintf->{Description}";
+				$content = escapeHTML($thisintf->{Description});
 				my $cnt = 1;
 				while ( defined( $thisintf->{"ipAdEntAddr$cnt"} ) and defined( $thisintf->{"ipAdEntNetMask$cnt"} ) )
 				{
@@ -4694,9 +4699,10 @@ sub viewOverviewIntf
 			print end_Tr, start_Tr, td( {class => 'info Plain'}, '&nbsp;' );
 			$cnt = 1;
 		}
+		# collected values are untrusted on output (OMK-12702)
 		$text
-			= "name=$II->{$key}{ifDescr}<br>adminStatus=$II->{$key}{ifAdminStatus}<br>operStatus=$II->{$key}{ifOperStatus}<br>"
-			. "description=$II->{$key}{Description}<br>collect=$II->{$key}{collect}";
+			= "name=".escapeHTML($II->{$key}{ifDescr})."<br>adminStatus=".escapeHTML($II->{$key}{ifAdminStatus})."<br>operStatus=".escapeHTML($II->{$key}{ifOperStatus})."<br>"
+			. "description=".escapeHTML($II->{$key}{Description})."<br>collect=".escapeHTML($II->{$key}{collect});
 		print td(
 			{class => 'info Plain'},
 			a(  {         href => url( -absolute => 1 )
@@ -5265,20 +5271,25 @@ sub nodeAdminSummary
 										. uri_escape($node),
 										id => "node_view_$idsafenode"
 						},
-						$LNT->{$node}{name}
+						escapeHTML($LNT->{$node}{name})
 							);
 	
 					#my $url = "network.pl?act=network_node_view&refresh=$C->{page_refresh_time}&widget=$widget&node=".uri_escape($node);
 					#a({target=>"NodeDetails-$node", onclick=>"viewwndw(\'$node\',\'$url\',$wd,$ht)"},$LNT->{$node}{name});
 					my $issues = join( "<br/>", @issueList );
 	
-					my $sysObject = "$catchall_data->{sysObjectName} $catchall_data->{sysObjectID}";
+					my $sysObject = escapeHTML("$catchall_data->{sysObjectName} $catchall_data->{sysObjectID}");
 					my $intNums   = "$intCollect/$intCount";
 	
 					if ( length($sysDescr) > 40 )
 					{
 						my $shorter = substr( $sysDescr, 0, 40 );
-						$sysDescr = "<span title=\"$sysDescr\">$shorter (more...)</span>";
+						# collected value is untrusted on output (OMK-12702)
+						$sysDescr = "<span title=\"".escapeHTML($sysDescr)."\">".escapeHTML($shorter)." (more...)</span>";
+					}
+					else
+					{
+						$sysDescr = escapeHTML($sysDescr);
 					}
 	
 					if ( not $filter or ( $filter eq "exceptions" and $exception ) )
@@ -5292,7 +5303,7 @@ sub nodeAdminSummary
 									a(  {   href => url( -absolute => 1 )
 															. "?act=node_admin_summary&group=$urlsafegroup&refresh=$C->{page_refresh_time}&widget=$widget&filter=$filter"
 											},
-											$LNT->{$node}{group}
+											escapeHTML($LNT->{$node}{group})
 									)
 							),
 							td( {class => 'infolft Plain'},   $issues ),
@@ -5311,8 +5322,8 @@ sub nodeAdminSummary
 							td( {class => $commClass},   $community ),
 							td( {class => 'info Plain'}, $LNT->{$node}{version} ),
 	
-							td( {class => 'info Plain'}, $catchall_data->{nodeVendor} ),
-							td( {class => $moduleClass}, "$catchall_data->{nodeModel} ($LNT->{$node}{model})" ),
+							td( {class => 'info Plain'}, escapeHTML($catchall_data->{nodeVendor}) ),
+							td( {class => $moduleClass}, escapeHTML("$catchall_data->{nodeModel} ($LNT->{$node}{model})") ),
 							td( {class => 'info Plain'}, $catchall_data->{nodeType} ),
 							td( {class => 'info Plain'}, $sysObject ),
 							td( {class => 'info Plain'}, $sysDescr ),
