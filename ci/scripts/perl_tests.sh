@@ -24,6 +24,7 @@ working_tests=(
     t_duplicate_event.pl
     t_eval_injection.pl
     t_report_filename.t
+    t_isindex_guard.t
 )
 
 for i in "${working_tests[@]}"; do

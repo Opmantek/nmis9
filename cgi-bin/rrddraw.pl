@@ -51,7 +51,7 @@ my $C = $nmisng->config;
 &NMISNG::rrdfunc::require_RRDs;
 
 # bypass auth iff called from command line
-$C->{auth_require} = 0 if (@ARGV);
+$C->{auth_require} = 0 if (@ARGV and not $ENV{GATEWAY_INTERFACE}); # bypass auth for CLI only
 
 # variables used for the security mods
 my $headeropts = {type=>'text/html',expires=>'now'};

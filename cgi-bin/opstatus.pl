@@ -58,8 +58,8 @@ my $wantwidget = ( $callerwants or defined($ENV{HTTP_X_REQUESTED_WITH}));
 my $nmisng = Compat::NMIS::new_nmisng;
 die "Cannot instantiate NMISNG object!\n" if (!$nmisng);
 
-# decide on auth (none if called from command line)
-my $cli_debugging = (@ARGV or !$q->request_uri);
+# decide on auth (none if called from command line, never from web)
+my $cli_debugging = ((@ARGV or !$q->request_uri) and not $ENV{GATEWAY_INTERFACE});
 my $config = $nmisng->config;
 $config->{auth_require} = 0 if ($cli_debugging);
 my $opstatus_save_logs = NMISNG::Util::getbool($config->{'opstatus_save_logs'} // 0);
