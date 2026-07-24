@@ -28,6 +28,7 @@ working_tests=(
     t_event.pl
     t_model_overrides.pl
     t_plugin_nodeobj.pl
+    t_plugin_nodevalidation.pl
     notify_depend.t
     t_nmisng_node_nomodel.pl
 )
