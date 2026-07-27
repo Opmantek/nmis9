@@ -61,8 +61,12 @@ the branch.
 - Migrating `thresholdProcess` and the alert writer onto the new helper
   (designed for, not done here).
 - Real-time status updates between polls. Nothing consumes them.
-- An end-of-collect reconciliation pass. Considered and dropped, see
-  Accepted limitations.
+- An end-of-collect reconciliation pass. Considered and dropped: its
+  catch-set reduces to synthetic workflows once writes happen per cycle, and
+  deriving status from event absence fabricates "ok" for conditions nothing
+  assessed (a down node's SNMP state, for example). The out-of-band close
+  hook below covers the one real gap at its source. Remaining consequences
+  are listed under Accepted limitations.
 
 ## Design
 
@@ -118,6 +122,26 @@ extra fields, completing the normalisation as a follow-up.
    flag).
 3. **`TrackStatus => 'false'` is skipped.** New optional per-event flag in
    Events.nmis, default true. See Controls.
+
+### Out-of-band close hook
+
+Events can be closed without any notify/checkEvent call: an operator
+acknowledging a TRAP in the GUI, an API delete, or admin cleanup. All of
+those paths converge on `Event->delete` (`lib/NMISNG/Event.pm`), which
+deactivates or removes the event. One helper call is added there: after a
+successful delete, if a `method => "Operational"` status doc already exists
+for this node, event, and element, update it to `status => "ok"`,
+`level => "Normal"`, with details noting the closure.
+
+Update only, never create. `Event->delete` also runs against up-events
+(`notify` deletes stale canceling events like Interface Up) and TRAPs, which
+never had docs. Touching only pre-existing docs keeps those paths inert and
+makes the gates implicit.
+
+A plain acknowledge on a normal event deliberately does not flip the doc:
+the event stays active, and acknowledged is not resolved. In the ordinary
+clear path (escalation deleting an event after its up-notification) the doc
+is already ok from `checkEvent`, so the hook's write is idempotent.
 
 ### Data model
 
@@ -200,11 +224,12 @@ has never worked. Fix the key.
 Recorded deliberately, all consequences of choosing write-through over an
 end-of-collect reconciliation pass:
 
-1. **Manually injected events decay instead of flipping.** An event raised
-   by hand (`nmis-cli act=notify`) that nothing reassesses writes one
-   `error` doc. If an operator closes the event out-of-band, the doc stays
-   `error` until the TTL (`purge_status_after`, default 24h) removes it.
-   Events that NMIS itself assesses self-correct within one poll cycle.
+1. **Open manually injected events decay.** An event raised by hand
+   (`nmis-cli act=notify`) that nothing reassesses writes one `error` doc,
+   which the TTL (`purge_status_after`, default 24h) removes while the event
+   is still open, since no per-cycle call refreshes it. Closing such an
+   event flips its doc to ok promptly via the close hook. Events that NMIS
+   itself assesses self-correct within one poll cycle.
 2. **Always-present entries thin during long outages.** While a node is
    fully down, collect short-circuits, so its SNMP Down doc stops refreshing
    and TTLs out after a day. Arguably correct: SNMP state is unknown while
@@ -239,6 +264,10 @@ wired into `ci/scripts/perl_tests.sh`. Cases:
 9. With `enable_dashnode_file` on, the dashnode JSON gains
    `event--element` entries in the same shape as threshold entries.
 10. `save_dashnode_data` clears `nmisng->{dashnode_context}` after save.
+11. `Event->delete` on an event with an existing Operational doc flips the
+    doc to `status => "ok"`.
+12. `Event->delete` on an event with no existing doc (an up-event, a TRAP)
+    creates nothing.
 
 ## What this answers for Telmex
 
@@ -259,7 +288,8 @@ wired into `ci/scripts/perl_tests.sh`. Cases:
 |---|---|---|
 | Relationship to `feature/OMK-12605` | Replace | Raw event dumps mismatch status shape, which caused the customer confusion |
 | Mechanism | Write-through in notify/checkEvent | Calls already fire every cycle, so docs refresh like threshold docs with zero call-site changes. handle_down already unifies up/down for the five node-level events |
-| End-of-collect reconciliation | Dropped | Its remaining value (out-of-band closes, file pruning) is edge-case only, see Accepted limitations |
+| End-of-collect reconciliation | Dropped | Catch-set is a narrow conjunction (out-of-band close of an unassessed event, node still polled, within TTL), and deriving status from event absence asserts "ok" for unassessed conditions |
+| Out-of-band closes | Update-only hook in `Event->delete` | Fixes the one real reconciliation gap at its source, cannot create docs, worst case is a brief truthful flap |
 | method value | `"Operational"` | "Event" was misleading (thresholds and alerts raise events too), and the term matches the language already used with the customer |
 | Health metric impact | Honour `Status` flag, skip-don't-stamp, tuned conf-default | Zero out-of-box change, per-event knob, honest error/ok preserved |
 | Write gate | New `TrackStatus` flag | `Status` must keep its single meaning for threshold/alert docs, and one flag can't express "visible but not counted" |
