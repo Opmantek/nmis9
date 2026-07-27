@@ -25,6 +25,7 @@ working_tests=(
     t_eval_injection.pl
     t_report_filename.t
     t_isindex_guard.t
+    t_rrddraw_filename.t
 )
 
 for i in "${working_tests[@]}"; do
