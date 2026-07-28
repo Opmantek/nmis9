@@ -112,7 +112,7 @@ $cd->{sysObjectName} = payload("xOBJ");
 $cd->{sysObjectID}   = "1.2.3.4";
 $cd->{sysLocation}   = payload("xLOC");
 $cd->{nodeModel}     = payload("xMODEL");
-$cd->{nodeType}      = "router";
+$cd->{nodeType}      = payload("xTYPE");
 $catchall->save(node => $node);
 
 # seed one interface (index 1) with markers in ifDescr + Description
@@ -154,6 +154,9 @@ sub assert_escaped {
 	my $code = $t->tx->res->code // 0;
 	my $body = $t->tx->res->body // '';
 	is($code, 200, "$desc: HTTP 200");
+	# adversarial sweep: no seeded marker may survive as live markup anywhere in
+	# the response, regardless of which field it came from (catches sibling sinks)
+	unlike($body, qr/<img src=x onerror=x/, "$desc: no raw XSS marker survives anywhere");
 	for my $tok (@tokens) {
 		my $raw = payload($tok);
 		my $esc = esc_form($tok);
@@ -174,7 +177,7 @@ assert_escaped(
 assert_escaped(
 	"network.pl node_admin_summary",
 	'/cgi-nmis9/network.pl?conf=Config&act=node_admin_summary&widget=false',
-	qw(xGRP xDESC xVEND xOBJ));
+	qw(xGRP xDESC xVEND xOBJ xTYPE));
 
 # network.pl interface detail - heading + property table render ifDescr, Description
 assert_escaped(

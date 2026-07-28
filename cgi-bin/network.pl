@@ -1541,7 +1541,7 @@ sub selectLarge
 				$nodelink = a( {
 					target => "Graph-$node",
 					onclick => "viewwndw(\'$node\',\'$url\',$C->{win_width},$C->{win_height} * 1.5)"},
-					$NT->{$node}{name},
+					escapeHTML($NT->{$node}{name}),
 					img( {src => "$C->{'nmis_slave'}", alt => "NMIS Server $remote->{server_name}"}) );
 			}
 
@@ -2975,7 +2975,7 @@ operAvail totalUtil ifSpeed ipAdEntAddr ifLastChange collect nocollect display_n
 		elsif ( $k eq "collect" ){
 				my $overrides = $nmisng_node->overrides;
 				my $if_descr = $thisintf->{ifDescr};
-				$content = $overrides->{$if_descr}->{collect} ? $overrides->{$if_descr}->{collect} : $thisintf->{$k};
+				$content = escapeHTML($overrides->{$if_descr}->{collect} ? $overrides->{$if_descr}->{collect} : $thisintf->{$k});
 		}
 		elsif ( $k eq 'ifSpeed')
 		{
@@ -3409,7 +3409,7 @@ escalate ));
 			elsif ( $k eq "collect" ){
 				my $overrides = $nmisng_node->overrides;
 				my $if_descr = $thisintf->{ifDescr};
-				$content = $overrides->{$if_descr}->{collect} ? $overrides->{$if_descr}->{collect} : $thisintf->{$k};
+				$content = escapeHTML($overrides->{$if_descr}->{collect} ? $overrides->{$if_descr}->{collect} : $thisintf->{$k});
 			}
 			elsif ( $k eq 'Description' )
 			{
@@ -3422,7 +3422,7 @@ escalate ));
 					if ($addr ne "" and $mask ne "")
 					{
 						$content .= "<br/>" if ($content ne "");
-						$content .= "${addr}/${mask}";
+						$content .= escapeHTML("${addr}/${mask}");
 					}
 					$cnt++;
 				}
@@ -3642,7 +3642,7 @@ sub viewActivePort
 					if ($addr ne "" and $mask ne "")
 					{
 						$content .= "<br/>" if ($content ne "");
-						$content .= "${addr}/${mask}";
+						$content .= escapeHTML("${addr}/${mask}");
 					}
 					$cnt++;
 				}
@@ -4674,7 +4674,7 @@ sub viewOverviewIntf
 							. "?act=network_node_view&widget=$widget&node="
 							. uri_escape($node)
 					},
-					$NT->{$node}{name}
+					escapeHTML($NT->{$node}{name})
 				)
 				);
 		}
@@ -5307,24 +5307,24 @@ sub nodeAdminSummary
 									)
 							),
 							td( {class => 'infolft Plain'},   $issues ),
-							td( {class => $actClass},         $LNT->{$node}{active} ),
+							td( {class => $actClass},         escapeHTML($LNT->{$node}{active}) ),
 							td( {class => $lastpollclass}, $lastpoll ),
 							td( {class => $lastupdateclass},  $lastupdate ),
 	
-							td( {class => 'info Plain'}, $LNT->{$node}{ping} ),
+							td( {class => 'info Plain'}, escapeHTML($LNT->{$node}{ping}) ),
 							td( {class => $pingClass},   $pingable ),
 	
-							td( {class => 'info Plain'}, $LNT->{$node}{collect} ),
+							td( {class => 'info Plain'}, escapeHTML($LNT->{$node}{collect}) ),
 	
 							td( {class => $wmiclass}, $wmiworks ),
 	
 							td( {class => $snmpClass},   $snmpable ),
 							td( {class => $commClass},   $community ),
-							td( {class => 'info Plain'}, $LNT->{$node}{version} ),
+							td( {class => 'info Plain'}, escapeHTML($LNT->{$node}{version}) ),
 	
 							td( {class => 'info Plain'}, escapeHTML($catchall_data->{nodeVendor}) ),
 							td( {class => $moduleClass}, escapeHTML("$catchall_data->{nodeModel} ($LNT->{$node}{model})") ),
-							td( {class => 'info Plain'}, $catchall_data->{nodeType} ),
+							td( {class => 'info Plain'}, escapeHTML($catchall_data->{nodeType}) ),
 							td( {class => 'info Plain'}, $sysObject ),
 							td( {class => 'info Plain'}, $sysDescr ),
 							td( {class => 'info Plain'}, $intNums ),

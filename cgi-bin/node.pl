@@ -520,13 +520,13 @@ sub typeGraph
 		print Tr(td({colspan=>'1'},
 			table({class=>'table',border=>'0',width=>'100%'},
 						Tr(td({class=>'header',align=>'center',},'Type'),
-							 td({class=>'info Plain',},$intf_data->{ifType}),
+							 td({class=>'info Plain',},escapeHTML($intf_data->{ifType})),
 							 td({class=>'header',align=>'center',},'Speed'),
 							 td({class=>'info Plain'},$speed)),
 						Tr(td({class=>'header',align=>'center',},'Last Updated'),
 							 td({class=>'info Plain'},$lastUpdate),
 							 td({class=>'header',align=>'center',},'Description'),
-							 td({class=>'info Plain'},$intf_data->{Description})) )));
+							 td({class=>'info Plain'},escapeHTML($intf_data->{Description}))) )));
 
 	}
 	elsif ( $subconcept =~ /hrdisk/i and $index ne "")
@@ -534,9 +534,9 @@ sub typeGraph
 		print Tr(td({colspan=>'1'},
 								table({class=>'table',border=>'0',width=>'100%'},
 											Tr(td({class=>'header',align=>'center',},'Type'),
-												 td({class=>'info Plain'},$index_model->{data}{hrStorageType}),
+												 td({class=>'info Plain'},escapeHTML($index_model->{data}{hrStorageType})),
 												 td({class=>'header',align=>'center',},'Description'),
-												 td({class=>'info Plain'},$index_model->{data}{hrStorageDescr})) )));
+												 td({class=>'info Plain'},escapeHTML($index_model->{data}{hrStorageDescr}))) )));
 	}
 
 	my @output;
