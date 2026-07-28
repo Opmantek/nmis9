@@ -55,7 +55,7 @@ use NMISNG::Util;
 use NMISNG::Notify;											# for auth lockout emails
 
 use MIME::Base64;
-use Digest::SHA;								# for cookie_flavour omk
+use Digest::SHA;								# for the HMAC-signed omk auth cookie
 use Data::Dumper;
 use CGI qw(:standard);					# needed for current url lookup, http header, plus td/tr/bla_field helpery
 use Time::ParseDate;
@@ -90,7 +90,6 @@ sub new
 		banner => $arg{banner},
 		config => $config, # a live config, loaded or passed in by the caller
 		confname => $arg{confname},	# optional
-		cookie_flavour => $config->{auth_cookie_flavour} || 'nmis',
 		debug => NMISNG::Util::getbool($config->{auth_debug}),
 		dir => $arg{dir},
 		dn => undef,
@@ -206,35 +205,6 @@ sub CheckAccess {
 # All Java code include herein is also courtesy of Steve Shipway.
 
 
-# produces weak checksum from username,
-# remote address (or debug/fake auth_debug_remote_addr) and configured key/secret
-# used only for auth_cookie_flavour 'nmis'
-#
-# args: username
-# returns: string
-sub get_cookie_token
-{
-	my $self = shift;
-	my($user_name) = @_;
-
-	my $token;
-	my $remote_addr = CGI::remote_addr();
-	if( $self->{config}{auth_debug} ne '' && $self->{config}{auth_debug_remote_addr} ne '' ) {
-		$remote_addr = $self->{config}{auth_debug_remote_addr};
-	}
-
-	my $web_key = $self->{config}->{'auth_web_key'} // $CHOCOLATE_CHIP;
-	NMISNG::Util::logAuth("DEBUG: get_cookie_token: remote addr=$remote_addr, username=$user_name, web_key=$web_key")
-			if ($self->{debug});
-
-	# generate checksum
-	my $checksum = unpack('%32C*', $user_name . $remote_addr . $web_key);
-	NMISNG::Util::logAuth("DEBUG: get_cookie_token: generated token=$checksum")
-			if ($self->{debug});
-
-	return $checksum;
-}
-
 # returns the configured ssh domain (if any), or a blank string
 sub get_cookie_domain
 {
@@ -246,17 +216,15 @@ sub get_cookie_domain
 }
 
 # produces cookie name, with sso domain factored in
-# used for both omk and nmis flavoured cookies
 sub get_cookie_name
 {
 	my $self = shift;
 
-	my $nameprefix =  ($self->{cookie_flavour} eq "nmis"?
-										 "nmis_auth" : "omk");
+	my $nameprefix = "omk";
 
 	my $name = "$nameprefix.".$self->get_cookie_domain;
 	$name =~ s/\.+/./g;						# we want a.x.y.com, not a..x.y.com...
-	$name =~ s/\.$//;							# ...not 'nmis_auth.' and not 'omk.'
+	$name =~ s/\.$//;							# ...not 'omk.'
 	return $name;
 }
 
@@ -274,83 +242,59 @@ sub verify_id
 		return ''; # not defined
 	}
 
-	if ($self->{cookie_flavour} eq "nmis")
+	# structure: base64 session info--cryptographic signature
+	my $sessiondata = $cookie;
+	# base64 doesn't use '-' BUT the mojo cookie setup replaces all = with -
+	# so we can't just split on --
+	my $signature = $1 if ($sessiondata =~ s/--([^\-]+)$//);
+
+	if (!$sessiondata or !$signature)
 	{
-		# nmis-style cookies: username:numeric weak checksum
-		if($cookie !~ /(^.+):(\d+)$/)
-		{
-			NMISNG::Util::logAuth("verify_id: cookie bad format");
-			return ''; # bad format
-		}
-		my ($user_name, $token) = ($1,$2);
-		my $checksum = $self->get_cookie_token($user_name);
-
-		NMISNG::Util::logAuth("DEBUG: verify_id: $user_name, cookie $token vs. computed $checksum")
-				if ($self->{debug});
-
-		return ($token eq $checksum)? $user_name : '';
-	}
-	elsif ($self->{cookie_flavour} eq "omk")
-	{
-		# structure: base64 session info--cryptographic signature
-		my $sessiondata = $cookie;
-		# base64 doesn't use '-' BUT the mojo cookie setup replaces all = with -
-		# so we can't just split on --
-		my $signature = $1 if ($sessiondata =~ s/--([^\-]+)$//);
-
-		if (!$sessiondata or !$signature)
-		{
-			NMISNG::Util::logAuth('Invalid OMK cookie');
-			return '';
-		}
-
-		# signed with what key?
-		my $web_key = $self->{config}->{'auth_web_key'} // $CHOCOLATE_CHIP;
-
-		# first, compare the checksum from cookie with a new one generated from cookie value
-		my $expected = Digest::SHA::hmac_sha1_hex($sessiondata, $web_key);
-		if ($expected ne $signature)
-		{
-			NMISNG::Util::logAuth('OMK cookie did not validate correctly!'
-							.($self->{debug}? " expected $expected but cookie had $signature" : ""));
-			return '';
-		}
-		# only then decode and json-parse the structure
-		$sessiondata =~ y/-/=/;
-		my $sessioninfo = eval { decode_json(decode_base64($sessiondata)); };
-		if ($@ or ref($sessioninfo) ne "HASH")
-		{
-			NMISNG::Util::logAuth("OMK cookie unparseable! $@");
-			return '';
-		}
-		if (!exists $sessioninfo->{auth_data})
-		{
-			NMISNG::Util::logAuth("OMK cookie invalid: no auth_data field!");
-			return '';
-		}
-		my $user_name = $sessioninfo->{auth_data};
-		
-		# Validate expiration 
-		if ( $sessioninfo->{expires} < time)
-		{
-			NMISNG::Util::logAuth("OMK cookie invalid: Session expired! ". $sessioninfo->{expires});
-			return '';
-		}
-		
-		NMISNG::Util::logAuth("Accepted OMK cookie for user: $user_name, cookie data: "
-						.decode_base64($sessiondata)) if $self->{debug};
-		return $user_name;
-	}
-	# unrecognisable cookie_flavour
-	else
-	{
+		NMISNG::Util::logAuth('Invalid OMK cookie');
 		return '';
 	}
+
+	# signed with what key?
+	my $web_key = $self->{config}->{'auth_web_key'} // $CHOCOLATE_CHIP;
+
+	# first, compare the checksum from cookie with a new one generated from cookie value
+	my $expected = Digest::SHA::hmac_sha1_hex($sessiondata, $web_key);
+	if ($expected ne $signature)
+	{
+		NMISNG::Util::logAuth('OMK cookie did not validate correctly!'
+						.($self->{debug}? " expected $expected but cookie had $signature" : ""));
+		return '';
+	}
+	# only then decode and json-parse the structure
+	$sessiondata =~ y/-/=/;
+	my $sessioninfo = eval { decode_json(decode_base64($sessiondata)); };
+	if ($@ or ref($sessioninfo) ne "HASH")
+	{
+		NMISNG::Util::logAuth("OMK cookie unparseable! $@");
+		return '';
+	}
+	if (!exists $sessioninfo->{auth_data})
+	{
+		NMISNG::Util::logAuth("OMK cookie invalid: no auth_data field!");
+		return '';
+	}
+	my $user_name = $sessioninfo->{auth_data};
+
+	# Validate expiration
+	if ( $sessioninfo->{expires} < time)
+	{
+		NMISNG::Util::logAuth("OMK cookie invalid: Session expired! ". $sessioninfo->{expires});
+		return '';
+	}
+
+	NMISNG::Util::logAuth("Accepted OMK cookie for user: $user_name, cookie data: "
+					.decode_base64($sessiondata)) if $self->{debug};
+	return $user_name;
 }
 
 
 # generate_cookie creates a cookie string
-# based on given username, sso domain, expiration, flavour settings
+# based on given username, sso domain and expiration
 # args: user_name (required);
 #  expires (optional), value (optional, only good for producing invalid/logged-out cookie)
 # returns: cookie string, empty if problems encountered
@@ -361,68 +305,48 @@ sub generate_cookie
 	my $authuser = $args{user_name};
 	return "" if (!defined $authuser or $authuser eq '');
 	my $name = (exists ($args{name}) ? $args{name} : $self->get_cookie_name);
-	my $value = $args{value};
 
 	my $expires = ($args{expires} // $self->{config}->{auth_expire}) || '+60min';
 	my $cookiedomain = $self->get_cookie_domain;
 
-	# cookie flavor determines the ingredients
-	if ($self->{cookie_flavour} eq "nmis")
+	# the omk cookie scheme needs the expiration value as unix-seconds timestamp
+	my $expires_ts;
+	if ($expires eq "now")
 	{
-		return CGI::cookie( {-name => $name,
-							-domain => $cookiedomain,
-							-expires => $expires,
-							-httponly => 1,
-							-value => (exists($args{value}) ?
-										$args{value}
-										: ("$authuser:" . $self->get_cookie_token($authuser)) )}); # weak checksum
+		$expires_ts = time();
 	}
-	elsif ($self->{cookie_flavour} eq "omk")
+	elsif ($expires =~ /^([+-]?\d+)\s*(s|m|min|h|d|M|y)$/)
 	{
-		# omk flavour needs the expiration value as unix-seconds timestamp
-		my $expires_ts;
-		if ($expires eq "now")
-		{
-			$expires_ts = time();
-		}
-		elsif ($expires =~ /^([+-]?\d+)\s*(s|m|min|h|d|M|y)$/)
-		{
-			my ($offset, $unit) = ($1, $2);
-			# the last two are clearly imprecise
-			my %factors = ( s => 1, m => 60, 'min' => 60, h => 3600, d => 86400, M => 31*86400, y => 365 * 86400 );
+		my ($offset, $unit) = ($1, $2);
+		# the last two are clearly imprecise
+		my %factors = ( s => 1, m => 60, 'min' => 60, h => 3600, d => 86400, M => 31*86400, y => 365 * 86400 );
 
-			$expires_ts = time + ($offset * $factors{$unit});
-		}
-		else # assume it's something absolute and parsable
-		{
-			$expires_ts = func::parseDateTime($expires) || func::getUnixTime($expires);
-		}
-
-		# create session data structure, encode as base64 (but - instead of =), sign with key and combine
-		my $sessiondata = encode_json( { auth_data => $authuser,
-																		 expires => $expires_ts } );
-		my $value = encode_base64($sessiondata, ''); # no end of line separator please
-		$value =~ y/=/-/;
-		my $web_key = $self->{config}->{auth_web_key} // $CHOCOLATE_CHIP;
-		my $signature = Digest::SHA::hmac_sha1_hex($value, $web_key);
-
-		NMISNG::Util::logAuth("generated OMK cookie for $authuser: $value--$signature")
-				if ($self->{debug});
-
-		return  CGI::cookie( { -name => $name,
- 							 -domain => $cookiedomain,
-							 -httponly => 1,
-							 -value => (exists($args{value}) ?
-																	 $args{value}
-																	 :"$value--$signature"),
-							 -expires => $expires } );
-
+		$expires_ts = time + ($offset * $factors{$unit});
 	}
-	else
+	else # assume it's something absolute and parsable
 	{
-		NMISNG::Util::logAuth("ERROR unrecognisable auth_cookie_flavour configuration!");
-		return '';
+		$expires_ts = func::parseDateTime($expires) || func::getUnixTime($expires);
 	}
+
+	# create session data structure, encode as base64 (but - instead of =), sign with key and combine
+	my $sessiondata = encode_json( { auth_data => $authuser,
+																	 expires => $expires_ts } );
+	my $value = encode_base64($sessiondata, ''); # no end of line separator please
+	$value =~ y/=/-/;
+	my $web_key = $self->{config}->{auth_web_key} // $CHOCOLATE_CHIP;
+	my $signature = Digest::SHA::hmac_sha1_hex($value, $web_key);
+
+	NMISNG::Util::logAuth("generated OMK cookie for $authuser: $value--$signature")
+			if ($self->{debug});
+
+	return  CGI::cookie( { -name => $name,
+						 -domain => $cookiedomain,
+						 -httponly => 1,
+						 -value => (exists($args{value}) ?
+																 $args{value}
+																 :"$value--$signature"),
+						 -expires => $expires } );
+
 }
 
 
@@ -1917,49 +1841,14 @@ sub generate_session {
 	
 	my ($self, %args) = @_;
 	
-	my $token;
 	my $user = $args{user_name};
 	my $name = $self->get_cookie_name;
 	my $session_dir = $self->{config}->{'session_dir'} // $self->{config}->{'<nmis_var>'}."/nmis_system/user_session";
 	my $expires = ($args{expires} // $self->{config}->{auth_expire}) || '+60min';
 	my $cookiedomain = $self->get_cookie_domain;
-	
-	if ($self->{cookie_flavour} eq "nmis")
-	{
-		$token = $self->get_cookie_token($user);
-	}
-	elsif ($self->{cookie_flavour} eq "omk")
-	{
-		my $expires_ts;
-		if ($expires eq "now")
-		{
-			$expires_ts = time();
-		}
-		elsif ($expires =~ /^([+-]?\d+)\s*(\{s|m|min|h|d|M|y})$/)
-		{
-			my ($offset, $unit) = ($1, $2);
-			# the last two are clearly imprecise
-			my %factors = ( s => 1, m => 60, 'min' => 60, h => 3600, d => 86400, M => 31*86400, y => 365 * 86400 );
-	
-			$expires_ts = time + ($offset * $factors{$unit});
-		}
-		else # assume it's something absolute and parsable
-		{
-			$expires_ts = NMISNG::Util::parseDateTime($expires) || NMISNG::Util::getUnixTime($expires);
-		}
-	
-		# create session data structure, encode as base64 (but - instead of =), sign with key and combine
-		my $sessiondata = encode_json( { auth_data => $user,
-																		 expires => $expires_ts } );
-		my $value = encode_base64($sessiondata, ''); # no end of line separator please
-		$value =~ y/=/-/;
-		my $web_key = $self->{config}->{auth_web_key} // $CHOCOLATE_CHIP;
-		my $signature = Digest::SHA::hmac_sha1_hex($value, $web_key);
-		
-		$token = $self->get_cookie_token($signature);
-	}
-	# Generate sesssion
-	my $session = CGI::Session->new(undef, $token, {Directory=>$session_dir});
+
+	# Generate session; CGI::Session creates its own unpredictable id
+	my $session = CGI::Session->new(undef, undef, {Directory=>$session_dir});
 	NMISNG::Util::logAuth("INFO Generating session $name for user $user") if ($self->{debug});
 	
 	$session->param('username', $user);

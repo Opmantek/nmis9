@@ -24,6 +24,10 @@ working_tests=(
     t_duplicate_event.pl
     t_eval_injection.pl
     t_report_filename.t
+    t_isindex_guard.t
+    t_rrddraw_filename.t
+    t_auth_cookie_flavour.t
+    t_auth_sso_shared_key.t
     t_util_escape.pl
     t_xss_modules_render.pl
     t_cgi_xss_escaping.t

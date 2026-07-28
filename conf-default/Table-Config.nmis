@@ -204,8 +204,7 @@ my %hash = (
 			{ 'auth_tacacs_secret' => { display => 'text', value => ['secret']}},
 			{ 'auth_tacacs_server_secondary' => { display => 'text', value => ['']}},
 			{ 'auth_tacacs_secret_secondary' => { display => 'text', value => ['secret']}},
-			{ 'auth_web_key' => { display => 'text', value => ['thisismysecretkey']}},
-			{ 'auth_cookie_flavour' => { display => "popup", value => ['nmis','omk']}},				],
+			{ 'auth_web_key' => { display => 'text', value => ['thisismysecretkey']}},				],
 
 		'escalation' => [
 			{ 'escalate0' => { display => 'text', value => ['0'],

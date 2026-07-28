@@ -57,7 +57,7 @@ my $C = $nmisng->config;
 # an authentication login or logout request
 
 # if arguments present, then called from command line, no auth.
-if ( @ARGV ) { $C->{auth_require} = 0; }
+if ( @ARGV and not $ENV{GATEWAY_INTERFACE} ) { $C->{auth_require} = 0; } # bypass auth for CLI only
 
 my $user;
 my $privlevel;

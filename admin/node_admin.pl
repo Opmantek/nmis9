@@ -1980,8 +1980,8 @@ elsif ($cmdline->{act} =~ /move[-_]nmis8[-_]rrd[-_]files/ && $server_role ne "PO
 		my $total = NMISNG::Util::replace_files_recursive($dir, $n, $old, "rrd", $force);
 		if ($remove_old and $total > 0)
 		{
-			my $output = `rm -r $dir`;
-			print "Removed $dir: $output \n";
+			my $rc = system('rm', '-r', '--', $dir);
+			print $rc ? "Failed to remove $dir: $?\n" : "Removed $dir\n";
 		}
 		
 		print STDERR "Successfully moved $total node rrd files $nodeobj->{name}.\n"
