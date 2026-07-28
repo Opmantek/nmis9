@@ -28,6 +28,12 @@ working_tests=(
     t_event.pl
     t_model_overrides.pl
     t_plugin_nodeobj.pl
+    t_eval_injection.pl
+    t_report_filename.t
+    t_isindex_guard.t
+    t_rrddraw_filename.t
+    t_auth_cookie_flavour.t
+    t_auth_sso_shared_key.t
     notify_depend.t
     t_nmisng_node_nomodel.pl
 )

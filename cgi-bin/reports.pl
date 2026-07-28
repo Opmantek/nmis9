@@ -74,7 +74,8 @@ my $NT = Compat::NMIS::loadLocalNodeTable();
 
 # if no options, assume called from web interface ....
 my $outputfile;
-if ( @ARGV )
+my $is_cli = (@ARGV and not $ENV{GATEWAY_INTERFACE});
+if ($is_cli)
 {
 	my %nvp = %{ NMISNG::Util::get_args_multi(@ARGV) };
 
@@ -89,6 +90,8 @@ if ( @ARGV )
 	$Q->{time_end} = NMISNG::Util::returnDateStamp($nvp{end});
 	if ( $outputfile = $nvp{outfile} )
 	{
+		die "Invalid output file path: $nvp{outfile}\n"
+			if $nvp{outfile} =~ m{(?:^|/)\.\.(?:/|$)};
 		open (STDOUT,">$nvp{outfile}") or die "Cannot open the file $nvp{outfile}: $!\n";
 	}
 	$Q->{print} = 1;
@@ -99,7 +102,7 @@ my $wantwidget = (!NMISNG::Util::getbool($Q->{widget},"invert"));
 my $widget = $wantwidget ? "true" : "false";
 
 # bypass auth iff called from command line
-$C->{auth_require} = 0 if (@ARGV);
+$C->{auth_require} = 0 if $is_cli; # bypass auth for CLI only
 
 
 # variables used for the security mods
@@ -167,7 +170,7 @@ sub healthReport {
 		print header($headeropts);
 		Compat::NMIS::pageStart(title => "NMIS Reports", refresh => $Q->{refresh}) 	if (!$wantwidget);
 	}
-	return unless $Q->{print} or $AU->CheckAccess('rpt_dynamic'); # same as menu
+	return unless $AU->CheckAccess('rpt_dynamic'); # same as menu
 
 
 	my ($time_elements,$start,$end) = getPeriod();
@@ -378,7 +381,7 @@ sub availReport
 		Compat::NMIS::pageStart(title => "NMIS Reports", refresh => $Q->{refresh}) 	if (!$wantwidget);
 	}
 
-	return unless $Q->{print} or $AU->CheckAccess('rpt_dynamic'); # same as menu
+	return unless $AU->CheckAccess('rpt_dynamic'); # same as menu
 
 	print start_form(-id=>"nmis", -href=>url(-absolute=>1)."?")
 			. hidden(-override => 1, -name => "conf", -value => $Q->{conf})
@@ -499,7 +502,7 @@ sub portReport
 		Compat::NMIS::pageStart(title => "NMIS Reports", refresh => $Q->{refresh}) 	if (!$wantwidget);
 	}
 
-	return unless $Q->{print} or $AU->CheckAccess('rpt_dynamic'); # same as menu
+	return unless $AU->CheckAccess('rpt_dynamic'); # same as menu
 
 	print start_table;
 
@@ -664,7 +667,7 @@ sub responseReport
 		Compat::NMIS::pageStart(title => "NMIS Reports", refresh => $Q->{refresh}) 	if (!$wantwidget);
 	}
 
-	return unless $Q->{print} or $AU->CheckAccess('rpt_dynamic'); # same as menu
+	return unless $AU->CheckAccess('rpt_dynamic'); # same as menu
 
 	my ($time_elements,$start,$end) = getPeriod();
 	if ($start eq '' or $end eq '') {
@@ -782,7 +785,7 @@ sub timesReport
 		print header($headeropts);
 		Compat::NMIS::pageStart(title => "NMIS Reports", refresh => $Q->{refresh}) 	if (!$wantwidget);
 	}
-	return unless $Q->{print} or $AU->CheckAccess('rpt_dynamic'); # same as menu
+	return unless $AU->CheckAccess('rpt_dynamic'); # same as menu
 
 	my ($time_elements,$start,$end) = getPeriod();
 	if ($start eq '' or $end eq '') {
@@ -935,7 +938,7 @@ sub top10Report
 		Compat::NMIS::pageStart(title => "NMIS Reports", refresh => $Q->{refresh}) 	if (!$wantwidget);
 	}
 
-	return unless $Q->{print} or $AU->CheckAccess('rpt_dynamic'); # same as menu
+	return unless $AU->CheckAccess('rpt_dynamic'); # same as menu
 
 	my $II = Compat::NMIS::loadInterfaceInfo(); # all interfaces of all local nodes
 
@@ -1418,7 +1421,7 @@ sub outageReport
 		Compat::NMIS::pageStart(title => "NMIS Reports", refresh => $Q->{refresh}) 	if (!$wantwidget);
 	}
 
-	return unless $Q->{print} or $AU->CheckAccess('rpt_dynamic'); # same as menu
+	return unless $AU->CheckAccess('rpt_dynamic'); # same as menu
 
 	my ($time_elements,$start,$end) = getPeriod();
 	if ($start eq '' or $end eq '') {
@@ -1805,6 +1808,16 @@ sub purge_files
 
 #===============
 
+# Validate a stored report filename.
+# Returns the filename unchanged if valid, undef otherwise.
+sub validate_report_filename
+{
+	my ($name) = @_;
+	return undef if !defined($name) || $name eq '';
+	return undef if $name !~ m{^\w[\w\-\.]*\.html\z};
+	return $name;
+}
+
 sub fileReport {
 
 	print header($headeropts);
@@ -1812,7 +1825,22 @@ sub fileReport {
 
 	return unless $AU->CheckAccess('rpt_stored'); # same as menu
 
-	if (sysopen(HTML, "$C->{report_root}/$Q->{file}", O_RDONLY)) {
+	my $report_file = validate_report_filename($Q->{file} // '');
+	if (!defined $report_file)
+	{
+		print Tr(td({class=>'error'}, "Invalid report file name"));
+		print Compat::NMIS::pageEnd if (not $Q->{print} and not $wantwidget);
+		return;
+	}
+	my $report_path = "$C->{report_root}/$report_file";
+	if (-l $report_path)
+	{
+		print Tr(td({class=>'error'}, "Invalid report file name"));
+		print Compat::NMIS::pageEnd if (not $Q->{print} and not $wantwidget);
+		return;
+	}
+
+	if (sysopen(HTML, $report_path, O_RDONLY | O_NOFOLLOW)) {
 		while (<HTML>){
 			my $line = $_;
 			$line =~ s/<a[^>]*>(.*?)<\/a>/$1/g; # remove links
@@ -1821,7 +1849,7 @@ sub fileReport {
 		print Compat::NMIS::pageEnd if (not $Q->{print} and not $wantwidget);
 		close HTML;
 	} else {
-		print Tr(td({class=>'error'},"Cannot read report file $C->{report_root}/$Q->{file}"));
+		print Tr(td({class=>'error'},"Cannot read report file"));
 		print Compat::NMIS::pageEnd if (not $Q->{print} and not $wantwidget);
 	}
 }

@@ -903,6 +903,37 @@ sub createRRD
 	return "($S->{name}) could not create RRD $database - check directory permissions?";
 }
 
+# Returns the draw() argument list for a web (CGI) caller, built from a flat
+# %Q params hash (e.g. %$Q from CGI->Vars).  The filename key is intentionally
+# excluded: the web path always streams graph data to the HTTP response body
+# via RRDs::graph('-', ...).  Internal/CLI callers that need file output pass
+# filename directly to draw().  Keeping this logic in a named sub makes it
+# testable without a live NMIS install or RRD fixture (OMK-12704).
+sub rrdDraw_web_args
+{
+	# Whitelist of web-safe parameters - add new display params here; never add filename.
+	my (%Q) = @_;
+	return (
+		node      => $Q{node},
+		group     => $Q{group},
+		graphtype => $Q{graphtype},
+		intf      => $Q{intf},
+		item      => $Q{item},
+		width     => $Q{width},
+		height    => $Q{height},
+		start     => $Q{start},
+		end       => $Q{end},
+		debug     => $Q{debug},
+		time      => $Q{time},
+	);
+}
+
+sub _rrd_graph_target
+{
+	my ($filename) = @_;
+	return $filename ? $filename : '-';
+}
+
 # produce one graph
 # args: node/uuid/group OR live sys object, graphtype, intf/item, width, height (all required),
 #  start, end, filename (optional)
@@ -1125,9 +1156,10 @@ sub draw
 	}
 
 	my ($graphret, $xs, $ys);
+	my $target = NMISNG::rrdfunc::_rrd_graph_target($filename);
 	# finally, generate the graph - as an indep http response to stdout
 	# (bit uggly, no etag, expiration, content-length...)...
-	if (!$filename)
+	if ($target eq '-')
 	{
 		# if this isn't done, then the graph output overtakes the header output,
 		# and apache considers the cgi script broken and returns 500
@@ -1138,7 +1170,7 @@ sub draw
 	# ...or as a file.
 	else
 	{
-		($graphret,undef,undef) = RRDs::graph($filename, @rrdargs);
+		($graphret,undef,undef) = RRDs::graph($target, @rrdargs);
 	}
 	if (my $error = RRDs::error())
 	{
