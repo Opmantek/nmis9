@@ -84,4 +84,18 @@ like($menu, qr{http://good\.example/cfg}, "getModuleCode renders a valid http li
 unlike($menu, qr/<img src=x/, "getModuleCode escapes an <img> module name");
 unlike($menu, qr/javascript:alert/, "getModuleCode strips a javascript: link");
 
+# ---- NMISNG::Auth::do_login_banner (login + logout page banner) --------------
+# The favicon (config) and banner text render on the unauthenticated login and
+# logout pages via do_login_banner; both must be escaped (OMK-12703, review C2).
+require Compat::NMIS;
+my $auth = bless({
+	config => { nmis_favicon => 'x" onerror=xFAV' },
+	banner => '<img src=x onerror=xBAN>',
+}, 'NMISNG::Auth');
+my $banner = join("", $auth->do_login_banner());
+unlike($banner, qr/x" onerror=xFAV/,          "do_login_banner escapes the config favicon (no attribute break-out)");
+like($banner,   qr/x&quot; onerror=xFAV/,      "do_login_banner favicon present, escaped");
+unlike($banner, qr/<img src=x onerror=xBAN>/,  "do_login_banner escapes the banner text");
+like($banner,   qr/&lt;img src=x onerror=xBAN&gt;/, "do_login_banner banner text present, escaped");
+
 done_testing();

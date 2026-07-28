@@ -1088,6 +1088,14 @@ sub do_logout {
 	#	-style=>{'src'=>"$self->{config}->{'<menu_url_base>'}/css/dash8.css"}
 	#	}),"\n";
 
+	# config-sourced asset URLs on this pre/post-auth page are untrusted on
+	# output (OMK-12703): scheme-check and escape them
+	my $fl_favicon  = NMISNG::Util::escape_html(NMISNG::Util::safe_url($self->{config}->{'nmis_favicon'}));
+	my $fl_jqui_css = NMISNG::Util::escape_html(NMISNG::Util::safe_url($self->{config}->{'jquery_ui_css'}));
+	my $fl_styles   = NMISNG::Util::escape_html(NMISNG::Util::safe_url($self->{config}->{'styles'}));
+	my $fl_jquery   = NMISNG::Util::escape_html(NMISNG::Util::safe_url($self->{config}->{'jquery'}));
+	my $fl_jqui     = NMISNG::Util::escape_html(NMISNG::Util::safe_url($self->{config}->{'jquery_ui'}));
+
 	print qq
 |<!DOCTYPE html>
 <html>
@@ -1099,11 +1107,11 @@ sub do_logout {
     <meta http-equiv="Expires" content="-1" />
     <meta http-equiv="Robots" content="none" />
     <meta http-equiv="Googlebot" content="noarchive" />
-    <link type="image/x-icon" rel="shortcut icon" href="$self->{config}->{'nmis_favicon'}" />
-    <link type="text/css" rel="stylesheet" href="$self->{config}->{'jquery_ui_css'}" />
-    <link type="text/css" rel="stylesheet" href="$self->{config}->{'styles'}" />
-    <script src="$self->{config}->{'jquery'}" type="text/javascript"></script>
-    <script src="$self->{config}->{'jquery_ui'}" type="text/javascript"></script>
+    <link type="image/x-icon" rel="shortcut icon" href="$fl_favicon" />
+    <link type="text/css" rel="stylesheet" href="$fl_jqui_css" />
+    <link type="text/css" rel="stylesheet" href="$fl_styles" />
+    <script src="$fl_jquery" type="text/javascript"></script>
+    <script src="$fl_jqui" type="text/javascript"></script>
     <script type="text/javascript">//<![CDATA[
 $javascript
 //]]></script>
@@ -1146,8 +1154,11 @@ sub do_login_banner {
 
 	#print STDERR "DEBUG AUTH banner=$banner_string self->{banner}=$self->{banner}\n";
 
-	my $logo = qq|<a href="http://www.opmantek.com"><img height="20px" width="20px" class="logo" src="$self->{config}->{'nmis_favicon'}"/></a>|;
-	push @banner,CGI::div({class=>'ui-dialog-titlebar ui-dialog-header ui-corner-top ui-widget-header lrg pad'},$logo, $banner_string);
+	# favicon is config-sourced on the (pre-auth) login banner; scheme-check and
+	# escape it, and escape the banner text (OMK-12703)
+	my $safe_favicon = NMISNG::Util::escape_html(NMISNG::Util::safe_url($self->{config}->{'nmis_favicon'}));
+	my $logo = qq|<a href="http://www.opmantek.com"><img height="20px" width="20px" class="logo" src="$safe_favicon"/></a>|;
+	push @banner,CGI::div({class=>'ui-dialog-titlebar ui-dialog-header ui-corner-top ui-widget-header lrg pad'},$logo, NMISNG::Util::escape_html($banner_string));
 	push @banner,CGI::div({class=>'title2'},"Network Management Information System");
 
 	return @banner;
