@@ -1829,6 +1829,21 @@ sub InGroup {
 	return 0;
 }
 
+# group_allowed: true only if the user may see $group AND it is a configured group
+# (present in $group_table). Provided as a method so the "in group and group
+# exists" check has correct operator precedence and is shared, rather than being
+# repeated inline where it is easy to get wrong (OMK-12731).
+# args: group name, the loaded groups table (hashref keyed by group name)
+# returns: 1 if allowed, 0 otherwise
+sub group_allowed
+{
+	my ($self, $group, $group_table) = @_;
+	return 0 if (!defined $group || $group eq "");
+	return ($self->InGroup($group)
+					and ref($group_table) eq "HASH"
+					and exists $group_table->{$group}) ? 1 : 0;
+}
+
 #----------------------------------
 
 #	Check Access identifier agains priv of user

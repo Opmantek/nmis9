@@ -641,12 +641,12 @@ sub show_export_options
 
 	# verify that user is authorized to view the node within the user's group list
 	my $nodegroup = $S->nmisng_node->configuration->{group} if ($S->nmisng_node);
-	if ($node && (!$AU->InGroup($nodegroup || !exists $GT->{$nodegroup})))
+	if ($node && !$AU->group_allowed($nodegroup, $GT))
 	{
 		bailout(code => 403,
 						message => escapeHTML("Not Authorized to export rrd data for node '$node' in group '$nodegroup'."));
 	}
-	elsif ($group && (!$AU->InGroup($group) || !exists $GT->{$group}))
+	elsif ($group && !$AU->group_allowed($group, $GT))
 	{
 		bailout(code => 403,
 						message => escapeHTML("Not Authorized to export rrd data for nodes in group '$group'."));
@@ -837,7 +837,8 @@ sub typeExport
 	# some graphtypes have a heading that includes an identifier (eg. most interface graphs),
 	# but most others don't (e.g. Services, disks...), so we must include the intf/item in the filename
 	my $filename  = join("-", ($Q->{node} || $Q->{group}), $heading, $Q->{intf}//$Q->{item}).".csv";
-	$filename =~ s![/: '"]+!_!g;	# no /, no colons or quotes or spaces please
+	# also strips control chars incl CR/LF so the value cannot inject a header (OMK-12731)
+	$filename = NMISNG::Util::safe_filename($filename);
 
 	$headeropts->{type} = "text/csv";
 	$headeropts->{"Content-Disposition"} = "attachment; filename=\"$filename\"";

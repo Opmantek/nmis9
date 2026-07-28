@@ -1835,7 +1835,7 @@ sub logAuth
 	my $string = &NMISNG::Log::trace();
 
 	$string .= "<br>$msg";
-	$string =~ s/\n/ /g;      #remove all embedded newlines
+	$string = sanitise_log_line($string);   # flatten CR/LF/control chars - no log-line forgery
 
 	open($handle,">>$C->{auth_log}") or return " logAuth, Couldn't open log file $C->{auth_log}. $!";
 	flock($handle, LOCK_EX)  or return "logAuth, can't lock filename: $!";
@@ -4964,6 +4964,33 @@ sub safe_url
 	}
 
 	return $url;
+}
+
+# safe_filename: reduce a string to a safe download filename. Replaces path
+# separators, quotes, whitespace and control characters (including CR/LF, which
+# would otherwise split a Content-Disposition header) with underscores. Keeps
+# dots so an extension survives (OMK-12731).
+# args: a scalar
+# returns: the sanitised string (never undef)
+sub safe_filename
+{
+	my ($name) = @_;
+	return "" if (!defined $name);
+	$name =~ s![/: '"\x00-\x1f\x7f]+!_!g;
+	return $name;
+}
+
+# sanitise_log_line: flatten a string for single-line logging. Replaces any run
+# of control characters (CR, LF, tab ...) with a single space so attacker-supplied
+# values (e.g. a login username) cannot forge extra log lines (OMK-12731).
+# args: a scalar
+# returns: the flattened string ("" for undef)
+sub sanitise_log_line
+{
+	my ($str) = @_;
+	return "" if (!defined $str);
+	$str =~ s/[\x00-\x1f\x7f]+/ /g;
+	return $str;
 }
 
 

@@ -98,4 +98,16 @@ like($banner,   qr/x&quot; onerror=xFAV/,      "do_login_banner favicon present,
 unlike($banner, qr/<img src=x onerror=xBAN>/,  "do_login_banner escapes the banner text");
 like($banner,   qr/&lt;img src=x onerror=xBAN&gt;/, "do_login_banner banner text present, escaped");
 
+# ---- NMISNG::Auth::group_allowed (RRD-export authz precedence, OMK-12731) ----
+# user is in Alpha and Ghost; only Alpha and Beta are configured groups ($GT).
+can_ok("NMISNG::Auth", "group_allowed") or BAIL_OUT("group_allowed missing");
+my $ga = bless({ _require => 1, all_groups_allowed => 0,
+				 groups => ['Alpha', 'Ghost'], user => 't' }, 'NMISNG::Auth');
+my $GT = { Alpha => {}, Beta => {} };
+ok( $ga->group_allowed('Alpha', $GT), "group_allowed: in-group and configured -> allowed");
+ok(!$ga->group_allowed('Beta',  $GT), "group_allowed: configured but user not in group -> denied");
+ok(!$ga->group_allowed('Ghost', $GT), "group_allowed: in group but not configured -> denied (the dropped-guard bug)");
+ok(!$ga->group_allowed('',      $GT), "group_allowed: empty group -> denied");
+ok(!$ga->group_allowed('Alpha', undef), "group_allowed: missing group table -> denied");
+
 done_testing();

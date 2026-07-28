@@ -132,4 +132,28 @@ is(NMISNG::Util::escape_html(NMISNG::Util::safe_url("javascript:alert(1)")), "",
 my $urlq = NMISNG::Util::escape_html(NMISNG::Util::safe_url('http://x/?a="1"'));
 unlike($urlq, qr/"/, "composition leaves a URL attribute-safe (no raw quote)");
 
+# ---- safe_filename (Content-Disposition, OMK-12731) --------------------------
+
+can_ok("NMISNG::Util", "safe_filename", "sanitise_log_line") or BAIL_OUT("helpers missing");
+
+is(NMISNG::Util::safe_filename("report.csv"), "report.csv",
+	"safe_filename keeps a benign filename (dots survive)");
+is(NMISNG::Util::safe_filename("a/b:c d'e\"f"), "a_b_c_d_e_f",
+	"safe_filename replaces path sep, colon, space and quotes");
+# the important one: CR/LF must not survive to split a header
+my $crlf = "node\r\nSet-Cookie: x=1.csv";
+my $sf = NMISNG::Util::safe_filename($crlf);
+unlike($sf, qr/[\r\n]/, "safe_filename strips CR/LF (no header injection)");
+is(NMISNG::Util::safe_filename(undef), "", "safe_filename returns empty for undef");
+
+# ---- sanitise_log_line (auth-log injection, OMK-12731) ----------------------
+
+my $inj = "attacker\nINFO login accepted for admin";
+my $clean = NMISNG::Util::sanitise_log_line($inj);
+unlike($clean, qr/\n/, "sanitise_log_line removes newlines (no forged log line)");
+like($clean, qr/attacker INFO login/, "sanitise_log_line flattens to one line");
+unlike(NMISNG::Util::sanitise_log_line("a\rb\tc"), qr/[\r\t]/,
+	"sanitise_log_line also removes CR and tab");
+is(NMISNG::Util::sanitise_log_line(undef), "", "sanitise_log_line returns empty for undef");
+
 done_testing();
