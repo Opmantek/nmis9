@@ -3775,12 +3775,17 @@ sub replace_files_recursive {
 # Used by CGI
 sub filter_params {
 	my ($vars) = @_;
-	
-	foreach my $param (%$vars) {
-		$param = encode_entities($param);
+
+	# Copy into a plain hash first: $vars is usually CGI's $q->Vars, which is a
+	# TIED hash. Writing values back through the tie collapses multi-value params
+	# such as hide_groups / event_id into a single NUL-joined element, corrupting
+	# config.pl's hide_groups save and events.pl event acknowledgement (OMK-12723).
+	# Encode only the values (not the keys), and never mutate the caller's hash.
+	my %filtered = %$vars;
+	foreach my $value (values %filtered) {
+		$value = encode_entities($value) if defined $value;
 	}
-	
-	return $vars;
+	return \%filtered;
 }
 
 # Get policy for a node based on policy name

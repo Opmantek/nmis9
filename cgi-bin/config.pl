@@ -49,8 +49,9 @@ use Data::Dumper;
 my $q = new CGI; # This processes all parameters passed via GET and POST
 my $Q = $q->Vars; # values in hash
 
-# always filter params (OMK-12723). hide_groups is multi-value but is saved
-# via $q->multi_param (raw), so filtering $Q does not affect the saved values.
+# always filter params (OMK-12723). filter_params works on a plain copy and does
+# not write back through $q->Vars (a tied hash), so the multi-value hide_groups
+# read below via $q->multi_param is preserved.
 $Q = NMISNG::Util::filter_params($Q);
 
 my $C = NMISNG::Util::loadConfTable(debug=>$Q->{debug});

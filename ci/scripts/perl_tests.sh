@@ -31,6 +31,7 @@ working_tests=(
     t_util_escape.pl
     t_xss_modules_render.pl
     t_cgi_xss_escaping.t
+    t_filter_params.t
 )
 
 for i in "${working_tests[@]}"; do
