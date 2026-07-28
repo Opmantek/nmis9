@@ -156,4 +156,22 @@ unlike(NMISNG::Util::sanitise_log_line("a\rb\tc"), qr/[\r\t]/,
 	"sanitise_log_line also removes CR and tab");
 is(NMISNG::Util::sanitise_log_line(undef), "", "sanitise_log_line returns empty for undef");
 
+# ---- escape_js_string (JS-string context inside <script>, OMK-12703) ---------
+
+can_ok("NMISNG::Util", "escape_js_string") or BAIL_OUT("escape_js_string missing");
+
+is(NMISNG::Util::escape_js_string("http://x/ok"), "http://x/ok",
+	"escape_js_string leaves a benign URL unchanged");
+# single-quote breakout of window.location = '...' must be neutralised
+unlike(NMISNG::Util::escape_js_string("'-alert(1)-'"), qr/(?<!\\)'/,
+	"escape_js_string escapes every single quote (no JS-string break-out)");
+unlike(NMISNG::Util::escape_js_string('a"b'), qr/(?<!\\)"/,
+	"escape_js_string escapes double quotes");
+# a </script> in the value must not close the inline script block
+unlike(NMISNG::Util::escape_js_string("x</script>y"), qr{</script},
+	"escape_js_string neutralises </script>");
+is(NMISNG::Util::escape_js_string("a\r\nb"), "ab",
+	"escape_js_string strips CR/LF");
+is(NMISNG::Util::escape_js_string(undef), "", "escape_js_string returns empty for undef");
+
 done_testing();

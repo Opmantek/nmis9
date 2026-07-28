@@ -781,12 +781,12 @@ sub typeExport
 
 	# verify that user is authorized to view the node within the user's group list
 	my $nodegroup = $S->nmisng_node->configuration->{group} if ($Q->{node});
-	if ($Q->{node} && !$AU->InGroup($nodegroup))
+	if ($Q->{node} && !$AU->group_allowed($nodegroup, $GT))
 	{
-		bailout(code => 403, message => "Not Authorized to export rrd data for node '$Q->{node}' in group '$nodegroup'.");
-	} elsif ( $Q->{group} && !$AU->InGroup($Q->{group}))
+		bailout(code => 403, message => escapeHTML("Not Authorized to export rrd data for node '$Q->{node}' in group '$nodegroup'."));
+	} elsif ( $Q->{group} && !$AU->group_allowed($Q->{group}, $GT))
 	{
-		bailout(code => 403, message => "Not Authorized to export rrd data for nodes in group '$Q->{group}'.");
+		bailout(code => 403, message => escapeHTML("Not Authorized to export rrd data for nodes in group '$Q->{group}'."));
 	}
 	# check for overlays (which currently are only percentile)
 	my $res = NMISNG::Util::getModelFile(model => "Graph-$graphtype");
@@ -959,12 +959,12 @@ sub typeStats
 
 	# verify that user is authorized to view the node within the user's group list
 	my $nodegroup = $S->nmisng_node->configuration->{group} if ($Q->{node});
-	if ( $Q->{node} && !$AU->InGroup($nodegroup) )
+	if ( $Q->{node} && !$AU->group_allowed($nodegroup, $GT) )
 	{
-		bailout(code => 403, message => "Not Authorized to export rrd data on node $Q->{node} in group $nodegroup");
-	} elsif ( $Q->{group} && !$AU->InGroup($Q->{group}) )
+		bailout(code => 403, message => escapeHTML("Not Authorized to export rrd data on node $Q->{node} in group $nodegroup"));
+	} elsif ( $Q->{group} && !$AU->group_allowed($Q->{group}, $GT) )
 	{
-		bailout(code => 403, message => "Not Authorized to export rrd data on nodes in group $Q->{group}");
+		bailout(code => 403, message => escapeHTML("Not Authorized to export rrd data on nodes in group $Q->{group}"));
 	}
 
 	print header($headeropts), start_html(

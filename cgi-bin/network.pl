@@ -1540,7 +1540,7 @@ sub selectLarge
 					. uri_escape($node);
 				$nodelink = a( {
 					target => "Graph-$node",
-					onclick => "viewwndw(\'$node\',\'$url\',$C->{win_width},$C->{win_height} * 1.5)"},
+					onclick => "viewwndw('".NMISNG::Util::escape_js_string($node)."','".NMISNG::Util::escape_js_string($url)."',$C->{win_width},$C->{win_height} * 1.5)"},
 					escapeHTML($NT->{$node}{name}),
 					img( {src => "$C->{'nmis_slave'}", alt => "NMIS Server $remote->{server_name}"}) );
 			}
@@ -1757,7 +1757,7 @@ sub clearSelfTest
 	if ($wantwidget)
 	{
 		print header($headeropts),
-			qq|<script type="text/javascript">window.location='$C->{nmis}?';</script>|;
+			qq|<script type="text/javascript">window.location='|.NMISNG::Util::escape_js_string($C->{nmis}).qq|?';</script>|;
 	}
 	else
 	{
@@ -1940,7 +1940,7 @@ sub viewNode
 		# Get node from remote collection
 		my $url = $remote->{url_base}."/".$remote->{nmis_cgi_url_base}."/network.pl?act=network_node_view&refresh=$C->{page_refresh_time}&widget=false&node="
 			. uri_escape($node);
-		my $nodelink = a( {target => "NodeDetails-$node", onclick => "viewwndw(\'$node\',\'$url\',$wd,$ht)"},
+		my $nodelink = a( {target => "NodeDetails-$node", onclick => "viewwndw('".NMISNG::Util::escape_js_string($node)."','".NMISNG::Util::escape_js_string($url)."',$wd,$ht)"},
 			$node );
 		if ( defined $remote->{nmis_cgi_url_base} && defined $remote->{nmis_cgi_url_base} )
 		{
@@ -3008,10 +3008,10 @@ operAvail totalUtil ifSpeed ipAdEntAddr ifLastChange collect nocollect display_n
 			{
 				if ($thisintf->{"ipAdEntAddr$cnt"} ne "" and $thisintf->{"ipAdEntNetMask$cnt"} ne "")
 				{
-					$content += "<br/>" if ($content ne "");
+					$content .= "<br/>" if ($content ne "");
 					my $int = $thisintf->{"ipAdEntAddr$cnt"};
 					my $mask = $thisintf->{"ipAdEntNetMask$cnt"};
-					$content += "$int/$mask";
+					$content .= escapeHTML("$int/$mask");
 				}
 				$cnt++;
 			}

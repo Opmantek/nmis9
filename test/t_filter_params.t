@@ -69,4 +69,13 @@ unlike($filtered->{node}, qr/<script>/,     "no raw markup left in the filtered 
 # 3) param names (keys) are preserved, not entity-encoded
 ok(exists $filtered->{hide_groups}, "param name key is preserved");
 
+# 4) the RETURNED hash keeps multi-value structure: consumers that split on the
+#    NUL separator (e.g. outages.pl doaddOutage) must still get each value, and
+#    each segment must be entity-encoded (not the NUL turned into &#0;)
+my @seg = split(/\0/, $filtered->{hide_groups});
+is(scalar(@seg), 3, "returned hash keeps multi-value when split on NUL")
+	or diag("got: [" . join("][", @seg) . "]");
+like($seg[1], qr/&lt;x&gt;/, "each NUL-separated segment is entity-encoded");
+unlike($filtered->{hide_groups}, qr/&#0;/, "the NUL separator is preserved, not encoded to &#0;");
+
 done_testing();

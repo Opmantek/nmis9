@@ -3776,14 +3776,17 @@ sub replace_files_recursive {
 sub filter_params {
 	my ($vars) = @_;
 
-	# Copy into a plain hash first: $vars is usually CGI's $q->Vars, which is a
-	# TIED hash. Writing values back through the tie collapses multi-value params
-	# such as hide_groups / event_id into a single NUL-joined element, corrupting
-	# config.pl's hide_groups save and events.pl event acknowledgement (OMK-12723).
-	# Encode only the values (not the keys), and never mutate the caller's hash.
-	my %filtered = %$vars;
-	foreach my $value (values %filtered) {
-		$value = encode_entities($value) if defined $value;
+	# Build a plain hash: $vars is usually CGI's $q->Vars, a TIED hash, and
+	# writing back through the tie collapses multi-value params (OMK-12723).
+	# Multi-value params arrive NUL-joined (e.g. "n1\0n2"); encode each segment
+	# and rejoin with the NUL so consumers that split on \0 (e.g. outages.pl)
+	# still round-trip. Encode values only, not keys.
+	my %filtered;
+	foreach my $key (keys %$vars) {
+		my $value = $vars->{$key};
+		$value = join("\0", map { encode_entities($_) } split(/\0/, $value, -1))
+				if defined $value;
+		$filtered{$key} = $value;
 	}
 	return \%filtered;
 }
@@ -4990,6 +4993,24 @@ sub sanitise_log_line
 	my ($str) = @_;
 	return "" if (!defined $str);
 	$str =~ s/[\x00-\x1f\x7f]+/ /g;
+	return $str;
+}
+
+# escape_js_string: encode a string for safe inclusion inside a single- or
+# double-quoted JavaScript string literal in an inline <script> block. Escapes
+# backslash and both quote characters, neutralises a literal "</" (so a
+# </script> cannot close the block early) and drops the JS line separators.
+# This is NOT HTML escaping - the browser does not HTML-decode inside <script>
+# (OMK-12703/OMK-12731). Combine with safe_url for a URL destination.
+# args: a scalar
+# returns: the encoded string ("" for undef)
+sub escape_js_string
+{
+	my ($str) = @_;
+	return "" if (!defined $str);
+	$str =~ s/([\\'"])/\\$1/g;
+	$str =~ s{</}{<\\/}g;
+	$str =~ s/[\r\n\x{2028}\x{2029}]//g;
 	return $str;
 }
 

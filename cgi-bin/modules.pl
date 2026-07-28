@@ -83,13 +83,15 @@ sub moduleMenu {
 	if ( !$wantwidget ) {
 		#Don't print the start_html, but we do need to get the javascript in there.
 		print start_html(-title=>$title,
-			-xbase=>&url(-base=>1)."$C->{'<url_base>'}",
+			# CGI escapes -title and Link hashref hrefs, but NOT -xbase; escape it
+			# ourselves (unauthenticated page, config untrusted on output) (OMK-12731)
+			-xbase=>NMISNG::Util::escape_html(NMISNG::Util::safe_url(&url(-base=>1)."$C->{'<url_base>'}")),
 			-meta=>{'keywords'=>'network management NMIS'},
 			-head=>[
-					Link({-rel=>'shortcut icon',-type=>'image/x-icon',-href=>$C->{'nmis_favicon'}}),
-					Link({-rel=>'stylesheet',-type=>'text/css',-href=>"$C->{'styles'}"}),
+					Link({-rel=>'shortcut icon',-type=>'image/x-icon',-href=>NMISNG::Util::safe_url($C->{'nmis_favicon'})}),
+					Link({-rel=>'stylesheet',-type=>'text/css',-href=>NMISNG::Util::safe_url($C->{'styles'})}),
 				]
-			); 
+			);
 	}
 
 	print start_table({class=>"noborder"}) ;

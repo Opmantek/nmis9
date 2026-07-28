@@ -225,6 +225,27 @@ $t->get_ok('/cgi-nmis9/community_rss.pl?conf=Config&widget=false', "community_rs
 	ok(index($body, $RSS_ESC) >= 0,  "community_rss.pl: config URL JS-string-escaped");
 }
 
+# modules.pl (unauthenticated info page): the -xbase escaping must not break the
+# page, and no marker may leak. The -xbase attribute-breakout itself is proven by
+# the escape_html/safe_url unit tests; seeding <url_base> here would corrupt the
+# shared base URL for every other page, so this is a render + no-raw-marker check.
+$t->get_ok('/cgi-nmis9/modules.pl?conf=Config&widget=false', "modules.pl: fetched");
+{
+	my $body = $t->tx->res->body // '';
+	is($t->tx->res->code, 200, "modules.pl: HTTP 200");
+	unlike($body, qr/<img src=x onerror=x/, "modules.pl: no raw XSS marker in the page");
+}
+
+# do_logout redirect JS (I1): a hostile query string with a literal single quote
+# must NOT reach the inline window.location assignment. Run LAST - it clears the
+# session. Fails against the old code, which reflected -query=>1 into the JS.
+$t->get_ok("/cgi-nmis9/nmiscgi.pl?conf=Config&auth_type=logout&xssq='-alertXSS-'",
+	"do_logout: fetched");
+{
+	my $body = $t->tx->res->body // '';
+	unlike($body, qr/'-alertXSS-'/, "do_logout: query not reflected into the redirect JS");
+}
+
 # ---- cleanup ---------------------------------------------------------------
 
 END {

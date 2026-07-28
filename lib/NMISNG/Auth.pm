@@ -1028,7 +1028,7 @@ EOHTML
 
 	$javascript = "function redir() { ";
 #	$javascript .= "alert('$err'); " if($err);
-	$javascript .= " window.location = '" . $url . "'; }";
+	$javascript .= " window.location = '" . NMISNG::Util::escape_js_string($url) . "'; }";
 
 	$javascript = "function redir() {} " if($self->{config}->{'web-auth-debug'});
 
@@ -1058,7 +1058,8 @@ sub do_logout {
 	# Javascript that sets window.location to login URL
 	### fixing the logout so it can be reverse proxied
 	CGI::delete('auth_type'); 		# but don't keep that one
-	my $url = CGI::url(-full=>1, -query=>1);
+	# do NOT reflect the incoming query string into the redirect (OMK-12703)
+	my $url = CGI::url(-full=>1);
 	$url =~ s!^[^:]+://!//!;
 
 	if ($max_sessions_enabled)
@@ -1074,7 +1075,7 @@ sub do_logout {
 		}
 	}
 	
-	my $javascript = "function redir() { window.location = '" . $url ."'; }";
+	my $javascript = "function redir() { window.location = '" . NMISNG::Util::escape_js_string($url) . "'; }";
 	my $cookie = $self->generate_cookie(user_name => $self->{user}, expires => "now", value => "" );
 
 	NMISNG::Util::logAuth("INFO logout of user=$self->{user}");
