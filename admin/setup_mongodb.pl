@@ -378,8 +378,15 @@ production use.\n\n";
 		if (input_yn("Should we add the setting 'authorization: enabled' to your ${mongod_conf}?","116b"))
 		{
 			# backup $mongod_conf first - we use timestamp to keep multiple copies:
-			print "\n" . `cp -arf "$mongod_conf" "$mongod_conf.\$(date +%s)"` ||
-				die ("Error: making backup (1) of $mongod_conf failed with status code: $?\n");
+			my $mongod_conf_backup = "$mongod_conf." . time;
+			# stat before the copy, which would otherwise bump the source access time:
+			my @mongod_conf_stat = stat($mongod_conf);
+			copy($mongod_conf, $mongod_conf_backup)
+				or die ("Error: making backup (1) of $mongod_conf failed: $!\n");
+			# preserve mode and timestamps, as 'cp -a' did:
+			chmod(($mongod_conf_stat[2] & 07777), $mongod_conf_backup);
+			utime($mongod_conf_stat[8], $mongod_conf_stat[9], $mongod_conf_backup);
+			print "\nbacked up $mongod_conf to $mongod_conf_backup\n";
 
 			local $YAML::XS::Boolean="JSON::PP";
 			my $yaml=LoadFile($mongod_conf)||die "cannot LoadFile $mongod_conf: $!\n";
@@ -629,8 +636,15 @@ This is MongoDB's default, but is not recommended for production use.\n\n";
 			}
 
 			# backup $mongod_conf first - we use timestamp to keep multiple copies:
-			print "\n" . `cp -arf "$mongod_conf" "$mongod_conf.\$(date +%s)"` ||
-				die ("Error: making backup (2) of $mongod_conf failed with status code: $?\n");
+			my $mongod_conf_backup = "$mongod_conf." . time;
+			# stat before the copy, which would otherwise bump the source access time:
+			my @mongod_conf_stat = stat($mongod_conf);
+			copy($mongod_conf, $mongod_conf_backup)
+				or die ("Error: making backup (2) of $mongod_conf failed: $!\n");
+			# preserve mode and timestamps, as 'cp -a' did:
+			chmod(($mongod_conf_stat[2] & 07777), $mongod_conf_backup);
+			utime($mongod_conf_stat[8], $mongod_conf_stat[9], $mongod_conf_backup);
+			print "\nbacked up $mongod_conf to $mongod_conf_backup\n";
 
 			local $YAML::XS::Boolean="JSON::PP";
 			my $yaml=LoadFile($mongod_conf);
@@ -648,7 +662,9 @@ This is MongoDB's default, but is not recommended for production use.\n\n";
 			my $mongod_logrotate_conf = "/etc/logrotate.d/mongod.conf";
 
 			print "\nwriting logrotate configuration file $mongod_logrotate_conf'\n";
-			print "\n" . `cat > "$mongod_logrotate_conf" <<EOF
+			open(my $logrotate_fh, '>', $mongod_logrotate_conf)
+				or die ("Error: could not open logrotate configuration file $mongod_logrotate_conf: $!\n");
+			print $logrotate_fh <<"EOF";
 $mongod_systemlog_path {
   weekly
   maxsize 500M
@@ -660,14 +676,16 @@ $mongod_systemlog_path {
   create 640 $mongod_user $mongod_user
   sharedscripts
   postrotate
-    kill -SIGUSR1 \\\$(pidof mongod) >/dev/null 2>&1||:
+    kill -SIGUSR1 \$(pidof mongod) >/dev/null 2>&1||:
   endscript
 }
-EOF`||die ("Error: could not writing logrotate configuration file $mongod_logrotate_conf with status code: $?\n");
+EOF
+			close($logrotate_fh)
+				or die ("Error: could not write logrotate configuration file $mongod_logrotate_conf: $!\n");
 
 			print "\nchmod 0644 $mongod_logrotate_conf\n";
-			print "\n" . `chmod 0644 "$mongod_logrotate_conf" 2>&1;` ||
-				die ("Error: chmod 0644 $mongod_logrotate_conf failed with status code: $?\n");
+			chmod(0644, $mongod_logrotate_conf)
+				or die ("Error: chmod 0644 $mongod_logrotate_conf failed: $!\n");
 
 			# restart mongod to implement settings for logrotate test
 			print "\nrestarting mongod to implement settings for logrotate ...\n\n";
@@ -677,8 +695,10 @@ EOF`||die ("Error: could not writing logrotate configuration file $mongod_logrot
 
 			# test logrotate:
 			print "\ntesting logrotate ...\n\n";
-			print "\n" . `logrotate -vf "$mongod_logrotate_conf"` ||
-				die ("Error: testing logrotate failed with status code: $?\n");
+			print "\n";
+			my $logrotate_status = system("logrotate", "-vf", $mongod_logrotate_conf) >> 8;
+			print "ERROR: testing logrotate failed, exit code $logrotate_status\n"
+				if ($logrotate_status);
 		}
 	}
 }
