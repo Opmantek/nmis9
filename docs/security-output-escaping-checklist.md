@@ -46,5 +46,10 @@ config-file values are NOT filtered and must be escaped on output.
 ## Running the tests
 
 Host-runnable unit tests: `prove test/t_util_escape.pl test/t_filter_params.t`.
-Full CGI render suite (`test/t_cgi_xss_escaping.t`, Test::Mojo driving the real
-cgi-bin through NMISx) needs the dev container - see the test-environment notes.
+Full CGI render suite needs the dev container (Test::Mojo driving the real cgi-bin
+through NMISx) - see the test-environment notes:
+- `test/t_cgi_xss_escaping.t` - stored-XSS sweep across find.pl / network.pl /
+  community_rss.pl with a seeded marker node.
+- `test/t_cgi_modules_xbase.t` - fail-without-fix regression for the modules.pl
+  `start_html(-xbase)` sink, driven with a hostile `<url_base>` in an isolated
+  (untracked conf/) config so the base URL is not corrupted for other pages.

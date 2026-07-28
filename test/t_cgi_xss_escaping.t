@@ -45,9 +45,10 @@
 #
 # Requires a reachable MongoDB (uses the configured database, same as the CGIs)
 # and the NMISx Mojo app - i.e. the dev container; it skips cleanly elsewhere.
-# Seeds and removes one node; temporarily patches community_rss_url in the config
-# (always restored on exit). Authenticates as the shipped default user (nmis)
-# rather than disabling auth.
+# Seeds and removes one node; temporarily patches community_rss_url in the
+# untracked conf/ override (always restored on exit). Authenticates as the shipped
+# default user (nmis) rather than disabling auth. The modules.pl start_html(-xbase)
+# sink has its own fail-without-fix regression in t_cgi_modules_xbase.t.
 
 use strict;
 use warnings;
@@ -72,10 +73,12 @@ sub esc_form { my $tok = shift; return "&lt;img src=x onerror=$tok&gt;"; }
 
 # community_rss.pl interpolates community_rss_url into a JS string inside <script>.
 # Seed a hostile value before the config is loaded (so the parent cache and the
-# forked CGI both see it), restored in END. It is patched in conf-default because
-# the live conf/Config.nmis is normalised to override-only and does not carry this
-# default. This is the only config-file mutation and it is always reverted.
-my $CFGFILE = "$FindBin::Bin/../conf-default/Config.nmis";
+# forked CGI both see it), restored in END. Seed the UNTRACKED conf/Config.nmis
+# override, never the tracked conf-default: a hard kill can then only leave an
+# untracked file behind, and the override wins over the shipped default anyway.
+# The seed is skipped entirely when conf/ is absent (bare host), so it never runs
+# ahead of the skip_all guards below on a machine that cannot run this test.
+my $CFGFILE = "$FindBin::Bin/../conf/Config.nmis";
 my $CFGBAK;
 my $RSS_RAW = 'https://evil/"</script>';    # breaks a JS string and <script> if raw
 my $RSS_ESC = 'https://evil/\"<\/script>';  # correct JS-string-escaped form
@@ -83,7 +86,11 @@ if (-f $CFGFILE) {
 	$CFGBAK = "$CFGFILE.xssbak";
 	copy($CFGFILE, $CFGBAK);
 	open(my $in, '<', $CFGFILE); local $/; my $txt = <$in>; close $in;
-	$txt =~ s{('community_rss_url'\s*=>\s*)'[^']*'}{$1'$RSS_RAW'};
+	if ($txt =~ /'community_rss_url'\s*=>/) {
+		$txt =~ s{('community_rss_url'\s*=>\s*)'[^']*'}{$1'$RSS_RAW'};
+	} else {
+		$txt =~ s{('system'\s*=>\s*\{)}{$1\n    'community_rss_url' => '$RSS_RAW',};
+	}
 	open(my $out, '>', $CFGFILE); print $out $txt; close $out;
 }
 
@@ -225,16 +232,10 @@ $t->get_ok('/cgi-nmis9/community_rss.pl?conf=Config&widget=false', "community_rs
 	ok(index($body, $RSS_ESC) >= 0,  "community_rss.pl: config URL JS-string-escaped");
 }
 
-# modules.pl (unauthenticated info page): the -xbase escaping must not break the
-# page, and no marker may leak. The -xbase attribute-breakout itself is proven by
-# the escape_html/safe_url unit tests; seeding <url_base> here would corrupt the
-# shared base URL for every other page, so this is a render + no-raw-marker check.
-$t->get_ok('/cgi-nmis9/modules.pl?conf=Config&widget=false', "modules.pl: fetched");
-{
-	my $body = $t->tx->res->body // '';
-	is($t->tx->res->code, 200, "modules.pl: HTTP 200");
-	unlike($body, qr/<img src=x onerror=x/, "modules.pl: no raw XSS marker in the page");
-}
+# modules.pl start_html(-xbase): the fail-without-fix regression for that
+# unauthenticated sink lives in t_cgi_modules_xbase.t, which needs a hostile
+# <url_base> (global config) and so isolates it in its own process. Not repeated
+# here, where a shared <url_base> would corrupt the base URL for every other page.
 
 # do_logout redirect JS (I1): a hostile query string with a literal single quote
 # must NOT reach the inline window.location assignment. Run LAST - it clears the

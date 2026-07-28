@@ -31,6 +31,7 @@ working_tests=(
     t_util_escape.pl
     t_xss_modules_render.pl
     t_cgi_xss_escaping.t
+    t_cgi_modules_xbase.t
     t_filter_params.t
 )
 
