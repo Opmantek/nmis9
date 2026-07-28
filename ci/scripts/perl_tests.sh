@@ -26,6 +26,8 @@ working_tests=(
     t_report_filename.t
     t_isindex_guard.t
     t_rrddraw_filename.t
+    t_auth_cookie_flavour.t
+    t_auth_sso_shared_key.t
 )
 
 for i in "${working_tests[@]}"; do

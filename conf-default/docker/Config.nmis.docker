@@ -2,7 +2,6 @@
   'authentication' => {
     'auth_banner_title' => 'NMIS9',
     'auth_buttons_visible' => 'true',
-    'auth_cookie_flavour' => 'omk',
     'auth_cw_company_id' => '',
     'auth_cw_private_key' => '',
     'auth_cw_public_key' => '',
