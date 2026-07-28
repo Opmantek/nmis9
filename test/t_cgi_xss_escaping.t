@@ -45,8 +45,9 @@
 #
 # Requires a reachable MongoDB (uses the configured database, same as the CGIs)
 # and the NMISx Mojo app - i.e. the dev container; it skips cleanly elsewhere.
-# Seeds and removes one node named below; touches no config files. Authenticates
-# as the shipped default user (nmis) rather than disabling auth.
+# Seeds and removes one node; temporarily patches community_rss_url in the config
+# (always restored on exit). Authenticates as the shipped default user (nmis)
+# rather than disabling auth.
 
 use strict;
 use warnings;
@@ -55,6 +56,7 @@ use lib "$FindBin::Bin/../lib";
 
 use Test::More;
 use Test::Mojo;
+use File::Copy;
 
 use NMISNG;
 use NMISNG::Log;
@@ -67,6 +69,27 @@ my $NODENAME = "xss_test_node";
 # field it came from. Escaped form is &lt;img src=x onerror=xTOKEN&gt;.
 sub payload  { my $tok = shift; return "<img src=x onerror=$tok>"; }
 sub esc_form { my $tok = shift; return "&lt;img src=x onerror=$tok&gt;"; }
+
+# community_rss.pl interpolates community_rss_url into a JS string inside <script>.
+# Seed a hostile value before the config is loaded (so the parent cache and the
+# forked CGI both see it), restored in END. It is patched in conf-default because
+# the live conf/Config.nmis is normalised to override-only and does not carry this
+# default. This is the only config-file mutation and it is always reverted.
+my $CFGFILE = "$FindBin::Bin/../conf-default/Config.nmis";
+my $CFGBAK;
+my $RSS_RAW = 'https://evil/"</script>';    # breaks a JS string and <script> if raw
+my $RSS_ESC = 'https://evil/\"<\/script>';  # correct JS-string-escaped form
+if (-f $CFGFILE) {
+	$CFGBAK = "$CFGFILE.xssbak";
+	copy($CFGFILE, $CFGBAK);
+	open(my $in, '<', $CFGFILE); local $/; my $txt = <$in>; close $in;
+	$txt =~ s{('community_rss_url'\s*=>\s*)'[^']*'}{$1'$RSS_RAW'};
+	open(my $out, '>', $CFGFILE); print $out $txt; close $out;
+}
+
+END {
+	if ($CFGBAK && -f $CFGBAK) { copy($CFGBAK, $CFGFILE); unlink $CFGBAK; }
+}
 
 my $C = NMISNG::Util::loadConfTable();
 plan skip_all => "no MongoDB configured" unless ($C && $C->{db_name});
@@ -124,7 +147,7 @@ $intf->data({
 	ifIndex       => $IFINDEX,
 	ifDescr       => payload("xIFD"),
 	Description    => payload("xIFDESC"),
-	ifType        => "ethernetCsmacd",
+	ifType        => payload("xIFT"),
 	ifSpeed       => 1000000000,
 	ifAdminStatus => "up",
 	ifOperStatus  => "up",
@@ -179,17 +202,28 @@ assert_escaped(
 	'/cgi-nmis9/network.pl?conf=Config&act=node_admin_summary&widget=false',
 	qw(xGRP xDESC xVEND xOBJ xTYPE));
 
-# network.pl interface detail - heading + property table render ifDescr, Description
+# network.pl interface detail - heading + property table render ifDescr,
+# Description and ifType. (ifType is also a node.pl typeGraph sink, but that view
+# needs a full model/graph/RRD context to render, beyond this node seed, so it is
+# not driven end-to-end; the escaping there is the same escapeHTML pattern.)
 assert_escaped(
 	"network.pl interface detail",
 	"/cgi-nmis9/network.pl?conf=Config&act=network_interface_view&node=$NODENAME&intf=$IFINDEX&widget=false",
-	qw(xIFD xIFDESC));
+	qw(xIFD xIFDESC xIFT));
 
 # find.pl interface search - matches + renders ifDescr
 assert_escaped(
 	"find.pl interface search",
 	'/cgi-nmis9/find.pl?conf=Config&act=find_interface_view&find=xIFD&widget=false',
 	qw(xIFD));
+
+# community_rss.pl - config community_rss_url rendered into a JS string in <script>
+$t->get_ok('/cgi-nmis9/community_rss.pl?conf=Config&widget=false', "community_rss.pl: fetched");
+{
+	my $body = $t->tx->res->body // '';
+	ok(index($body, $RSS_RAW) == -1, "community_rss.pl: no raw JS-string/script break-out");
+	ok(index($body, $RSS_ESC) >= 0,  "community_rss.pl: config URL JS-string-escaped");
+}
 
 # ---- cleanup ---------------------------------------------------------------
 
