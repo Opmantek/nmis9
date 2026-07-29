@@ -377,9 +377,24 @@ production use.\n\n";
 
 		if (input_yn("Should we add the setting 'authorization: enabled' to your ${mongod_conf}?","116b"))
 		{
-			# backup $mongod_conf first - we use timestamp to keep multiple copies:
-			print "\n" . `cp -arf "$mongod_conf" "$mongod_conf.\$(date +%s)"` ||
-				die ("Error: making backup (1) of $mongod_conf failed with status code: $?\n");
+			# backup $mongod_conf first - we use timestamp to keep multiple copies.
+			# fatal on failure, unlike the backticks this replaced: their '|| die' was
+			# unreachable, so a failed backup used to be ignored
+			my $mongod_conf_backup = "$mongod_conf." . time;
+			# stat before the copy, which would otherwise bump the source access time.
+			# fatal if it fails, or the mode arithmetic below chmods the backup to 0000:
+			my @mongod_conf_stat = stat($mongod_conf);
+			@mongod_conf_stat
+				or die ("Error: cannot stat $mongod_conf for backup (1): $!\n");
+			copy($mongod_conf, $mongod_conf_backup)
+				or die ("Error: making backup (1) of $mongod_conf failed: $!\n");
+			# preserve mode and timestamps, as 'cp -a' did. the backup is already on
+			# disk, so lost metadata only warrants a warning:
+			chmod(($mongod_conf_stat[2] & 07777), $mongod_conf_backup)
+				or warn ("WARNING: could not preserve mode on $mongod_conf_backup: $!\n");
+			utime($mongod_conf_stat[8], $mongod_conf_stat[9], $mongod_conf_backup)
+				or warn ("WARNING: could not preserve timestamps on $mongod_conf_backup: $!\n");
+			print "\nbacked up $mongod_conf to $mongod_conf_backup\n";
 
 			local $YAML::XS::Boolean="JSON::PP";
 			my $yaml=LoadFile($mongod_conf)||die "cannot LoadFile $mongod_conf: $!\n";
@@ -629,26 +644,53 @@ This is MongoDB's default, but is not recommended for production use.\n\n";
 			}
 
 			# backup $mongod_conf first - we use timestamp to keep multiple copies:
-			print "\n" . `cp -arf "$mongod_conf" "$mongod_conf.\$(date +%s)"` ||
-				die ("Error: making backup (2) of $mongod_conf failed with status code: $?\n");
+			my $mongod_conf_backup = "$mongod_conf." . time;
+			# stat before the copy, which would otherwise bump the source access time.
+			# error handling as for backup (1) above:
+			my @mongod_conf_stat = stat($mongod_conf);
+			@mongod_conf_stat
+				or die ("Error: cannot stat $mongod_conf for backup (2): $!\n");
+			copy($mongod_conf, $mongod_conf_backup)
+				or die ("Error: making backup (2) of $mongod_conf failed: $!\n");
+			# preserve mode and timestamps, as 'cp -a' did:
+			chmod(($mongod_conf_stat[2] & 07777), $mongod_conf_backup)
+				or warn ("WARNING: could not preserve mode on $mongod_conf_backup: $!\n");
+			utime($mongod_conf_stat[8], $mongod_conf_stat[9], $mongod_conf_backup)
+				or warn ("WARNING: could not preserve timestamps on $mongod_conf_backup: $!\n");
+			print "\nbacked up $mongod_conf to $mongod_conf_backup\n";
 
 			local $YAML::XS::Boolean="JSON::PP";
-			my $yaml=LoadFile($mongod_conf);
+			my $yaml=LoadFile($mongod_conf)||die "cannot LoadFile $mongod_conf: $!\n";
 			$yaml->{systemLog}{destination}="file";
 			$yaml->{systemLog}{logAppend}=JSON::PP::true;
 			$yaml->{systemLog}{logRotate}="reopen";
-			DumpFile($mongod_conf,$yaml);
+			DumpFile($mongod_conf,$yaml)||die "cannot DumpFile $mongod_conf: $!\n";
 
-			my $mongod_systemlog_path = $yaml->{systemLog}{path}||"null";
-			if ( (! defined $mongod_systemlog_path) or ($mongod_systemlog_path eq "null") )
+			# no '|| "null"' default here: it hid undef from the '! defined' test and
+			# made it dead code. the guard below rejects anything else that is not a path:
+			my $mongod_systemlog_path = $yaml->{systemLog}{path};
+			if ( (! defined $mongod_systemlog_path) or ($mongod_systemlog_path eq "") )
 			{
 				die "Read $mongod_conf systemLog.path not found. Exiting\n";
 			}
 
+			# this becomes the stanza header of the logrotate config written below, which
+			# we then run with -vf, and logrotate runs postrotate as root. a value with
+			# a newline plus '}' would close our stanza and open its own, so allow only
+			# a plain path. \z not $, as $ would let a trailing newline through:
+			if ($mongod_systemlog_path !~ m{\A/[A-Za-z0-9._/-]+\z})
+			{
+				die "Error: $mongod_conf systemLog.path must be a plain absolute path "
+					. "(letters, digits and '/', '.', '_', '-' only). Refusing to write "
+					. "a logrotate configuration for it. Exiting\n";
+			}
+
 			my $mongod_logrotate_conf = "/etc/logrotate.d/mongod.conf";
 
-			print "\nwriting logrotate configuration file $mongod_logrotate_conf'\n";
-			print "\n" . `cat > "$mongod_logrotate_conf" <<EOF
+			print "\nwriting logrotate configuration file $mongod_logrotate_conf\n";
+			open(my $logrotate_fh, '>', $mongod_logrotate_conf)
+				or die ("Error: could not open logrotate configuration file $mongod_logrotate_conf: $!\n");
+			print $logrotate_fh <<"EOF";
 $mongod_systemlog_path {
   weekly
   maxsize 500M
@@ -660,14 +702,16 @@ $mongod_systemlog_path {
   create 640 $mongod_user $mongod_user
   sharedscripts
   postrotate
-    kill -SIGUSR1 \\\$(pidof mongod) >/dev/null 2>&1||:
+    kill -SIGUSR1 \$(pidof mongod) >/dev/null 2>&1||:
   endscript
 }
-EOF`||die ("Error: could not writing logrotate configuration file $mongod_logrotate_conf with status code: $?\n");
+EOF
+			close($logrotate_fh)
+				or die ("Error: could not write logrotate configuration file $mongod_logrotate_conf: $!\n");
 
 			print "\nchmod 0644 $mongod_logrotate_conf\n";
-			print "\n" . `chmod 0644 "$mongod_logrotate_conf" 2>&1;` ||
-				die ("Error: chmod 0644 $mongod_logrotate_conf failed with status code: $?\n");
+			chmod(0644, $mongod_logrotate_conf)
+				or die ("Error: chmod 0644 $mongod_logrotate_conf failed: $!\n");
 
 			# restart mongod to implement settings for logrotate test
 			print "\nrestarting mongod to implement settings for logrotate ...\n\n";
@@ -675,10 +719,13 @@ EOF`||die ("Error: could not writing logrotate configuration file $mongod_logrot
 			print "ERROR: failed to restart MongoDB, exit code $startup\n" if ($startup);
 			sleep 3;
 
-			# test logrotate:
+			# test logrotate. a warning and not fatal, matching the mongod restart above
+			# and what the backticks here effectively did:
 			print "\ntesting logrotate ...\n\n";
-			print "\n" . `logrotate -vf "$mongod_logrotate_conf"` ||
-				die ("Error: testing logrotate failed with status code: $?\n");
+			print "\n";
+			my $logrotate_status = system("logrotate", "-vf", $mongod_logrotate_conf) >> 8;
+			print "ERROR: testing logrotate failed, exit code $logrotate_status\n"
+				if ($logrotate_status);
 		}
 	}
 }

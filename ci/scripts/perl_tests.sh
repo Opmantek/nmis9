@@ -32,6 +32,7 @@ working_tests=(
     t_report_filename.t
     t_isindex_guard.t
     t_rrddraw_filename.t
+    t_setup_mongodb_shell.t
     t_auth_web_key.t
     t_authkey_recovery.t
     t_authkey_env.t
