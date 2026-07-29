@@ -54,9 +54,12 @@ my @default_admin_rights = (qw(table_users_rw table_access_rw table_config_rw
 															 table_authldapprivs_rw table_privmap_rw
 															 table_tables_rw));
 
-# part 1: shipped defaults in conf-default/Access.nmis are admin-only
+# part 1: shipped defaults in conf-default/Access.nmis are admin-only.
+# pass an explicit empty conf so readFiletoHash does not fall back to
+# loadConfTable (which would read and create live conf/) - the test must
+# not depend on or mutate a live install.
 my $defaults = NMISNG::Util::readFiletoHash(
-	file => "$FindBin::Bin/../conf-default/Access.nmis");
+	file => "$FindBin::Bin/../conf-default/Access.nmis", conf => {});
 isnt(ref($defaults), "", "conf-default/Access.nmis is loadable");
 
 for my $right (@default_admin_rights)
@@ -85,6 +88,9 @@ local *Compat::NMIS::loadGenericTable = sub {
 	return \%fake_tables_registry if ($name eq "Tables");
 	return {};
 };
+# logAuth() loads live config and opens the auth log; an allowed CheckButton
+# reaches it. Stub it so the test stays free of the filesystem and live conf/.
+local *NMISNG::Util::logAuth = sub { return; };
 use warnings 'redefine';
 
 my $auth = NMISNG::Auth->new(conf => { auth_require => 1 });

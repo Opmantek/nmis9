@@ -160,6 +160,26 @@ None are implemented.
   - Service-check `Program` running through a shell as root (C7 / OMK-12692) —
     already tracked; noted here because it is the "drop privileges on the exec
     path" half of the same problem.
+- **Arbitrary file read via the log viewer's `logFileName` (`cgi-bin/logs.pl`).**
+  Found in the OMK-12707 review. `table_logs_rw` is level1 (manager-writable)
+  and `Logs` is a registered table, so a manager can add or edit a Logs entry.
+  `logs.pl:188` keeps `logFileName` verbatim whenever it contains a `/`
+  (otherwise it prepends the nmis log dir), then `loadLogFile($logFileName)`
+  reads and displays it (`logs.pl:230`), gated only by `CheckAccess($logName)`
+  where `logName` is set by the same manager in the same entry. So a manager can
+  point `logFileName` at `conf/Config.nmis` (disclosing `auth_web_key` and other
+  secrets) or any file the web user can read. **The real bug is the missing path
+  confinement in `logs.pl`, not the table grant** — the read path is only ever
+  taken from the Logs table entry, but the fix belongs at the sink: confine
+  `logFileName` to the nmis log directory (reject `/` and `..`, resolve the
+  realpath and require it under `<nmis_logs>`). That closes it regardless of who
+  planted the path, including an admin. Adding `table_logs_rw` to
+  `%admin_only_rights` was considered and rejected for this PR: it would be
+  redundant with the confinement fix for the file-read, and would remove a
+  legitimate manager capability. Tracked as a follow-up (OMK-12823). A smaller
+  residual remains after confinement — a manager-chosen `logName` can still
+  subvert the per-log group-access check to view other in-directory logs — which
+  belongs to a proper `logs.pl` authorization review rather than this ticket.
 - **Multi-tenancy is not actually enforced by the role model.** Default
   `manager` has `groups => 'all'`. To be "fully multi-tenanted", a manager needs
   to be "admin *within a tenant*" — a tenant/group boundary enforced on every

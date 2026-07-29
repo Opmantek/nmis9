@@ -1271,7 +1271,7 @@
   },
 
   'table_tables_rw' => {
-    'descr' => 'View access to table $table',
+    'descr' => 'Read/write access to table $table',
     'group' => 'access',
     'level0' => '1',
     'level1' => '0',
@@ -1282,7 +1282,7 @@
     'name' => 'Table_Tables_rw'
   },
   'table_tables_view' => {
-    'descr' => 'Read/write access to table $table',
+    'descr' => 'View access to table $table',
     'group' => 'access',
     'level0' => '1',
     'level1' => '1',
