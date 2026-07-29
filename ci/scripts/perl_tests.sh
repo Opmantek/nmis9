@@ -32,6 +32,9 @@ working_tests=(
     t_report_filename.t
     t_isindex_guard.t
     t_rrddraw_filename.t
+    t_auth_web_key.t
+    t_authkey_recovery.t
+    t_authkey_env.t
     t_auth_cookie_flavour.t
     t_auth_sso_shared_key.t
     notify_depend.t

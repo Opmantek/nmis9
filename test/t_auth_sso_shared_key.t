@@ -73,15 +73,19 @@ is(verify_with($srvC, $cookie_from_A), '', 'a server with a different auth_web_k
 my $srvD = NMISNG::Auth->new(conf => { %shared, auth_sso_domain => 'other.example.com' });
 isnt($srvD->get_cookie_name, $srvA->get_cookie_name, 'a different sso domain yields a different cookie name');
 
-# SECURITY CAVEAT (documented, not endorsed): if auth_web_key is not configured,
-# both servers silently fall back to the same built-in default key, so their
-# cookies are mutually portable with NO shared secret ever configured. This
-# assertion pins the current behaviour; if the default is ever made fail-closed
-# (recommended), this test must be updated deliberately rather than by accident.
+# trust boundary 3 (OMK-12687): there is no longer a built-in fallback key. An
+# unconfigured auth_web_key used to make both servers fall back to the same
+# shipped default, so their cookies were mutually portable with NO shared secret
+# ever configured. That is now fail-closed: nothing is minted and nothing is
+# accepted until a unique key is set on both.
 my $srvNoKeyA = NMISNG::Auth->new(conf => { auth_sso_domain => 'corp.example.com', auth_debug => 'false' });
 my $srvNoKeyB = NMISNG::Auth->new(conf => { auth_sso_domain => 'corp.example.com', auth_debug => 'false' });
 my $cookie_default = $srvNoKeyA->generate_cookie(user_name => 'carol', expires => '+1h');
-is(verify_with($srvNoKeyB, $cookie_default), 'carol',
-	'CAVEAT: unconfigured auth_web_key falls back to the shared built-in default, cookies portable');
+is($cookie_default, '', 'unconfigured auth_web_key mints no cookie at all (fail closed)');
+
+# and even a validly-signed cookie is refused by a server with no key configured,
+# so a key-less server can never be talked into accepting an SSO cookie.
+is(verify_with($srvNoKeyB, $cookie_from_A), '',
+	'a server with no auth_web_key rejects a validly-signed cookie');
 
 done_testing;

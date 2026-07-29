@@ -1,0 +1,72 @@
+#!/bin/sh
+# OMK-12687: ensure auth_web_key is a unique per-site secret.
+#
+# The default "omk" authentication cookie is signed with auth_web_key. If that
+# key is left as the shipped placeholder (or unset, in which case an old
+# hardcoded fallback was used), anyone who knows the value can forge a valid
+# admin cookie with no password. NMISNG::Auth now refuses to authenticate while
+# the key is insecure, so this hook generates a strong random key at install
+# time to keep fresh installs usable. An admin-set unique key is left untouched.
+
+# find out where we are, and get common functions
+SCRIPTPATH=${0%/*}
+. $SCRIPTPATH/common_functions.sh
+# the key deny-set, the effective-key read and key generation, shared with the
+# Docker entrypoints so the three cannot drift apart again
+. $SCRIPTPATH/common_authkey.sh
+
+CONFIG="$TARGETDIR/conf/Config.nmis"
+[ -f "$CONFIG" ] || exit 0
+
+printBanner "Checking authentication cookie key (auth_web_key)"
+
+# classify the EFFECTIVE key. See installer_hooks/common_authkey.sh for why the
+# runtime loader is used rather than a regex over Config.nmis, and why a failed
+# read is kept distinct from an unset key. The && / || form is required because
+# a non-zero return is ordinary control flow here and the installer may be running
+# under `set -e` via OMK_STRICT_SH.
+nmis_authkey_classify "$TARGETDIR" && AUTHKEY_CLASS=0 || AUTHKEY_CLASS=$?
+
+case "$AUTHKEY_CLASS" in
+	3)
+		# the read failed (broken or absent lib, unparseable config, permission
+		# problem). We cannot tell a secure key from an insecure one, so change
+		# nothing and say so loudly. Regenerating on a guess is the more damaging
+		# of the two mistakes.
+		echolog "ERROR could not read auth_web_key from $CONFIG (config loader failed)."
+		echolog "ERROR leaving the key unchanged. Confirm auth_web_key in $CONFIG is a unique per-site"
+		echolog "ERROR secret, because NMIS refuses to authenticate while it is unset or a shipped default."
+		exit 0 ;;
+	0)
+		echolog "auth_web_key is already set to a unique value; leaving it unchanged."
+		exit 0 ;;
+	1)
+		# the insecure key comes from a NMIS_* override, so writing the file would
+		# not take effect (ENV wins) and would create the file plus ENV overlap.
+		# Report it and make no change so the operator fixes the environment.
+		echolog "WARNING NMIS_AUTH_WEB_KEY is insecure or empty. Set it to a unique secret in the environment."
+		exit 0 ;;
+esac
+# class 2: the key is insecure and the file is the thing to fix. Fall through.
+
+# dry-run: report that a change is needed but make none, matching execPrint's
+# SIMULATE no-op behaviour used by every other hook.
+if [ -n "${SIMULATE:-}" ]; then
+	echolog "SIMULATION MODE: auth_web_key is insecure and would be regenerated; not touching $CONFIG"
+	exit 0
+fi
+
+NEWKEY="$(nmis_authkey_generate)" || NEWKEY=""
+if [ -z "$NEWKEY" ]; then
+	echolog "ERROR could not generate a random auth_web_key; please set auth_web_key manually in $CONFIG"
+	exit 0
+fi
+
+# write it via patch_config, WITHOUT echoing the secret to the install log
+if "$TARGETDIR/admin/patch_config.pl" "$CONFIG" "/authentication/auth_web_key=$NEWKEY" >/dev/null 2>&1; then
+	echolog "Generated a unique random auth_web_key. Any existing login sessions are now invalidated."
+else
+	echolog "ERROR failed to set auth_web_key; please set a unique value manually in $CONFIG"
+fi
+
+exit 0

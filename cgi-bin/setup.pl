@@ -169,7 +169,7 @@ Entries that likely need to be adjusted are marked with $iconbad.|;
 		 "This is the FQDN (or IP address) of the NMIS server, and is used in emails and other notifications for creating links back to this system."],
 
 		["authentication", "auth_web_key",
-		   "This is the secret used to create authentication cookies. It must be unique for your site (unless you enable <a target='_blank' href='https://community.opmantek.com/x/IQAF'>SSO</a>)." ],
+		   "This is the secret used to sign authentication cookies. It must always be set to a unique value for your site; leaving it at the shipped default disables login. NMIS shares this cookie with the other Opmantek applications, so the same unique value must be set identically on every application that shares it, and on every host if you enable <a target='_blank' href='https://community.opmantek.com/x/IQAF'>SSO</a>. Changing it invalidates all existing login sessions." ],
 
 		["email", "mail_server",
 		 "The FQDN (or IP address) of your outgoing mail server. NMIS needs that to send you email notifications."],
@@ -336,6 +336,11 @@ sub edit_config
 				or $item eq "mail_from" or $item eq "auth_web_key" ))
 		{
 			$Q->{error_message} = $item2displayname{$item}." cannot be blank!";
+			return 0;
+		}
+		elsif ($item eq "auth_web_key" and $AU->key_is_insecure($value))
+		{
+			$Q->{error_message} = $item2displayname{$item}." is still set to a known default and would disable login. Set a unique value for your site.";
 			return 0;
 		}
 		elsif ($item eq "status_mode" and $value !~ /^(coarse|fine-grained|classic)$/)

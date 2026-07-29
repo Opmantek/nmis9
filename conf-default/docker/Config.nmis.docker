@@ -33,7 +33,6 @@
     'auth_radius_secret' => '',
     'auth_radius_server' => '',
     'auth_sso_domain' => '',
-    'auth_web_key' => 'Please Change Me!',
     'expire_users' => 'false',
     'expire_users_after' => 7776000,
     'max_sessions' => 3,
