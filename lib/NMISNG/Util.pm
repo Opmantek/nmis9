@@ -1603,6 +1603,10 @@ sub _write_data_to_handle
 	return undef;
 }
 
+# Serializer used by writeHashtoFile, held in a package variable so tests can
+# override it (e.g. to simulate an error-free write that produces no bytes).
+our $_data_writer = \&_write_data_to_handle;
+
 # write hash data to file in suitable format
 # Uses atomic write (temp file + rename) to prevent 0-length files on disk-full or crash.
 # returns: undef or error message
@@ -1665,12 +1669,34 @@ sub writeHashtoFile
 			or do { close($lockhandle);
 					return("writeHashtoFile: cannot create temp file $tmpfile: $!"); };
 
-		my $errormsg = _write_data_to_handle($tmphandle, $data, $file, $useJson, $pretty);
+		my $errormsg = $_data_writer->($tmphandle, $data, $file, $useJson, $pretty);
+
+		# Force buffered data all the way to disk before the rename. flush()
+		# pushes perlio buffers down to the OS. sync() (fsync) then forces the
+		# OS to write them to the physical medium. Without this, a crash or
+		# power loss between the write and the rename could leave the renamed
+		# file pointing at data that never reached disk.
+		if (!$errormsg && !$tmphandle->flush)
+		{
+			$errormsg = "cannot flush temp file $tmpfile: $!";
+		}
+		if (!$errormsg && $^O !~ /Win32/ && !$tmphandle->sync)
+		{
+			$errormsg = "cannot sync temp file $tmpfile: $!";
+		}
 
 		# close flushes buffers — check for write errors (e.g. disk full)
 		if (!close($tmphandle) && !$errormsg)
 		{
 			$errormsg = "cannot close temp file $tmpfile: $!";
+		}
+
+		# Refuse to rename an empty temp file over the target. A 0-byte temp
+		# file after an error-free write means something went wrong upstream,
+		# and overwriting a good config with it would lose data.
+		if (!$errormsg && !-s $tmpfile)
+		{
+			$errormsg = "temp file $tmpfile is empty, refusing to overwrite $file";
 		}
 
 		if ($errormsg)
@@ -1693,7 +1719,7 @@ sub writeHashtoFile
 		seek($handle, 0, 0) or return("writeHashtoFile: can't seek in $file: $!");
 		truncate($handle, 0) or return("writeHashtoFile: can't truncate $file: $!");
 
-		my $errormsg = _write_data_to_handle($handle, $data, $file, $useJson, $pretty);
+		my $errormsg = $_data_writer->($handle, $data, $file, $useJson, $pretty);
 		close $handle;
 		return("writeHashtoFile: $errormsg") if ($errormsg);
 	}

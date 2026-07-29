@@ -37,6 +37,9 @@ pipelines:
             - docker cp $HOME/dockerhost.json nmis:/usr/local/nmis9/
             - docker exec nmis bash -c "ls -la /usr/local/nmis9/dockerhost.json"
             - docker exec nmis bash -c "/usr/local/nmis9/admin/node_admin.pl act=import file=/usr/local/nmis9/dockerhost.json"
+            # extra nodes so multi-node tests (e.g. t_event.pl needs >=3) have enough to run
+            - docker exec nmis bash -c "/usr/local/nmis9/admin/node_admin.pl act=import file=/usr/local/nmis9/ci/fixtures/ci-testnode-2.json"
+            - docker exec nmis bash -c "/usr/local/nmis9/admin/node_admin.pl act=import file=/usr/local/nmis9/ci/fixtures/ci-testnode-3.json"
             - docker exec nmis bash -c "/usr/local/nmis9/ci/scripts/perl_tests.sh"
           after-script:
             - ci/scripts/runner_cleanup.sh  

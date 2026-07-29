@@ -102,3 +102,5 @@ is( $numb->configuration->{model}, '', "model is empty");
 my $S = NMISNG::Sys->new(nmisng => $nmisng);    # create system object
 my $init_success = $S->init(node => $numb, update => 1);
 is( $init_success, 1, "init was successful");
+
+done_testing();

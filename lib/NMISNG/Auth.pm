@@ -70,8 +70,16 @@ use utf8;
 BEGIN { eval { utf8->import; require 'utf8_heavy.pl' }; }
 
 
-# You MUST set config's auth_web_key so that cookies are unique for your site. this fallback key is NOT safe for internet-facing sites!
-my $CHOCOLATE_CHIP = '5nJv80DvEr3N/921tdKLk+fCjGzOS5F9IqMFhugxVHIguRC8PJKN4f2JJgcATkhv';
+# auth_web_key MUST be a unique per-site secret; there is no usable fallback.
+# MUST stay in sync with OMK::AuthKeySync @DEFAULT_KEYS (opmojo). The products
+# ship separately and cannot share code, so any change here must be mirrored there.
+my @INSECURE_WEB_KEYS = (
+	'Please Change Me!',
+	'My new Opmantek Secret',
+	'42 new Opmantek Secrets',
+	'5nJv80DvEr3N/921tdKLk+fCjGzOS5F9IqMFhugxVHIguRC8PJKN4f2JJgcATkhv',
+	'thisismysecretkey',
+);
 
 # record non-standard "conf" ONLY if confname is given as argument
 # attention: arg conf is a LIVE config (confname is the name)
@@ -205,6 +213,47 @@ sub CheckAccess {
 # All Java code include herein is also courtesy of Steve Shipway.
 
 
+# _auth_web_key: return the configured auth_web_key only when it is safe to use.
+# Returns undef, with a loud log, when the key is unset, empty, or one of the
+# known insecure defaults. Callers MUST fail closed on undef, because a cookie
+# signed or verified with a known key can be forged by anyone.
+# key_is_insecure: true when $key must not be used to sign or verify cookies,
+# i.e. it is unset, empty, a CHANGE_ME placeholder, or one of the shipped/old
+# defaults. Shared by _auth_web_key and the setup wizard (cgi-bin/setup.pl) so
+# both reject exactly the same set. Mirrors OMK::AuthKeySync::is_default_key.
+sub key_is_insecure
+{
+	my ($self, $key) = @_;
+	return 1 if (!defined $key or $key eq '' or $key =~ /^CHANGE_ME/);
+	return 1 if (grep { $key eq $_ } @INSECURE_WEB_KEYS);
+	return '';
+}
+
+sub _auth_web_key
+{
+	my $self = shift;
+	my $key = $self->{config}->{auth_web_key};
+	if ($self->key_is_insecure($key))
+	{
+		NMISNG::Util::logAuth("ERROR auth_web_key is unset or still an insecure default; "
+				. "refusing to sign or verify authentication cookies. Set a unique auth_web_key in Config.");
+		return undef;
+	}
+	return $key;
+}
+
+# _secure_compare: constant-time comparison of two strings, to avoid a timing
+# oracle when checking the cookie HMAC signature on the verify path. Returns
+# true only when both are defined, of equal length, and byte-for-byte equal.
+sub _secure_compare
+{
+	my ($a, $b) = @_;
+	return '' if (!defined $a or !defined $b or length($a) != length($b));
+	my $diff = 0;
+	$diff |= ord(substr($a, $_, 1)) ^ ord(substr($b, $_, 1)) for (0 .. length($a) - 1);
+	return $diff == 0;
+}
+
 # returns the configured ssh domain (if any), or a blank string
 sub get_cookie_domain
 {
@@ -255,11 +304,12 @@ sub verify_id
 	}
 
 	# signed with what key?
-	my $web_key = $self->{config}->{'auth_web_key'} // $CHOCOLATE_CHIP;
+	my $web_key = $self->_auth_web_key;
+	return '' unless defined $web_key;
 
 	# first, compare the checksum from cookie with a new one generated from cookie value
 	my $expected = Digest::SHA::hmac_sha1_hex($sessiondata, $web_key);
-	if ($expected ne $signature)
+	if (!_secure_compare($expected, $signature))
 	{
 		NMISNG::Util::logAuth('OMK cookie did not validate correctly!'
 						.($self->{debug}? " expected $expected but cookie had $signature" : ""));
@@ -309,6 +359,18 @@ sub generate_cookie
 	my $expires = ($args{expires} // $self->{config}->{auth_expire}) || '+60min';
 	my $cookiedomain = $self->get_cookie_domain;
 
+	# an explicit value (the do_login "remove" and do_logout "" clear cookies)
+	# needs no signature, so honour it even when the key is insecure. This lets
+	# a stale cookie be cleared while authentication is disabled.
+	if (exists($args{value}))
+	{
+		return CGI::cookie( { -name => $name,
+							  -domain => $cookiedomain,
+							  -httponly => 1,
+							  -value => $args{value},
+							  -expires => $expires } );
+	}
+
 	# the omk cookie scheme needs the expiration value as unix-seconds timestamp
 	my $expires_ts;
 	if ($expires eq "now")
@@ -333,19 +395,20 @@ sub generate_cookie
 																	 expires => $expires_ts } );
 	my $value = encode_base64($sessiondata, ''); # no end of line separator please
 	$value =~ y/=/-/;
-	my $web_key = $self->{config}->{auth_web_key} // $CHOCOLATE_CHIP;
+	my $web_key = $self->_auth_web_key;
+	return '' unless defined $web_key;
 	my $signature = Digest::SHA::hmac_sha1_hex($value, $web_key);
 
 	NMISNG::Util::logAuth("generated OMK cookie for $authuser: $value--$signature")
 			if ($self->{debug});
 
-	return  CGI::cookie( { -name => $name,
-						 -domain => $cookiedomain,
-						 -httponly => 1,
-						 -value => (exists($args{value}) ?
-																 $args{value}
-																 :"$value--$signature"),
-						 -expires => $expires } );
+	# an explicit value was already returned early above, so at this point the
+	# cookie always carries the freshly signed value.
+	return CGI::cookie( { -name => $name,
+						  -domain => $cookiedomain,
+						  -httponly => 1,
+						  -value => "$value--$signature",
+						  -expires => $expires } );
 
 }
 
@@ -1383,6 +1446,17 @@ sub loginout {
 		
 	NMISNG::Util::logAuth("DEBUG: loginout, Type=$type Username=$username")
 			if $self->{debug};
+
+	# C2 (OMK-12687): refuse to authenticate when the cookie-signing key is
+	# insecure, so no forgeable cookie is ever issued or accepted. Logout is
+	# still permitted so existing cookies can be cleared.
+	if (lc $type ne 'logout' and !defined $self->_auth_web_key)
+	{
+		NMISNG::Util::logAuth("ERROR loginout: refusing authentication because auth_web_key is unset or an insecure default");
+		$self->do_login(msg => "Authentication is disabled until a unique auth_web_key is set. Please contact your administrator.",
+										listmodules => $listmodules);
+		return 0;
+	}
 
 	#2011-11-14 Integrating changes from Till Dierkesmann
 	### 2013-01-22 markd, fixing Auth to use Cookies!
