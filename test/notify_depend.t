@@ -83,6 +83,25 @@ if( NMISNG::Util::writeTable(dir=>'conf',name=>"Escalations", data=>$EST) ) {
 	print "Failed to adjust Escalations table!\n";
 }
 
+# process_escalations only stamps event.notify for a contact whose DutyTime
+# window is open right now (Compat::NMIS::dutyTime). The shipped contact1 is
+# rostered 06:20:MonTueWedThuFri, so the notify assertions below would only
+# hold on a weekday between 06:00 and 20:00 local time. Blank the duty time
+# for the duration of the test so it is 24x7 and the result does not depend
+# on when the suite happens to run. Restored in cleanup().
+my $CTT = NMISNG::Util::loadTable( dir => "conf", name => "Contacts", conf => $C );
+my $esc0_contact = "contact1";
+confess "I need a '$esc0_contact' entry in the Contacts table to run"
+		if (ref($CTT) ne "HASH" or !exists $CTT->{$esc0_contact});
+# writeTable always lands in conf/; if the table was only present in conf-default
+# then we are about to create a shadowing copy, so remember to remove it again.
+my $contacts_was_local = NMISNG::Util::existFile( dir => "conf", name => "Contacts", conf => $C );
+my $dutytime_backup = $CTT->{$esc0_contact}{DutyTime};
+$CTT->{$esc0_contact}{DutyTime} = '';
+if( NMISNG::Util::writeTable(dir=>'conf',name=>"Contacts", data=>$CTT) ) {
+	print "Failed to adjust Contacts table!\n";
+}
+
 my $t = Compat::Timing->new();
 
 print $t->elapTime(). " Begin\n";
@@ -282,6 +301,21 @@ sub cleanup
 	$EST->{default_default_default_default__}{Level0} = $escalation_backup;
 	if( NMISNG::Util::writeTable(dir=>'conf',name=>"Escalations", data=>$EST) ) {
 		print "Failed to clean up Escalations table!\n";
+	}
+
+	if ($contacts_was_local)
+	{
+		$CTT->{$esc0_contact}{DutyTime} = $dutytime_backup;
+		if( NMISNG::Util::writeTable(dir=>'conf',name=>"Contacts", data=>$CTT) ) {
+			print "Failed to clean up Contacts table!\n";
+		}
+	}
+	else
+	{
+		# we created conf/Contacts.nmis ourselves, drop it so conf-default applies again
+		my $contactsfile = NMISNG::Util::getFileName(
+			file => NMISNG::Util::getDir(dir => "conf", conf => $C)."/Contacts", conf => $C );
+		unlink($contactsfile) or print "Failed to remove $contactsfile: $!\n";
 	}
 
 	print "Cleaning up database\n";
