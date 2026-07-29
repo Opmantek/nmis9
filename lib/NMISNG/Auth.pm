@@ -87,7 +87,24 @@ my @INSECURE_WEB_KEYS = (
 # equivalent to full admin (OMK-12707)
 my %admin_only_rights = map { ($_ => 1) }
 		(qw(table_users_rw table_access_rw table_config_rw
-				table_authldapprivs_rw table_privmap_rw));
+				table_authldapprivs_rw table_privmap_rw table_tables_rw
+				table_services_rw));
+
+# whether the %admin_only_rights guard is active. Default on; an admin can
+# set config auth_lock_sensitive_tables to an explicit false token to defer
+# these rights back to the Access matrix (the pre-OMK-12707 behaviour).
+# Fail-secure: only an exact, documented false token (false/no/0, any case,
+# surrounding whitespace allowed) disables the guard. Anything else - absent,
+# empty, or malformed junk such as "none"/"null" - keeps the guard on. We do
+# NOT use getbool here because its "invert" form matches any string starting
+# with n/f/0, which would let such junk silently unlock the tables.
+sub _lock_sensitive_tables
+{
+	my $self = shift;
+	my $val = $self->{config}->{auth_lock_sensitive_tables};
+	return 0 if (defined($val) and $val =~ /^\s*(false|no|0)\s*$/i);
+	return 1;
+}
 
 # record non-standard "conf" ONLY if confname is given as argument
 # attention: arg conf is a LIVE config (confname is the name)
@@ -146,6 +163,7 @@ sub CheckButton {
 	return 1 unless $self->{_require};
 
 	return 0 if ($admin_only_rights{$identifier}
+							 and $self->_lock_sensitive_tables
 							 and (!defined($self->{privlevel}) or $self->{privlevel} != 0));
 
 	my $AC = Compat::NMIS::loadGenericTable('Access'); # get pointer of Access table
@@ -1940,6 +1958,7 @@ sub CheckAccessCmd {
 	return 1 unless $self->{_require};
 
 	return 0 if ($admin_only_rights{$command}
+							 and $self->_lock_sensitive_tables
 							 and (!defined($self->{privlevel}) or $self->{privlevel} != 0));
 
 	my $AC = Compat::NMIS::loadGenericTable('Access');

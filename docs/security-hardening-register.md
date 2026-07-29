@@ -61,23 +61,57 @@ constraints that were missing, not reverting the default.
 | `table_privmap_rw` (PrivMap) | 0, 1             | 0     | manager               |
 | `table_access_rw` (Access)   | 0, 1, 2          | 0     | manager, engineer     |
 | `table_config_rw` (Config)   | 0, 1, 2          | 0     | manager, engineer     |
+| `table_tables_rw` (Tables)   | 0, 1, 2          | 0     | manager, engineer     |
 
 `table_authldapprivs_rw` (AuthLdapPrivs) was already admin-only; unchanged.
+`table_services_rw` (Services) is also forced admin-only by the code guard
+below — its default grant is tightened separately in PR #11, so it is not in
+the table above and this change only adds it to the guard. Services is included
+because a service definition can carry a service-check `Program` that executes
+(see C7 / OMK-12692), so writing it is a command surface.
 
 Plus code enforcement independent of the matrix: `CheckAccessCmd` and
-`CheckButton` now deny these five rights to any non-admin regardless of what the
+`CheckButton` deny these seven rights to any non-admin regardless of what the
 live `Access.nmis` says (needed because an upgraded install keeps its old,
 permissive `conf/Access.nmis`). A deny-by-default `TableRegistered()` allowlist
 was added to the table editor.
 
 **Why:** each of these tables feeds back into authentication or authorization,
-so any write is equivalent to becoming admin. Confirmed vuln per the ticket.
+so any write is equivalent to becoming admin. `Tables` is the master registry
+that defines which tables the editor exposes and their key structure — an admin
+task, and an integrity lever, so it joined the set. Confirmed vuln per the ticket.
+
+**The matrix change alone does not protect existing installs.** `Access` is
+loaded from the live `conf/Access.nmis` only (`loadGenericTable` →
+`loadTable(dir=>conf)`; `conf-default` is a fallback used only when the live file
+is missing — `Util.pm:1395`). Any real install already has a live
+`conf/Access.nmis`, so the `conf-default` edit reaches fresh installs only. On
+every existing install the code guard is what actually enforces this. That is
+why the guard exists, and also why it needs the opt-out below.
+
+**Operator opt-out — `auth_lock_sensitive_tables`** (config, default `true`).
+The guard is gated by this flag. Default (or any value that is not an exact
+false token) keeps it enforced; setting it to an exact false token
+(`false`/`no`/`0`, any case, surrounding whitespace allowed) makes the seven
+guarded rights defer to the Access matrix again — i.e. restores the pre-fix
+behaviour. This is the supported way for a customer who needs "the old way" to
+get it back, without a source edit. It is deliberately coarse and blunt:
+flipping it re-opens all seven rights at once, including the never-safe ones
+(editing the Access matrix itself, and Config while it still holds
+`auth_web_key`). It is an informed "I accept the risk" switch, not the safe way
+to restore delegation — for that see the mitigation notes below. The match is
+exact by design: a malformed value such as `none` or `null` keeps the guard on
+rather than silently unlocking (getbool's prefix match is deliberately not
+used). Fail-secure (absent, empty or malformed → enforced) so an upgraded
+install is locked by default. `conf-default/Config.nmis:auth_lock_sensitive_tables`,
+enforced in `NMISNG::Auth::_lock_sensitive_tables`.
 
 **Delegated functionality lost**
 
 - **Manager can no longer add/edit/remove user accounts.** This is the real
   loss — the "onboard a new employee or customer" workflow the role was built
-  for. Currently unrecoverable without the constraints in the mitigation notes.
+  for. Recoverable bluntly via the opt-out flag, or safely via the constrained
+  onboarding path in the mitigation notes.
 - **Manager can no longer edit PrivMap** (privilege→level definitions). Little
   everyday value; this is an admin function. Low loss.
 - **Manager and engineer can no longer edit the Access matrix.** Meta-authorization;
@@ -85,6 +119,8 @@ so any write is equivalent to becoming admin. Confirmed vuln per the ticket.
 - **Manager and engineer can no longer edit global Config.** Mixed loss: removes
   a genuine operational-tuning capability (thresholds, polling, mail, display)
   *and* the escalation vector, with no separation between them.
+- **Manager and engineer can no longer edit the Tables registry.** Defining
+  which tables the editor exposes is an admin task; low everyday loss.
 
 **Mitigations to investigate (not implemented)**
 
@@ -124,10 +160,6 @@ None are implemented.
   - Service-check `Program` running through a shell as root (C7 / OMK-12692) —
     already tracked; noted here because it is the "drop privileges on the exec
     path" half of the same problem.
-- **`table_tables_rw` (Tables registry) is still writable by manager/engineer.**
-  Does not defeat the OMK-12707 fix (the admin-only guard keys on rights, and
-  writes use the request's table name, not the registry). But letting non-admins
-  rewrite the master table registry is an integrity concern. Separate ticket.
 - **Multi-tenancy is not actually enforced by the role model.** Default
   `manager` has `groups => 'all'`. To be "fully multi-tenanted", a manager needs
   to be "admin *within a tenant*" — a tenant/group boundary enforced on every

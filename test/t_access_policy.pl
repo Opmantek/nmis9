@@ -23,9 +23,11 @@
 # *****************************************************************************
 #
 # OMK-12707: the default Access policy must not let non-admins write the
-# Users/Access/Config/PrivMap/AuthLdapPrivs tables, and the code must
-# enforce admin-only access to those rights even if a (stale or tampered)
-# live Access table still grants them.
+# Users/Access/Config/PrivMap/AuthLdapPrivs/Tables tables, and the code
+# must enforce admin-only access to those rights even if a (stale or
+# tampered) live Access table still grants them. The enforcement is gated
+# by config auth_lock_sensitive_tables (default on) so an admin can
+# consciously opt back into matrix-driven behaviour.
 #
 # This test needs no database and no live conf/.
 
@@ -40,15 +42,24 @@ use NMISNG::Util;
 use NMISNG::Auth;
 use Compat::NMIS;
 
-my @sensitive_rights = (qw(table_users_rw table_access_rw table_config_rw
-													 table_authldapprivs_rw table_privmap_rw));
+# rights the code guard forces admin-only regardless of the Access matrix
+my @guard_rights = (qw(table_users_rw table_access_rw table_config_rw
+											 table_authldapprivs_rw table_privmap_rw
+											 table_tables_rw table_services_rw));
+
+# rights whose conf-default grant this change tightens to admin-only.
+# table_services_rw is excluded on purpose: its default grant is owned by
+# PR #11; this change only adds it to the code guard.
+my @default_admin_rights = (qw(table_users_rw table_access_rw table_config_rw
+															 table_authldapprivs_rw table_privmap_rw
+															 table_tables_rw));
 
 # part 1: shipped defaults in conf-default/Access.nmis are admin-only
 my $defaults = NMISNG::Util::readFiletoHash(
 	file => "$FindBin::Bin/../conf-default/Access.nmis");
 isnt(ref($defaults), "", "conf-default/Access.nmis is loadable");
 
-for my $right (@sensitive_rights)
+for my $right (@default_admin_rights)
 {
 	ok(ref($defaults->{$right}) eq "HASH", "$right exists in default Access table");
 	is($defaults->{$right}->{level0}, 1, "$right granted to administrator (level0)");
@@ -63,7 +74,7 @@ for my $right (@sensitive_rights)
 # non-admins even when the Access matrix grants them - that is the case on
 # upgraded installs whose live conf/Access.nmis predates this fix.
 my %permissive_matrix = map { $_ => { map { ("level$_" => 1) } (0..5) } }
-		(@sensitive_rights, "table_contacts_rw");
+		(@guard_rights, "table_contacts_rw");
 
 my %fake_tables_registry = ( Users => {}, Contacts => {} );
 
@@ -83,7 +94,7 @@ $auth->{user} = "testvictim";
 for my $level (1, 2, 5)
 {
 	$auth->{privlevel} = $level;
-	for my $right (@sensitive_rights)
+	for my $right (@guard_rights)
 	{
 		ok(!$auth->CheckAccessCmd($right),
 			 "CheckAccessCmd denies $right to privlevel $level despite permissive matrix");
@@ -96,7 +107,7 @@ for my $level (1, 2, 5)
 }
 
 $auth->{privlevel} = 0;
-for my $right (@sensitive_rights)
+for my $right (@guard_rights)
 {
 	ok($auth->CheckAccessCmd($right),
 		 "CheckAccessCmd grants $right to administrator (privlevel 0)");
@@ -106,6 +117,55 @@ for my $right (@sensitive_rights)
 $auth->{privlevel} = 1;
 ok(!$auth->CheckAccessCmd("Table_Users_rw"),
 	 "CheckAccessCmd denies Table_Users_rw (mixed case) to privlevel 1");
+
+# part 4: the code guard is gated by config auth_lock_sensitive_tables.
+# Absent, or any value that is not an explicit boolean-false, => enforce
+# (fail-secure). An explicit false value => defer to the Access matrix,
+# restoring the pre-fix behaviour for admins who consciously opt out.
+$auth->{privlevel} = 1;						# manager, matrix (permissive) grants
+
+# absent key => enforced despite the permissive matrix
+delete $auth->{config}->{auth_lock_sensitive_tables};
+ok(!$auth->CheckAccessCmd("table_users_rw"),
+	 "guard enforced when auth_lock_sensitive_tables absent (default on)");
+
+# explicit true => enforced
+$auth->{config}->{auth_lock_sensitive_tables} = "true";
+ok(!$auth->CheckAccessCmd("table_users_rw"),
+	 "guard enforced when auth_lock_sensitive_tables=true");
+
+# only an exact, documented false token disables the guard. Anything else -
+# including junk that merely starts with n/f/0 - must keep it enforced, so a
+# malformed value fails secure rather than silently unlocking.
+for my $val ("", "on", "1", "enabled", "off", "disabled",
+						 "none", "null", "nil", "nope", "0x0", "false-ish", "fanciful")
+{
+	$auth->{config}->{auth_lock_sensitive_tables} = $val;
+	ok(!$auth->CheckAccessCmd("table_users_rw"),
+		 "guard stays enforced for non-false value '$val' (fail-secure)");
+}
+
+# an exact false token (any case, surrounding space ok) => defer to matrix
+for my $val ("false", "no", "0", "FALSE", "No", "  false  ")
+{
+	$auth->{config}->{auth_lock_sensitive_tables} = $val;
+	ok($auth->CheckAccessCmd("table_users_rw"),
+		 "guard defers to matrix for explicit false token '$val' (old behaviour)");
+}
+$auth->{config}->{auth_lock_sensitive_tables} = "false";
+ok($auth->CheckButton("table_users_rw"),
+	 "CheckButton also defers when auth_lock_sensitive_tables=false");
+
+# with the guard disabled, an unmapped (matrix-denied) right is still denied
+ok(!$auth->CheckAccessCmd("table_bogus_rw"),
+	 "guard-disabled still denies a right the matrix does not grant");
+
+# an administrator is unaffected by the flag
+$auth->{privlevel} = 0;
+ok($auth->CheckAccessCmd("table_users_rw"),
+	 "administrator allowed regardless of auth_lock_sensitive_tables");
+delete $auth->{config}->{auth_lock_sensitive_tables};
+$auth->{privlevel} = 1;
 
 # part 3: deny-by-default allowlist - only tables present in the Tables
 # registry are acceptable write targets for the table editor.
