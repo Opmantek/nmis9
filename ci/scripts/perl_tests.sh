@@ -45,6 +45,7 @@ working_tests=(
     t_cgi_xss_escaping.t
     t_cgi_modules_xbase.t
     t_filter_params.t
+    t_access_policy.pl
 )
 
 for i in "${working_tests[@]}"; do
