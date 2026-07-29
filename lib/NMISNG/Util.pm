@@ -1861,7 +1861,7 @@ sub logAuth
 	my $string = &NMISNG::Log::trace();
 
 	$string .= "<br>$msg";
-	$string =~ s/\n/ /g;      #remove all embedded newlines
+	$string = sanitise_log_line($string);   # flatten CR/LF/control chars - no log-line forgery
 
 	open($handle,">>$C->{auth_log}") or return " logAuth, Couldn't open log file $C->{auth_log}. $!";
 	flock($handle, LOCK_EX)  or return "logAuth, can't lock filename: $!";
@@ -3801,12 +3801,20 @@ sub replace_files_recursive {
 # Used by CGI
 sub filter_params {
 	my ($vars) = @_;
-	
-	foreach my $param (%$vars) {
-		$param = encode_entities($param);
+
+	# Build a plain hash: $vars is usually CGI's $q->Vars, a TIED hash, and
+	# writing back through the tie collapses multi-value params (OMK-12723).
+	# Multi-value params arrive NUL-joined (e.g. "n1\0n2"); encode each segment
+	# and rejoin with the NUL so consumers that split on \0 (e.g. outages.pl)
+	# still round-trip. Encode values only, not keys.
+	my %filtered;
+	foreach my $key (keys %$vars) {
+		my $value = $vars->{$key};
+		$value = join("\0", map { encode_entities($_) } split(/\0/, $value, -1))
+				if defined $value;
+		$filtered{$key} = $value;
 	}
-	
-	return $vars;
+	return \%filtered;
 }
 
 # Get policy for a node based on policy name
@@ -4942,6 +4950,94 @@ sub spew_file
 	{
         Mojo::File->new($file)->spurt($data);
     }
+}
+
+# escape_html: HTML-escape a string for safe output in element or attribute context.
+# Encodes & < > " ' so attacker-supplied config or device data cannot break out of the
+# surrounding markup. Returns "" for undef so callers can drop the result straight into
+# a template without an undef warning.
+# args: a scalar string
+# returns: the escaped string (never undef)
+sub escape_html
+{
+	my ($str) = @_;
+	return "" if (!defined $str);
+	return encode_entities($str, q{&<>"'});
+}
+
+# safe_url: validate a URL before it is placed in an href/src/value attribute.
+# Permits http, https and mailto absolute URLs plus scheme-relative, root-relative,
+# relative and fragment URLs. Anything carrying another scheme (javascript:, data:,
+# vbscript: ...) or an ASCII control character is rejected and "" is returned.
+# The result must still be passed through escape_html for attribute-safe output.
+# args: a scalar URL string
+# returns: the URL if allowed, otherwise ""
+sub safe_url
+{
+	my ($url) = @_;
+	return "" if (!defined $url || $url eq "");
+
+	# reject any ASCII control character (real URLs percent-encode these); this also
+	# closes scheme-obfuscation tricks such as "java\tscript:".
+	return "" if ($url =~ /[\x00-\x1f\x7f]/);
+
+	# browsers ignore leading whitespace before the scheme, so strip it before testing
+	$url =~ s/^\s+//;
+
+	# a leading scheme must be on the allowlist; no scheme (relative, root-relative,
+	# scheme-relative, fragment or query only) is always fine
+	if ($url =~ /^([a-zA-Z][a-zA-Z0-9+.\-]*):/)
+	{
+		my $scheme = lc($1);
+		return "" if (!grep { $scheme eq $_ } qw(http https mailto));
+	}
+
+	return $url;
+}
+
+# safe_filename: reduce a string to a safe download filename. Replaces path
+# separators, quotes, whitespace and control characters (including CR/LF, which
+# would otherwise split a Content-Disposition header) with underscores. Keeps
+# dots so an extension survives (OMK-12731).
+# args: a scalar
+# returns: the sanitised string (never undef)
+sub safe_filename
+{
+	my ($name) = @_;
+	return "" if (!defined $name);
+	$name =~ s![/: '"\x00-\x1f\x7f]+!_!g;
+	return $name;
+}
+
+# sanitise_log_line: flatten a string for single-line logging. Replaces any run
+# of control characters (CR, LF, tab ...) with a single space so attacker-supplied
+# values (e.g. a login username) cannot forge extra log lines (OMK-12731).
+# args: a scalar
+# returns: the flattened string ("" for undef)
+sub sanitise_log_line
+{
+	my ($str) = @_;
+	return "" if (!defined $str);
+	$str =~ s/[\x00-\x1f\x7f]+/ /g;
+	return $str;
+}
+
+# escape_js_string: encode a string for safe inclusion inside a single- or
+# double-quoted JavaScript string literal in an inline <script> block. Escapes
+# backslash and both quote characters, neutralises a literal "</" (so a
+# </script> cannot close the block early) and drops the JS line separators.
+# This is NOT HTML escaping - the browser does not HTML-decode inside <script>
+# (OMK-12703/OMK-12731). Combine with safe_url for a URL destination.
+# args: a scalar
+# returns: the encoded string ("" for undef)
+sub escape_js_string
+{
+	my ($str) = @_;
+	return "" if (!defined $str);
+	$str =~ s/([\\'"])/\\$1/g;
+	$str =~ s{</}{<\\/}g;
+	$str =~ s/[\r\n\x{2028}\x{2029}]//g;
+	return $str;
 }
 
 

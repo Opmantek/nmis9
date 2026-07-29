@@ -932,22 +932,31 @@ EOHTML
 	NMISNG::Util::logAuth("DEBUG: do_login: sending cookie to remove existing cookies=$cookie") if $self->{debug};
 	print CGI::header(-target=>"_top", -type=>"text/html", -expires=>'now', -cookie=>[$cookie]);
 
+	# login page is served pre-authentication; config values are untrusted on
+	# output (OMK-12702). Escape the title and scheme-check/escape asset URLs.
+	my $login_title    = NMISNG::Util::escape_html($self->{config}->{auth_login_title});
+	my $login_favicon  = NMISNG::Util::escape_html(NMISNG::Util::safe_url($self->{config}->{'nmis_favicon'}));
+	my $login_jqui_css = NMISNG::Util::escape_html(NMISNG::Util::safe_url($self->{config}->{'jquery_ui_css'}));
+	my $login_styles   = NMISNG::Util::escape_html(NMISNG::Util::safe_url($self->{config}->{'styles'}));
+	my $login_jquery   = NMISNG::Util::escape_html(NMISNG::Util::safe_url($self->{config}->{'jquery'}));
+	my $login_jqui     = NMISNG::Util::escape_html(NMISNG::Util::safe_url($self->{config}->{'jquery_ui'}));
+
 	print qq
 |<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN" "http://www.w3.org/TR/html4/loose.dtd">
 <html>
   <head>
-    <title>$self->{config}->{auth_login_title}</title>
+    <title>$login_title</title>
     <meta http-equiv="Content-Type" content="text/html; charset=iso-8859-1" />
     <meta http-equiv="Pragma" content="no-cache" />
     <meta http-equiv="Cache-Control" content="no-cache, no-store" />
     <meta http-equiv="Expires" content="-1" />
     <meta http-equiv="Robots" content="none" />
     <meta http-equiv="Googlebot" content="noarchive" />
-    <link type="image/x-icon" rel="shortcut icon" href="$self->{config}->{'nmis_favicon'}" />
-    <link type="text/css" rel="stylesheet" href="$self->{config}->{'jquery_ui_css'}" />
-    <link type="text/css" rel="stylesheet" href="$self->{config}->{'styles'}" />
-    <script src="$self->{config}->{'jquery'}" type="text/javascript"></script>
-    <script src="$self->{config}->{'jquery_ui'}" type="text/javascript"></script>
+    <link type="image/x-icon" rel="shortcut icon" href="$login_favicon" />
+    <link type="text/css" rel="stylesheet" href="$login_jqui_css" />
+    <link type="text/css" rel="stylesheet" href="$login_styles" />
+    <script src="$login_jquery" type="text/javascript"></script>
+    <script src="$login_jqui" type="text/javascript"></script>
   </head>
   <body>
 |;
@@ -964,13 +973,16 @@ EOHTML
 	print CGI::start_table({class=>""});
 
 	if ( $self->{config}->{'company_logo'} ne "" ) {
-		print CGI::Tr(CGI::td({class=>"info Plain",colspan=>'2'}, qq|<img class="logo" src="$self->{config}->{'company_logo'}"/>|));
+		my $company_logo = NMISNG::Util::escape_html(NMISNG::Util::safe_url($self->{config}->{'company_logo'}));
+		print CGI::Tr(CGI::td({class=>"info Plain",colspan=>'2'}, qq|<img class="logo" src="$company_logo"/>|));
 	}
 
 	my $motd = "Authentication required: Please log in with your appropriate username and password in order to gain access to this system";
 	$motd = $self->{config}->{auth_login_motd} if $self->{config}->{auth_login_motd} ne "";
 
-	print CGI::Tr(CGI::td({class=>'infolft Plain',colspan=>'2'},$motd));
+	# motd is admin config rendered on the pre-auth page: escape it (now shown as
+	# text, not HTML) so a config-write attacker cannot inject script here
+	print CGI::Tr(CGI::td({class=>'infolft Plain',colspan=>'2'},NMISNG::Util::escape_html($motd)));
 
 	print CGI::Tr(CGI::td({class=>'info Plain'},"Username") . CGI::td({class=>'info Plain'},textfield({name=>'auth_username'})));
 	print CGI::Tr(CGI::td({class=>'info Plain'},"Password") . CGI::td({class=>'info Plain'},password_field({name=>'auth_password'}) ));
@@ -978,7 +990,7 @@ EOHTML
 
 
 	if ( $self->{config}->{'auth_sso_domain'} ne "" and $self->{config}->{'auth_sso_domain'} ne ".domain.com" ) {
-		print CGI::Tr(CGI::td({class=>"info",colspan=>'2'}, "Single Sign On configured with \"$self->{config}->{'auth_sso_domain'}\""));
+		print CGI::Tr(CGI::td({class=>"info",colspan=>'2'}, "Single Sign On configured with \"".NMISNG::Util::escape_html($self->{config}->{'auth_sso_domain'})."\""));
 	}
 
 	print CGI::Tr(CGI::td({colspan=>'2'},p({style=>"color: red"}, "&nbsp;$msg&nbsp;"))) if $msg ne "";
@@ -1001,29 +1013,44 @@ EOHTML
 
 	print "\n      </div>\n";
 
-	if (ref($listmodules) eq "ARRAY" and @$listmodules)
-	{
-		print qq|
-      <div>&nbsp;</div>
-      <div id='login_dialog' class='ui-dialog ui-widget ui-widget-content ui-corner-all'>
-        <div class='header'>Available NMIS Modules</div>
-        <table>
-|;
-		for my $entry (@$listmodules)
-		{
-			my ($name, $link, $descr) = @$entry;
-			print "          <tr><td class='lft Plain'><a href=\"$link\" target='_blank'>$name</a> - $descr</td></tr>\n";
-		}
-		print qq|        </table>
-      </div>
-|;
-	}
+	print NMISNG::Auth::login_modules_html($listmodules);
 
 		print qq|
     </div>
 |;
 
 	print CGI::end_html;
+}
+
+# login_modules_html: build the "Available NMIS Modules" block shown on the
+# unauthenticated login page from a getModuleLinks-style arrayref of
+# [name, link, tagline] triples. Every field is config-sourced and untrusted, so
+# names and taglines are HTML-escaped and links are scheme-checked (OMK-12703).
+# args: arrayref of [name, link, descr] (may be undef or empty)
+# returns: the HTML block, or "" when there is nothing to show
+sub login_modules_html
+{
+	my ($listmodules) = @_;
+	return "" if (ref($listmodules) ne "ARRAY" or !@$listmodules);
+
+	my $html = qq|
+      <div>&nbsp;</div>
+      <div id='login_dialog' class='ui-dialog ui-widget ui-widget-content ui-corner-all'>
+        <div class='header'>Available NMIS Modules</div>
+        <table>
+|;
+	for my $entry (@$listmodules)
+	{
+		my ($name, $link, $descr) = @$entry;
+		my $safelink  = NMISNG::Util::escape_html(NMISNG::Util::safe_url($link));
+		my $safename  = NMISNG::Util::escape_html($name);
+		my $safedescr = NMISNG::Util::escape_html($descr);
+		$html .= "          <tr><td class='lft Plain'><a href=\"$safelink\" target='_blank'>$safename</a> - $safedescr</td></tr>\n";
+	}
+	$html .= qq|        </table>
+      </div>
+|;
+	return $html;
 }
 
 ##############################################################################
@@ -1064,7 +1091,7 @@ EOHTML
 
 	$javascript = "function redir() { ";
 #	$javascript .= "alert('$err'); " if($err);
-	$javascript .= " window.location = '" . $url . "'; }";
+	$javascript .= " window.location = '" . NMISNG::Util::escape_js_string($url) . "'; }";
 
 	$javascript = "function redir() {} " if($self->{config}->{'web-auth-debug'});
 
@@ -1094,7 +1121,8 @@ sub do_logout {
 	# Javascript that sets window.location to login URL
 	### fixing the logout so it can be reverse proxied
 	CGI::delete('auth_type'); 		# but don't keep that one
-	my $url = CGI::url(-full=>1, -query=>1);
+	# do NOT reflect the incoming query string into the redirect (OMK-12703)
+	my $url = CGI::url(-full=>1);
 	$url =~ s!^[^:]+://!//!;
 
 	if ($max_sessions_enabled)
@@ -1110,7 +1138,7 @@ sub do_logout {
 		}
 	}
 	
-	my $javascript = "function redir() { window.location = '" . $url ."'; }";
+	my $javascript = "function redir() { window.location = '" . NMISNG::Util::escape_js_string($url) . "'; }";
 	my $cookie = $self->generate_cookie(user_name => $self->{user}, expires => "now", value => "" );
 
 	NMISNG::Util::logAuth("INFO logout of user=$self->{user}");
@@ -1124,6 +1152,14 @@ sub do_logout {
 	#	-style=>{'src'=>"$self->{config}->{'<menu_url_base>'}/css/dash8.css"}
 	#	}),"\n";
 
+	# config-sourced asset URLs on this pre/post-auth page are untrusted on
+	# output (OMK-12703): scheme-check and escape them
+	my $fl_favicon  = NMISNG::Util::escape_html(NMISNG::Util::safe_url($self->{config}->{'nmis_favicon'}));
+	my $fl_jqui_css = NMISNG::Util::escape_html(NMISNG::Util::safe_url($self->{config}->{'jquery_ui_css'}));
+	my $fl_styles   = NMISNG::Util::escape_html(NMISNG::Util::safe_url($self->{config}->{'styles'}));
+	my $fl_jquery   = NMISNG::Util::escape_html(NMISNG::Util::safe_url($self->{config}->{'jquery'}));
+	my $fl_jqui     = NMISNG::Util::escape_html(NMISNG::Util::safe_url($self->{config}->{'jquery_ui'}));
+
 	print qq
 |<!DOCTYPE html>
 <html>
@@ -1135,11 +1171,11 @@ sub do_logout {
     <meta http-equiv="Expires" content="-1" />
     <meta http-equiv="Robots" content="none" />
     <meta http-equiv="Googlebot" content="noarchive" />
-    <link type="image/x-icon" rel="shortcut icon" href="$self->{config}->{'nmis_favicon'}" />
-    <link type="text/css" rel="stylesheet" href="$self->{config}->{'jquery_ui_css'}" />
-    <link type="text/css" rel="stylesheet" href="$self->{config}->{'styles'}" />
-    <script src="$self->{config}->{'jquery'}" type="text/javascript"></script>
-    <script src="$self->{config}->{'jquery_ui'}" type="text/javascript"></script>
+    <link type="image/x-icon" rel="shortcut icon" href="$fl_favicon" />
+    <link type="text/css" rel="stylesheet" href="$fl_jqui_css" />
+    <link type="text/css" rel="stylesheet" href="$fl_styles" />
+    <script src="$fl_jquery" type="text/javascript"></script>
+    <script src="$fl_jqui" type="text/javascript"></script>
     <script type="text/javascript">//<![CDATA[
 $javascript
 //]]></script>
@@ -1182,8 +1218,11 @@ sub do_login_banner {
 
 	#print STDERR "DEBUG AUTH banner=$banner_string self->{banner}=$self->{banner}\n";
 
-	my $logo = qq|<a href="http://www.opmantek.com"><img height="20px" width="20px" class="logo" src="$self->{config}->{'nmis_favicon'}"/></a>|;
-	push @banner,CGI::div({class=>'ui-dialog-titlebar ui-dialog-header ui-corner-top ui-widget-header lrg pad'},$logo, $banner_string);
+	# favicon is config-sourced on the (pre-auth) login banner; scheme-check and
+	# escape it, and escape the banner text (OMK-12703)
+	my $safe_favicon = NMISNG::Util::escape_html(NMISNG::Util::safe_url($self->{config}->{'nmis_favicon'}));
+	my $logo = qq|<a href="http://www.opmantek.com"><img height="20px" width="20px" class="logo" src="$safe_favicon"/></a>|;
+	push @banner,CGI::div({class=>'ui-dialog-titlebar ui-dialog-header ui-corner-top ui-widget-header lrg pad'},$logo, NMISNG::Util::escape_html($banner_string));
 	push @banner,CGI::div({class=>'title2'},"Network Management Information System");
 
 	return @banner;
@@ -1863,6 +1902,21 @@ sub InGroup {
 			if $self->{debug};
 
 	return 0;
+}
+
+# group_allowed: true only if the user may see $group AND it is a configured group
+# (present in $group_table). Provided as a method so the "in group and group
+# exists" check has correct operator precedence and is shared, rather than being
+# repeated inline where it is easy to get wrong (OMK-12731).
+# args: group name, the loaded groups table (hashref keyed by group name)
+# returns: 1 if allowed, 0 otherwise
+sub group_allowed
+{
+	my ($self, $group, $group_table) = @_;
+	return 0 if (!defined $group || $group eq "");
+	return ($self->InGroup($group)
+					and ref($group_table) eq "HASH"
+					and exists $group_table->{$group}) ? 1 : 0;
 }
 
 #----------------------------------

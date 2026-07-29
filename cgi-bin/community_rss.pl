@@ -59,6 +59,9 @@ if ($Q->{act} eq '' ) {
 sub printFeed {
 	
 	my $feedurl = $C->{community_rss_url} || "https://community.opmantek.com/rss/NMIS.xml";
+	# community_rss_url is config embedded in a JS string inside <script> (OMK-12731):
+	# scheme-check, then JS-string-escape (HTML escaping is wrong inside <script>).
+	$feedurl = NMISNG::Util::escape_js_string(NMISNG::Util::safe_url($feedurl));
 
 	print header($headeropts);
 	Compat::NMIS::pageStartJscript(title => "NMIS Community News") if (!NMISNG::Util::getbool($Q->{widget}));

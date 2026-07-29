@@ -170,28 +170,31 @@ sub viewInterfaceFind
 
 				$thisintf->{ifSpeed} = NMISNG::Util::convertIfSpeed($thisintf->{ifSpeed});
 
+				# collected and config values are untrusted on output (OMK-12702):
+				# escape every displayed field. Hrefs pass through CGI attribute
+				# escaping already, so only the visible content is wrapped here.
 				push @out,Tr(
 					td({class=>'info Plain',nowrap=>undef},
 						 a({
 							 id => "node_view_".uri_escape($thisintf->{node}),
-							 href=>"network.pl?act=network_node_view&node=".uri_escape($thisintf->{node})."&widget=$widgetstate"},$thisintf->{node})),
+							 href=>"network.pl?act=network_node_view&node=".uri_escape($thisintf->{node})."&widget=$widgetstate"},escapeHTML($thisintf->{node}))),
 					eval {
 						if ( NMISNG::Util::getbool($thisintf->{collect}) ) {
 							return td({class=>'info Plain'},a({
 								id => "node_view_".uri_escape($thisintf->{node}),
-								href=>"network.pl?act=network_interface_view&node=".uri_escape($thisintf->{node})."&intf=$thisintf->{ifIndex}&widget=$widgetstate"},$thisintf->{ifDescr}));
+								href=>"network.pl?act=network_interface_view&node=".uri_escape($thisintf->{node})."&intf=$thisintf->{ifIndex}&widget=$widgetstate"},escapeHTML($thisintf->{ifDescr})));
 						} else {
-							return td({class=>'info Plain'},$thisintf->{ifDescr});
+							return td({class=>'info Plain'},escapeHTML($thisintf->{ifDescr}));
 						}
 					},
-					td({class=>'info Plain'},$thisintf->{ipAdEntAddr1}),
-					td({class=>'info Plain'},a({href=>url(-absolute=>1)."?act=find_interface_view&find=$thisintf->{ipSubnet1}&widget=$widgetstate"},$thisintf->{ipSubnet1})),
-					td({class=>'info Plain'},a({href=>url(-absolute=>1)."?act=find_interface_view&find=$thisintf->{Description}&widget=$widgetstate"},$thisintf->{Description})),
-					td({class=>'info Plain'},$thisintf->{display_name}),
-					td({class=>'info Plain'},$thisintf->{ifType}),
-					td({class=>'info Plain',align=>'right'},$thisintf->{ifSpeed}),
-					td({class=>'info Plain'},$thisintf->{ifAdminStatus}),
-					td({class=>'info Plain'},$thisintf->{ifOperStatus})
+					td({class=>'info Plain'},escapeHTML($thisintf->{ipAdEntAddr1})),
+					td({class=>'info Plain'},a({href=>url(-absolute=>1)."?act=find_interface_view&find=$thisintf->{ipSubnet1}&widget=$widgetstate"},escapeHTML($thisintf->{ipSubnet1}))),
+					td({class=>'info Plain'},a({href=>url(-absolute=>1)."?act=find_interface_view&find=$thisintf->{Description}&widget=$widgetstate"},escapeHTML($thisintf->{Description}))),
+					td({class=>'info Plain'},escapeHTML($thisintf->{display_name})),
+					td({class=>'info Plain'},escapeHTML($thisintf->{ifType})),
+					td({class=>'info Plain',align=>'right'},escapeHTML($thisintf->{ifSpeed})),
+					td({class=>'info Plain'},escapeHTML($thisintf->{ifAdminStatus})),
+					td({class=>'info Plain'},escapeHTML($thisintf->{ifOperStatus}))
 				);
 			}
 		}
@@ -261,18 +264,19 @@ sub viewNodeFind {
 			{
 				++$counter;
 
+				# collected and config values are untrusted on output (OMK-12702)
 				push @out,Tr(
 					td({class=>'info',nowrap=>undef},
 						 a({
 							 id => "node_view_".uri_escape($thisnode->{name}),
 							 href=>"network.pl?act=network_node_view&node=".uri_escape($node)."&widget=$widgetstate"},
-							 $thisnode->{name})),
-					td({class=>'info'},$thisnode->{host}),
-					td({class=>'info'},$thisnode->{group}),
-					td({class=>'info'},$thisnode->{active}),
-					td({class=>'info'},$thisnode->{ping}),
-					td({class=>'info'},join(" ", @{$thisnode->{services}})),
-					td({class=>'info'},join(" ", @{$thisnode->{depend}})),
+							 escapeHTML($thisnode->{name}))),
+					td({class=>'info'},escapeHTML($thisnode->{host})),
+					td({class=>'info'},escapeHTML($thisnode->{group})),
+					td({class=>'info'},escapeHTML($thisnode->{active})),
+					td({class=>'info'},escapeHTML($thisnode->{ping})),
+					td({class=>'info'},escapeHTML(join(" ", @{$thisnode->{services}}))),
+					td({class=>'info'},escapeHTML(join(" ", @{$thisnode->{depend}}))),
 				);
 			}
 		}

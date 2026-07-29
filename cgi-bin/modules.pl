@@ -63,8 +63,18 @@ sub moduleMenu {
 	my $title = "NMIS Modules by FirstWave";
 	my $header = $title;
 
-	my $nmisicon = "<a target=\"nmis\" href=\"$C->{'nmis'}?\"><img class='logo' src=\"$C->{'nmis_icon'}\"/></a>";
-	my $header2 = "$header <a href=\"$ENV{SCRIPT_NAME}\"><img src=\"$C->{'nmis_home'}\"/></a>";
+	# config-derived asset URLs on this unauthenticated page: scheme-check and
+	# escape before they go into href/src attributes (OMK-12731)
+	my $safe_nmis     = NMISNG::Util::escape_html(NMISNG::Util::safe_url($C->{'nmis'}));
+	my $safe_nmisicon = NMISNG::Util::escape_html(NMISNG::Util::safe_url($C->{'nmis_icon'}));
+	my $safe_nmishome = NMISNG::Util::escape_html(NMISNG::Util::safe_url($C->{'nmis_home'}));
+	my $safe_script   = NMISNG::Util::escape_html($ENV{SCRIPT_NAME});
+	my $safe_menubase = NMISNG::Util::escape_html(NMISNG::Util::safe_url($C->{'<menu_url_base>'}));
+	my $safe_docs     = NMISNG::Util::escape_html(NMISNG::Util::safe_url($C->{'nmis_docs_online'}));
+	my $safe_help     = NMISNG::Util::escape_html(NMISNG::Util::safe_url($C->{'nmis_help'}));
+
+	my $nmisicon = "<a target=\"nmis\" href=\"$safe_nmis?\"><img class='logo' src=\"$safe_nmisicon\"/></a>";
+	my $header2 = "$header <a href=\"$safe_script\"><img src=\"$safe_nmishome\"/></a>";
 	
 	my $portalCode = Compat::NMIS::loadPortalCode();
 
@@ -73,22 +83,24 @@ sub moduleMenu {
 	if ( !$wantwidget ) {
 		#Don't print the start_html, but we do need to get the javascript in there.
 		print start_html(-title=>$title,
-			-xbase=>&url(-base=>1)."$C->{'<url_base>'}",
+			# CGI escapes -title and Link hashref hrefs, but NOT -xbase; escape it
+			# ourselves (unauthenticated page, config untrusted on output) (OMK-12731)
+			-xbase=>NMISNG::Util::escape_html(NMISNG::Util::safe_url(&url(-base=>1)."$C->{'<url_base>'}")),
 			-meta=>{'keywords'=>'network management NMIS'},
 			-head=>[
-					Link({-rel=>'shortcut icon',-type=>'image/x-icon',-href=>$C->{'nmis_favicon'}}),
-					Link({-rel=>'stylesheet',-type=>'text/css',-href=>"$C->{'styles'}"}),
+					Link({-rel=>'shortcut icon',-type=>'image/x-icon',-href=>NMISNG::Util::safe_url($C->{'nmis_favicon'})}),
+					Link({-rel=>'stylesheet',-type=>'text/css',-href=>NMISNG::Util::safe_url($C->{'styles'})}),
 				]
-			); 
+			);
 	}
 
 	print start_table({class=>"noborder"}) ;
 	if ( !$wantwidget ) {
 		print Tr(td({class=>"nav", colspan=>"3", width=>"100%"},
-			"<a href='http://www.opmantek.com'><img height='30px' width='30px' class='logo' src=\"$C->{'<menu_url_base>'}/img/opmantek-logo-tiny.png\"/></a>",
+			"<a href='http://www.opmantek.com'><img height='30px' width='30px' class='logo' src=\"$safe_menubase/img/opmantek-logo-tiny.png\"/></a>",
 			"<span class=\"title\">$header2</span>",
 			$portalCode,
-			"<span class=\"right\"><a id=\"menu_help\" href=\"$C->{'nmis_docs_online'}\"><img src=\"$C->{'nmis_help'}\"/></a></span>",
+			"<span class=\"right\"><a id=\"menu_help\" href=\"$safe_docs\"><img src=\"$safe_help\"/></a></span>",
 		));
 	}
 	
@@ -96,7 +108,7 @@ sub moduleMenu {
 	if ( $Q->{module} and $MOD->{$Q->{module}}{description} ) {
 		print Tr(th({class=>"title",colspan=>"3"}, "NMIS $Q->{module} Module"));
 		print Tr(td({class=>"lft",width=>"33%"}, "The $Q->{module} module is not currently installed."),td({class=>"Plain",width=>"33%"},"&nbsp;"),td({class=>"Plain",width=>"33%"},"&nbsp;"));
-		print Tr(td({class=>"lft",width=>"33%"}, "$MOD->{$Q->{module}}{description}"),td({class=>"Plain",width=>"33%"},"&nbsp;"),td({class=>"Plain",width=>"33%"},"&nbsp;"));
+		print Tr(td({class=>"lft",width=>"33%"}, NMISNG::Util::escape_html($MOD->{$Q->{module}}{description})),td({class=>"Plain",width=>"33%"},"&nbsp;"),td({class=>"Plain",width=>"33%"},"&nbsp;"));
 		print Tr(td({class=>"lft",width=>"33%"}, "More information and contact information available at ",a({href=>"http://opmantek.com/Modules"},"Opmantek Modules")),td({class=>"Plain",width=>"33%"},"&nbsp;"),td({class=>"Plain",width=>"33%"},"&nbsp;"));
 	}
 	else {
