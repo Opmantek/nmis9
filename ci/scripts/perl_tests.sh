@@ -38,6 +38,7 @@ working_tests=(
     t_authkey_env.t
     t_auth_cookie_flavour.t
     t_auth_sso_shared_key.t
+    t_auth_session_no_eval.pl
     notify_depend.t
     t_nmisng_node_nomodel.pl
     t_util_escape.pl
