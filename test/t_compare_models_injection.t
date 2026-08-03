@@ -1,31 +1,9 @@
 #!/usr/bin/perl
 #
-# t_compare_models_injection.t - OMK-12641: shell injection in
-# admin/compare_models.pl (CWE-78)
-#
-# The old line 73 ran the difftool through backticks:
-#
-#     my @output = `$difftool $olddir/$fn $newdir/$fn`;
-#
-# so /bin/sh parsed a single interpolated string built from the two
-# argv-supplied directories and the readdir-supplied filename. A model file
-# whose *name* carried shell metacharacters, e.g. "x;touch PWNED;.nmis",
-# executed as a command. The name has to exist in BOTH directories, otherwise
-# the "old or new only" branch is taken and no subprocess runs at all.
-#
-# The fix replaces the backticks with a list-form piped open, which execs the
-# difftool directly and never involves a shell.
-#
-# Coverage:
-#   1. static  - backtick form gone, list-form open present
-#   2. RED->GREEN behavioural - metacharacter filename does not execute
-#   3. functional guards - exit-code contract preserved (0 == no differences,
-#      1 == differences), and a directory path containing a space now works
-#      (the unquoted string form split it into extra arguments)
-#
-# Self-contained: builds its own model fixtures under a File::Temp dir. The
-# script writes a dated diff log into the shared nmis tmp dir and unlinks it,
-# so any pre-existing log is renamed aside up front and restored on exit.
+# t_compare_models_injection.t - OMK-12641 (CWE-78): admin/compare_models.pl
+# ran the difftool through backticks, so /bin/sh parsed the @ARGV-supplied dirs
+# and the readdir-supplied filename. Fixed with a multi-argument list-form open.
+# A metacharacter name must exist in BOTH dirs, else no subprocess runs at all.
 #
 use strict;
 use warnings;
@@ -44,9 +22,16 @@ my $SCRIPT = "$FindBin::Bin/../admin/compare_models.pl";
 
 plan skip_all => "compare_models.pl not found at $SCRIPT" if (!-f $SCRIPT);
 
-# ---------------------------------------------------------------------------
-# minimal but genuinely parseable model file (readFiletoHash wants %hash = (..))
-# ---------------------------------------------------------------------------
+# the script needs a loadable config for its own getTmpDir call, so ask the
+# environment directly rather than inferring it from an exit code later
+my $TMPDIR = eval {
+	require NMISNG::Util;
+	NMISNG::Util::getTmpDir();
+};
+plan skip_all => "no loadable nmis config, cannot run compare_models.pl"
+		if (!defined $TMPDIR || !length $TMPDIR);
+
+# parseable model file (readFiletoHash wants %hash = (..))
 sub write_model
 {
 	my ($path, $indexed) = @_;
@@ -58,12 +43,8 @@ sub write_model
 	return;
 }
 
-# ---------------------------------------------------------------------------
-# run the script in a child. No shell here either: exec gets a list, so the
-# space-in-path subtest exercises the script rather than this harness.
-# chdir matters - the injected payload can carry no '/' (it lives in a
-# filename), so it lands in the child's cwd.
-# ---------------------------------------------------------------------------
+# exec gets a list, so no shell here either. cwd matters: the payload carries
+# no '/', so it lands in the child's cwd.
 sub run_compare
 {
 	my (%arg) = @_;
@@ -76,7 +57,7 @@ sub run_compare
 		{
 			chdir($arg{cwd}) or POSIX::_exit(126);
 		}
-		open(STDOUT, '>', $arg{outfile} // '/dev/null') or POSIX::_exit(126);
+		open(STDOUT, '>', '/dev/null') or POSIX::_exit(126);
 		open(STDERR, '>&', \*STDOUT) or POSIX::_exit(126);
 		exec($^X, "-I$LIBDIR", $SCRIPT, $arg{old}, $arg{new})
 				or POSIX::_exit(127);
@@ -85,29 +66,15 @@ sub run_compare
 	return $? >> 8;
 }
 
-# ---------------------------------------------------------------------------
 # protect the shared dated diff log: the script unlinks it on every run
-# ---------------------------------------------------------------------------
-my ($LOGFILE, $LOGSAVE, $LOG_OURS);
+my $LOGFILE = POSIX::strftime("$TMPDIR/model-diffs-%Y-%m-%d", localtime);
+my $LOGSAVE;
+my $LOG_OURS = 1;
+if (-f $LOGFILE)
 {
-	my $tmp = eval {
-		require NMISNG::Util;
-		NMISNG::Util::getTmpDir();
-	};
-	if (defined $tmp && length $tmp)
-	{
-		$LOGFILE = POSIX::strftime("$tmp/model-diffs-%Y-%m-%d", localtime);
-		if (-f $LOGFILE)
-		{
-			$LOGSAVE = "$LOGFILE.pretest.$$";
-			$LOG_OURS = rename($LOGFILE, $LOGSAVE) ? 1 : 0;
-			$LOGSAVE = undef if (!$LOG_OURS);
-		}
-		else
-		{
-			$LOG_OURS = 1;
-		}
-	}
+	$LOGSAVE = "$LOGFILE.pretest.$$";
+	$LOG_OURS = rename($LOGFILE, $LOGSAVE) ? 1 : 0;
+	$LOGSAVE = undef if (!$LOG_OURS);
 }
 
 END {
@@ -116,55 +83,23 @@ END {
 	rename($LOGSAVE, $LOGFILE) if (defined $LOGSAVE && -f $LOGSAVE);
 }
 
-# ---------------------------------------------------------------------------
-# smoke check: the script needs a loadable config for getTmpDir. If it cannot
-# even run we skip rather than reporting misleading failures.
-# ---------------------------------------------------------------------------
-my $SMOKE = tempdir(CLEANUP => 1);
-make_path("$SMOKE/a", "$SMOKE/b");
-write_model("$SMOKE/a/Common-t.nmis", 'true');
-write_model("$SMOKE/b/Common-t.nmis", 'true');
-{
-	my $out = "$SMOKE/smoke.out";
-	my $rc = run_compare(old => "$SMOKE/a", new => "$SMOKE/b", outfile => $out);
-	if ($rc != 0)
-	{
-		my $detail = '';
-		if (open(my $fh, '<', $out)) { read($fh, $detail, 2048); close $fh; }
-		plan skip_all => "compare_models.pl not runnable here (exit $rc): $detail";
-	}
-}
-
-# ---------------------------------------------------------------------------
-# 1. static: the shelling-out form is gone, the list form is present
-# ---------------------------------------------------------------------------
 subtest 'static: difftool is no longer invoked through a shell' => sub {
 	open(my $fh, '<', $SCRIPT) or die "cannot read $SCRIPT: $!";
-	my @lines = <$fh>;
+	my $src = do { local $/; <$fh> };
 	close $fh;
 
-	my @backticks = grep { /`[^`]*\$difftool/ } @lines;
-	is(scalar(@backticks), 0, 'no backtick invocation of $difftool remains');
+	unlike($src, qr/`[^`]*\$difftool/, 'no backtick invocation of $difftool remains');
 
-	my @qx = grep { /\bqx[\{\(\/!]/ } @lines;
-	is(scalar(@qx), 0, 'no qx// invocation introduced instead');
-
-	my $src = join('', @lines);
+	# load-bearing: perl only skips the shell when the list has >1 element, so
+	# one interpolated string here would silently restore it
 	like($src, qr/open\s*\(\s*my\s+\$\w+\s*,\s*["']-\|["']\s*,\s*\$difftool\s*,/,
-		 'list-form piped open on $difftool is present');
-	like($src, qr/\$exitcode\s*=\s*\$\?\s*>>\s*8/,
-		 'exit code is still derived from $? (contract unchanged)');
+		 'difftool gets separate argv elements, not one string');
+	unlike($src, qr/open\s*\([^,]+,\s*["']-\|["']\s*,\s*["'][^"']*\$difftool/,
+		   'no single-argument piped open (that would re-enter the shell)');
 };
 
-# ---------------------------------------------------------------------------
-# 2. behavioural RED->GREEN: a metacharacter filename must not execute.
-#
-# Pre-fix the sh command line splits into
-#   diffconfigs.pl <olddir>/x   ;   touch PWNED   ;   .nmis <newdir>/x   ...
-# so the marker appears and the bogus diff makes the script exit 1.
-# Post-fix the whole name is one argv element naming a real, identical file,
-# so nothing executes and the run reports no differences.
-# ---------------------------------------------------------------------------
+# pre-fix sh split "<olddir>/x ; touch PWNED ; .nmis <newdir>/x" and ran the
+# marker, and the bogus diff made the script exit 1.
 subtest 'injection: shell metacharacters in a model filename do not execute' => sub {
 	my $dir = tempdir(CLEANUP => 1);
 	make_path("$dir/olddir", "$dir/newdir");
@@ -187,9 +122,25 @@ subtest 'injection: shell metacharacters in a model filename do not execute' => 
 	   'metacharacter-named file is compared as a real path, reporting no differences');
 };
 
-# ---------------------------------------------------------------------------
-# 3a. functional guard: identical directories still report no differences
-# ---------------------------------------------------------------------------
+# the @ARGV dirs are the other half of the sink: pre-fix sh split
+# "<dir>/d;touch PWNED;d/Common-Test.nmis" and ran the marker.
+subtest 'injection: shell metacharacters in a directory argument do not execute' => sub {
+	my $dir = tempdir(CLEANUP => 1);
+	my $evildir = "$dir/d;touch PWNED;d";
+	make_path($evildir, "$dir/newdir");
+	write_model("$evildir/Common-Test.nmis", 'true');
+	write_model("$dir/newdir/Common-Test.nmis", 'true');
+
+	ok(-d $evildir, 'metacharacter-named old directory created') or return;
+	ok(!-e "$dir/PWNED", 'marker absent before the run');
+
+	my $rc = run_compare(old => $evildir, new => "$dir/newdir", cwd => $dir);
+
+	ok(!-e "$dir/PWNED",
+	   'directory metacharacters are not interpreted by a shell (no marker file)');
+	is($rc, 0, 'metacharacter-named directory is compared as a real path');
+};
+
 subtest 'identical model directories exit 0' => sub {
 	my $dir = tempdir(CLEANUP => 1);
 	make_path("$dir/olddir", "$dir/newdir");
@@ -200,37 +151,26 @@ subtest 'identical model directories exit 0' => sub {
 	   'no differences reported for identical files');
 };
 
-# ---------------------------------------------------------------------------
-# 3b. functional guard: a real difference is still detected and logged
-# ---------------------------------------------------------------------------
 subtest 'differing model directories exit 1 and capture the difftool output' => sub {
 	my $dir = tempdir(CLEANUP => 1);
 	make_path("$dir/olddir", "$dir/newdir");
 	write_model("$dir/olddir/Common-Test.nmis", 'true');
 	write_model("$dir/newdir/Common-Test.nmis", 'false');
 
-	my $rc = run_compare(old => "$dir/olddir", new => "$dir/newdir");
-	is($rc, 1, 'difference reported as exit 1');
+	is(run_compare(old => "$dir/olddir", new => "$dir/newdir"), 1,
+	   'difference reported as exit 1');
+	ok(-f $LOGFILE, 'diff log was written') or return;
 
-	SKIP: {
-		skip 'diff log path could not be determined', 1 if (!defined $LOGFILE);
-		skip 'diff log not written', 1 if (!-f $LOGFILE);
-
-		open(my $fh, '<', $LOGFILE) or die "cannot read $LOGFILE: $!";
-		my $log = '';
-		read($fh, $log, 65536);				# bounded: we only need the first diff
-		close $fh;
-		like($log, qr{/systemHealth/rrd/test_item/indexed},
-			 'difftool output was captured and written to the diff log');
-	}
+	open(my $fh, '<', $LOGFILE) or die "cannot read $LOGFILE: $!";
+	my $log = '';
+	read($fh, $log, 65536);				# bounded: we only need the first diff
+	close $fh;
+	like($log, qr{/systemHealth/rrd/test_item/indexed},
+		 'difftool output was captured and written to the diff log');
 };
 
-# ---------------------------------------------------------------------------
-# 3c. regression guard: a directory path containing a space.
-#
-# Pre-fix the unquoted string form split this into extra arguments, diffconfigs
-# printed its usage, exited non-zero, and a difference was falsely reported.
-# ---------------------------------------------------------------------------
+# pre-fix the unquoted string form split this into extra arguments, so
+# diffconfigs printed usage and a difference was falsely reported.
 subtest 'directory path containing a space is passed as one argument' => sub {
 	my $dir = tempdir(CLEANUP => 1);
 	make_path("$dir/dir with space", "$dir/newdir");
