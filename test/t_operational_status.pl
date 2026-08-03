@@ -315,6 +315,55 @@ $docless->delete();
 ( $dcnt ) = opdoc("Node Reset");
 is( $dcnt, 0, "delete of doc-less event created nothing" );
 
+# ---------------------------------------------------------------------------
+# Task 5: compute_thresholds summary loop
+# ---------------------------------------------------------------------------
+# seed: a stale Threshold doc (must be swept) and a stale Operational doc
+# (must survive), inserted directly so lastupdate can be in the past.
+my $common = {
+	cluster_id => $node->cluster_id, node_uuid => $node->uuid,
+	element => '', property => '', index => '', class => '',
+	section => '', source => '', value => '',
+	level => "Minor", status => "error", lastupdate => time - 600,
+};
+NMISNG::DB::insert(
+	collection => $nmisng->status_collection(),
+	record => { %$common, method => "Threshold", event => "OMK12605 Stale Thr",
+		property => "omk12605_thr" },
+);
+NMISNG::DB::insert(
+	collection => $nmisng->status_collection(),
+	record => { %$common, method => "Operational", event => "OMK12605 Stale Op" },
+);
+# an Operational doc whose event has Status=false in shipped Events.nmis:
+# must be skipped without the "ignored" stamp
+NMISNG::DB::insert(
+	collection => $nmisng->status_collection(),
+	record => { %$common, method => "Operational", event => "Planned Outage Open",
+		lastupdate => time },
+);
+
+$nmisng->compute_thresholds( sys => $S, running_independently => 0 );
+
+my $md = $nmisng->get_status_model(
+	filter => { event => "OMK12605 Stale Thr", node_uuid => $node->uuid } );
+is( $md->count, 0, "stale Threshold doc swept" );
+
+$md = $nmisng->get_status_model(
+	filter => { event => "OMK12605 Stale Op", node_uuid => $node->uuid } );
+is( $md->count, 1, "stale Operational doc survived the sweep" );
+
+$md = $nmisng->get_status_model(
+	filter => { event => "Planned Outage Open", node_uuid => $node->uuid } );
+is( $md->count, 1, "Status=false Operational doc still present" );
+is( $md->data->[0]{status}, "error",
+	"Status=false Operational doc keeps error, no 'ignored' stamp" );
+
+my $catchall = $S->inventory( concept => 'catchall' )->data;
+ok( defined $catchall->{status_summary}, "status_summary was computed" );
+cmp_ok( $catchall->{status_summary}, '<', 100,
+	"error Operational doc dragged status_summary below 100" );
+
 # --- END OF TESTS ---
 cleanup_db();
 done_testing();

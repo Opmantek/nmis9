@@ -746,6 +746,17 @@ sub compute_thresholds
 		# event control is as configured or all true.
 		my $thisevent_control = $events_config->{$eventKey} || {Log => "true", Notify => "true", Status => "true"};
 
+		# operational docs are maintained by the event write path (OMK-12605):
+		# not swept here (slow-polled nodes would flap), and Status=false
+		# means skip from the calculation, never stamp "ignored"
+		if ( ( $status_obj->method // '' ) eq "Operational" )
+		{
+			next if ( not NMISNG::Util::getbool( $thisevent_control->{Status} ) );
+			++$count;
+			++$countOk if ( $status_obj->status eq "ok" );
+			next;
+		}
+
 		# if this is an alert and it is older than 1 full poll cycle, delete it from status.
 		# fixme: this logic is broken for variable polling
 		if ( $status_obj->lastupdate < time - 500 )
