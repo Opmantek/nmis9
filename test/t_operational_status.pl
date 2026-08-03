@@ -215,6 +215,56 @@ Compat::NMIS::notify(
 ( $ncnt ) = opdoc("Node Reset");
 is( $ncnt, 0, "stateless notify gated" );
 
+# ---------------------------------------------------------------------------
+# Task 3: checkEvent() writes ok docs
+# ---------------------------------------------------------------------------
+# flips the Task-2 error doc to ok, same doc (upsert identity)
+my ( undef, $before_flip ) = opdoc("OMK12605 Notify Event");
+Compat::NMIS::checkEvent(
+	sys     => $S,
+	event   => "OMK12605 Notify Event",
+	element => '',
+	level   => "Normal",
+	details => "recovered",
+);
+my ( $ccnt, $cdoc ) = opdoc("OMK12605 Notify Event");
+is( $ccnt, 1, "checkEvent kept exactly one doc" );
+is( $cdoc->{status}, "ok",     "checkEvent flipped doc to ok" );
+is( $cdoc->{level},  "Normal", "ok doc level is Normal" );
+is( "$cdoc->{_id}", "$before_flip->{_id}", "same doc updated, not recreated" );
+
+# healthy check with no prior event still creates an ok doc
+Compat::NMIS::checkEvent(
+	sys     => $S,
+	event   => "OMK12605 Fresh Event",
+	element => '',
+	details => "all good",
+);
+( $ccnt, $cdoc ) = opdoc("OMK12605 Fresh Event");
+is( $ccnt, 1, "checkEvent with no prior event created ok doc" );
+is( $cdoc->{status}, "ok", "fresh doc status is ok" );
+
+# threshold-context checkEvent writes nothing
+Compat::NMIS::checkEvent(
+	sys     => $S,
+	event   => "OMK12605 ThrCheck Event",
+	element => '',
+	details => "thr ok",
+	context => { type => "threshold" },
+);
+( $ccnt ) = opdoc("OMK12605 ThrCheck Event");
+is( $ccnt, 0, "threshold-context checkEvent gated" );
+
+# Proactive-named checkEvent writes nothing (fallback name gate)
+Compat::NMIS::checkEvent(
+	sys     => $S,
+	event   => "Proactive OMK12605 Check",
+	element => '',
+	details => "thr ok",
+);
+( $ccnt ) = opdoc("Proactive OMK12605 Check");
+is( $ccnt, 0, "Proactive-named checkEvent gated" );
+
 # --- END OF TESTS ---
 cleanup_db();
 done_testing();

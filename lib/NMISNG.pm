@@ -5345,7 +5345,8 @@ sub thresholdProcess
 				details      => $details,
 				value        => $args{value},
 				reset        => $args{reset},
-				inventory_id => $args{inventory_id}
+				inventory_id => $args{inventory_id},
+				context      => { type => "threshold" }
 			);
 		}
 		else

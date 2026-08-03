@@ -2196,6 +2196,19 @@ sub checkEvent
 
 	$args{node_uuid} = $S->nmisng_node()->uuid;
 
+	# maintain the operational status doc: the condition was assessed healthy
+	# this cycle (OMK-12605); gates inside the helper
+	NMISNG::Status::save_operational_status(
+		nmisng  => $S->nmisng,
+		node    => $S->nmisng_node,
+		event   => $args{event},
+		element => $args{element},
+		status  => "ok",
+		level   => "Normal",
+		details => $args{details},
+		context => $args{context},
+	);
+
 	# create event with attributes we are looking for
 	my $event = $nmisng->events->event( _id => $args{_id},
 									   node_uuid => $args{node_uuid},
