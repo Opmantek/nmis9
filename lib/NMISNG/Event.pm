@@ -39,6 +39,8 @@ use Data::Dumper;
 use Test::Deep::NoTest;
 use Time::HiRes;
 
+use NMISNG::Status;
+
 our $VERSION = "9.6.5";
 
 # Allow testing of proposed fix for Event Load():
@@ -544,6 +546,20 @@ sub delete
 		);
 		$ret = "event delete failed: $result->{error}" if ( !$result->{success} );
 	}
+	# event closed outside notify/checkEvent: flip its operational status
+	# doc to ok if one exists (OMK-12605). update-only, so up-events and
+	# traps (which never had a doc) stay inert.
+	if ( !$ret )
+	{
+		NMISNG::Status::close_operational_status(
+			nmisng     => $self->nmisng,
+			cluster_id => $self->cluster_id // $self->nmisng->config->{cluster_id},
+			node_uuid  => $self->node_uuid,
+			event      => $self->event,
+			element    => $self->element,
+		);
+	}
+
 	$self->nmisng->log->error($ret) if ($ret);
 	return $ret;
 }

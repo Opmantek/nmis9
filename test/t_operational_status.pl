@@ -265,6 +265,56 @@ Compat::NMIS::checkEvent(
 ( $ccnt ) = opdoc("Proactive OMK12605 Check");
 is( $ccnt, 0, "Proactive-named checkEvent gated" );
 
+# ---------------------------------------------------------------------------
+# Task 4: Event->delete close hook
+# ---------------------------------------------------------------------------
+Compat::NMIS::notify(
+	sys     => $S,
+	event   => "OMK12605 CloseMe",
+	element => '',
+	level   => "Major",
+	details => "will be closed out of band",
+);
+my ( $dcnt, $ddoc ) = opdoc("OMK12605 CloseMe");
+is( $ddoc->{status}, "error", "doc is error before out-of-band close" );
+
+my $closeme = NMISNG::Event->new(
+	nmisng    => $nmisng,
+	node_uuid => $node->uuid,
+	event     => "OMK12605 CloseMe",
+	element   => '',
+);
+$closeme->load();
+ok( $closeme->exists(), "event exists before delete" );
+my $delerr = $closeme->delete();
+ok( !$delerr, "event delete succeeded" ) or diag($delerr);
+
+( $dcnt, $ddoc ) = opdoc("OMK12605 CloseMe");
+is( $dcnt, 1, "close hook kept one doc" );
+is( $ddoc->{status},  "ok",           "close hook flipped doc to ok" );
+is( $ddoc->{details}, "event closed", "close hook stamped details" );
+
+# deleting an event that never had a doc creates nothing.
+# "Node Reset" is stateless, so notify creates the event but no doc.
+Compat::NMIS::notify(
+	sys     => $S,
+	event   => "Node Reset",
+	element => '',
+	level   => "Warning",
+	details => "doc-less event for delete test",
+);
+my $docless = NMISNG::Event->new(
+	nmisng    => $nmisng,
+	node_uuid => $node->uuid,
+	event     => "Node Reset",
+	element   => '',
+);
+$docless->load();
+ok( $docless->exists(), "doc-less event exists before delete" );
+$docless->delete();
+( $dcnt ) = opdoc("Node Reset");
+is( $dcnt, 0, "delete of doc-less event created nothing" );
+
 # --- END OF TESTS ---
 cleanup_db();
 done_testing();
