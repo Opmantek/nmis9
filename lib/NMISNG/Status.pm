@@ -277,7 +277,7 @@ sub update_dashnode_data {
 		# $data->{"class"} //= "";
 		# $data->{"element"} //= "";
 		$data->{"level_select"} //= "default";
-		$data->{"inventory_id"} = $data->{"inventory_id"}->hex;
+		$data->{"inventory_id"} = $data->{"inventory_id"}->hex if ( ref( $data->{"inventory_id"} ) );
 		$data->{expire_at} = $data->{expire_at}->to_string;
 		delete $data->{lastupdate};
 		# delete $data->{inventory_id};
@@ -301,6 +301,106 @@ sub validate
 {
 	my ($self) = @_;
 	return ( 1, undef );
+}
+
+# writes/refreshes the status document for a code-raised ("operational")
+# event. called from Compat::NMIS::notify (status error) and
+# Compat::NMIS::checkEvent (status ok) on every cycle. threshold and alert
+# callers maintain their own status documents and are gated out here.
+# args: nmisng, node (NMISNG::Node), event, element, status (error|ok),
+#  level, details, context, inventory_id,
+#  events_config (optional, avoids a reload when the caller has it)
+# returns: undef on success or skip, error string on save failure
+sub save_operational_status
+{
+	my (%args) = @_;
+	my ( $nmisng, $node, $event, $element, $status, $level, $details, $context, $inventory_id )
+		= @args{qw(nmisng node event element status level details context inventory_id)};
+
+	return if ( ref($nmisng) ne "NMISNG" or !$node or !$event or !$status );
+
+	# threshold and alert callers maintain their own status documents
+	my $ctype = ( ref($context) eq "HASH" ) ? ( $context->{type} // '' ) : '';
+	return if ( $ctype eq "threshold" or $ctype eq "alert" );
+	return if ( $event =~ /^(Proactive|Alert: )/ );
+
+	my $events_config = $args{events_config}
+		// NMISNG::Util::loadTable( dir => 'conf', name => 'Events' );
+	my $thisevent_control = $events_config->{$event}
+		|| $events_config->{'Default'}
+		|| { Log => "true", Notify => "true", Status => "true" };
+
+	# stateless events have no ok/error state; same test notify performs
+	my $C = $nmisng->config;
+	my $is_stateless = ( $C->{non_stateful_events} !~ /$event/
+		or NMISNG::Util::getbool( $thisevent_control->{Stateful} ) ) ? 0 : 1;
+	return if ($is_stateless);
+
+	# per-event write gate, on unless configured off
+	return if ( defined( $thisevent_control->{TrackStatus} )
+		and !NMISNG::Util::getbool( $thisevent_control->{TrackStatus} ) );
+
+	my $status_obj = NMISNG::Status->new(
+		nmisng     => $nmisng,
+		cluster_id => $node->cluster_id,
+		node_uuid  => $node->uuid,
+		method     => "Operational",
+		event      => $event,
+		element    => $element // '',
+		status     => $status,
+		level      => $level // 'Normal',
+		details    => $details // '',
+		property   => '',
+		index      => '',
+		class      => '',
+		section    => '',
+		source     => '',
+		value      => '',
+		( defined($inventory_id) ? ( inventory_id => NMISNG::DB::make_oid($inventory_id) ) : () ),
+	);
+	my $error = $status_obj->save();
+	$nmisng->log->error("save_operational_status failed for $event: $error")
+		if ($error);
+	return $error;
+}
+
+# flips an existing Operational status doc to ok when its event is closed
+# outside notify/checkEvent (gui trap ack, api delete). update only, never
+# create: up-events and traps never had a doc, so they stay inert.
+# args: nmisng, cluster_id, node_uuid, event, element
+# returns: nothing
+sub close_operational_status
+{
+	my (%args) = @_;
+	my ( $nmisng, $cluster_id, $node_uuid, $event, $element )
+		= @args{qw(nmisng cluster_id node_uuid event element)};
+	return if ( ref($nmisng) ne "NMISNG" or !$node_uuid or !$event );
+
+	my $dbres = NMISNG::DB::update(
+		collection => $nmisng->status_collection(),
+		query      => NMISNG::DB::get_query(
+			no_regex => 1,
+			and_part => {
+				cluster_id => $cluster_id,
+				node_uuid  => $node_uuid,
+				method     => "Operational",
+				event      => $event,
+				element    => $element // '',
+			}
+		),
+		record => {
+			'$set' => {
+				status     => "ok",
+				level      => "Normal",
+				details    => "event closed",
+				lastupdate => time
+			}
+		},
+		freeform => 1,
+	);
+	$nmisng->log->error("close_operational_status failed for $event: $dbres->{error}")
+		if ( !$dbres->{success} );
+	return;
 }
 
 1;
