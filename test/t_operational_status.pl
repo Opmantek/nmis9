@@ -165,6 +165,56 @@ NMISNG::Status::close_operational_status(
 ( $cnt ) = opdoc("OMK12605 NeverExisted");
 is( $cnt, 0, "close helper never creates docs" );
 
+# ---------------------------------------------------------------------------
+# Task 2: notify() writes error docs
+# ---------------------------------------------------------------------------
+Compat::NMIS::notify(
+	sys     => $S,
+	event   => "OMK12605 Notify Event",
+	element => '',
+	level   => "Major",
+	details => "notify raise",
+);
+my ( $ncnt, $ndoc ) = opdoc("OMK12605 Notify Event");
+is( $ncnt, 1, "notify created one Operational doc" );
+is( $ndoc->{status},  "error", "notify doc status is error" );
+is( $ndoc->{level},   "Major", "notify doc level is Major" );
+
+# repeated notify while down refreshes, does not duplicate
+Compat::NMIS::notify(
+	sys     => $S,
+	event   => "OMK12605 Notify Event",
+	element => '',
+	level   => "Major",
+	details => "notify raise again",
+);
+( $ncnt, $ndoc ) = opdoc("OMK12605 Notify Event");
+is( $ncnt, 1, "repeat notify kept one doc" );
+is( $ndoc->{status}, "error", "repeat notify doc still error" );
+
+# threshold-context notify writes no Operational doc
+Compat::NMIS::notify(
+	sys     => $S,
+	event   => "OMK12605 Notify ThrEvent",
+	element => '',
+	level   => "Minor",
+	details => "thr",
+	context => { type => "threshold" },
+);
+( $ncnt ) = opdoc("OMK12605 Notify ThrEvent");
+is( $ncnt, 0, "threshold-context notify gated" );
+
+# stateless notify writes no Operational doc
+Compat::NMIS::notify(
+	sys     => $S,
+	event   => "Node Reset",
+	element => '',
+	level   => "Warning",
+	details => "boot check",
+);
+( $ncnt ) = opdoc("Node Reset");
+is( $ncnt, 0, "stateless notify gated" );
+
 # --- END OF TESTS ---
 cleanup_db();
 done_testing();

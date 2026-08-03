@@ -54,6 +54,7 @@ use NMISNG::Sys;
 use NMISNG::rrdfunc;
 use NMISNG::Notify;
 use NMISNG::Outage;
+use NMISNG::Status;
 
 # this is a compatibility helper to quickly gain access
 # to ONE persistent/shared nmisng object
@@ -2376,6 +2377,21 @@ sub notify
 		$S->nmisng->log->error("sendSyslog failed: $error") if ($error);
 
 	}
+	# maintain the operational status doc for this event (OMK-12605);
+	# threshold/alert/stateless/untracked events are gated inside the helper
+	NMISNG::Status::save_operational_status(
+		nmisng        => $S->nmisng,
+		node          => $node,
+		event         => $event_obj->event,
+		element       => $event_obj->element,
+		status        => "error",
+		level         => $event_obj->level,
+		details       => $event_obj->details,
+		context       => $event_obj->context // $args{context},
+		inventory_id  => $event_obj->inventory_id,
+		events_config => $events_config,
+	);
+
 	return $event_obj;
 	$S->nmisng->log->debug2(sub {"Notify Finished"});
 }
