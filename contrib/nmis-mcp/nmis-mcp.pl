@@ -42,9 +42,9 @@ use CGI;
 use JSON::XS;
 use NMISNG::Util;
 use Compat::NMIS;
-use NMISNG::OTel qw(apply_field_rename filter_derived filter_derived_flat get_description);
+use NMISNG::OTel qw(apply_field_rename filter_derived filter_derived_flat get_description unweight_health);
 
-my $VERSION = "1.0.0";
+my $VERSION = "1.1.0";
 
 # ---------------------------------------------------------------------------
 # MCP tool definitions.
@@ -410,7 +410,9 @@ sub tool_get_node_status
 	my $health_metrics = {};
 	if ($latest->{success} && $latest->{data} && $latest->{data}{health})
 	{
-		$health_metrics = apply_field_rename('health', $latest->{data}{health});
+		# recover 0-100 percentages from the weighted *Health contributions
+		my $unweighted = unweight_health($latest->{data}{health}, $nmisng->config);
+		$health_metrics = apply_field_rename('health', $unweighted);
 	}
 
 	return {
@@ -470,9 +472,19 @@ sub tool_get_latest_metrics
 				my $sub_data = $latest->{data}{$subconcept};
 				next unless $sub_data && ref($sub_data) eq 'HASH';
 
+				# health *Health fields are weighted contributions; rescale to
+				# 0-100. derived_data carries its own copy of the same fields and
+				# is merged on top below, so it must be rescaled too or it would
+				# overwrite the data values with the weighted ones.
+				my $sub_derived = filter_derived($latest->{derived_data}{$subconcept});
+				if ($subconcept eq 'health')
+				{
+					$sub_data    = unweight_health($sub_data, $nmisng->config);
+					$sub_derived = unweight_health($sub_derived, $nmisng->config);
+				}
+
 				my $renamed = apply_field_rename($subconcept, $sub_data);
-				my $renamed_derived = apply_field_rename($subconcept,
-					filter_derived($latest->{derived_data}{$subconcept}));
+				my $renamed_derived = apply_field_rename($subconcept, $sub_derived);
 
 				push @instances, {
 					subconcept  => $subconcept,

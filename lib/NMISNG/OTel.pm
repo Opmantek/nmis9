@@ -26,7 +26,7 @@
 # *****************************************************************************
 
 package NMISNG::OTel;
-our $VERSION = "1.0.0";
+our $VERSION = "1.1.0";
 
 use strict;
 use warnings;
@@ -38,10 +38,12 @@ our @EXPORT_OK = qw(
 	filter_derived
 	filter_derived_flat
 	get_description
+	unweight_health
 	%DESCRIPTION_FIELDS
 	@FALLBACK_DESCRIPTION_FIELDS
 	%CONCEPT_RENAME
 	%FIELD_RENAME
+	%HEALTH_WEIGHT
 );
 
 # ---------------------------------------------------------------------------
@@ -187,6 +189,64 @@ our %FIELD_RENAME = (
 		'ping_loss'         => 'network.peer.packet_loss',
 	},
 );
+
+# ---------------------------------------------------------------------------
+# Health "*Health" fields (reachabilityHealth, cpuHealth, memHealth, ...) are
+# NOT percentages. compute_reachability() in NMISNG::Node stores each one as
+# that metric's *contribution* to the overall node health: percentage * config
+# weight. With the default weight_cpu=0.2 a CPU sitting at 85% is stored as 17,
+# which reads as an alarming "17" when published on its own even though the CPU
+# is healthy.
+#
+# unweight_health divides each *Health field by its weight, recovering the
+# 0-100 percentage the operator expects to see (17 -> 85). The map below ties
+# each field to the Config.nmis weight key that produced it.
+#
+# weight_mem is shared between mem+swap and weight_int between int+disk. When
+# the swap (resp. disk) partner is active, compute_reachability halves both
+# shares (weight/2); we detect that from a non-zero swapHealth/diskHealth value
+# in the same record and use the halved weight so the percentage still recovers
+# correctly.
+# ---------------------------------------------------------------------------
+our %HEALTH_WEIGHT = (
+	'reachabilityHealth' => 'weight_reachability',
+	'availabilityHealth' => 'weight_availability',
+	'responseHealth'     => 'weight_response',
+	'cpuHealth'          => 'weight_cpu',
+	'memHealth'          => 'weight_mem',
+	'swapHealth'         => 'weight_mem',
+	'intHealth'          => 'weight_int',
+	'diskHealth'         => 'weight_int',
+);
+
+sub unweight_health
+{
+	my ($src, $config) = @_;
+	return {} if (!$src || ref($src) ne 'HASH');
+	$config ||= {};
+
+	# mem+swap share weight_mem, int+disk share weight_int; the share is halved
+	# only when the partner metric is actually present (its *Health value > 0).
+	my $mem_split = (($src->{swapHealth} // 0) > 0) ? 2 : 1;
+	my $int_split = (($src->{diskHealth} // 0) > 0) ? 2 : 1;
+
+	my %out = %$src;
+	for my $field (keys %HEALTH_WEIGHT)
+	{
+		next if !defined $out{$field};
+		next if $out{$field} !~ /^-?\d+(?:\.\d+)?$/;    # leave "U"/blank as-is
+		my $weight = $config->{$HEALTH_WEIGHT{$field}};
+		next if !$weight;                               # no weight -> can't rescale
+
+		my $split = 1;
+		$split = $mem_split if ($field eq 'memHealth' || $field eq 'swapHealth');
+		$split = $int_split if ($field eq 'intHealth' || $field eq 'diskHealth');
+
+		# stored = percentage * (weight/split)  ->  percentage = stored / (weight/split)
+		$out{$field} = sprintf('%.2f', $out{$field} / ($weight / $split)) + 0;
+	}
+	return \%out;
+}
 
 # ---------------------------------------------------------------------------
 # Rename the fields of $src (a hashref) for the given $concept. Known fields

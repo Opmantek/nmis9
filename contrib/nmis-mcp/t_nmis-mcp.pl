@@ -28,7 +28,7 @@ use JSON::XS;
 #    helpers that the MCP server and the mqttobservations plugin both use).
 # ---------------------------------------------------------------------------
 
-use NMISNG::OTel qw(apply_field_rename filter_derived filter_derived_flat get_description);
+use NMISNG::OTel qw(apply_field_rename filter_derived filter_derived_flat get_description unweight_health);
 
 # ---------------------------------------------------------------------------
 # 2. get_description tests
@@ -159,6 +159,69 @@ for my $t (@desc_tests)
 	});
 	is($result->{'network.peer.rtt.avg_ms'}, 1.5, 'rename: ping avg_ping_time');
 	is($result->{'network.peer.packet_loss'}, 0, 'rename: ping_loss');
+}
+
+# ---------------------------------------------------------------------------
+# unweight_health: turn weighted health contributions back into 0-100 percentages
+# ---------------------------------------------------------------------------
+{
+	my %weights = (
+		weight_reachability => 0.1,
+		weight_availability => 0.1,
+		weight_response     => 0.2,
+		weight_cpu          => 0.2,
+		weight_mem          => 0.1,
+		weight_int          => 0.3,
+	);
+
+	# no swap/disk: each field divides straight back out by its weight
+	my $r = unweight_health({
+		reachabilityHealth => 10,     # 100 * 0.1
+		availabilityHealth => 9.95,   # 99.5 * 0.1
+		responseHealth     => 20,     # 100 * 0.2
+		cpuHealth          => 17,     # 85  * 0.2
+		memHealth          => 10,     # 100 * 0.1
+		intHealth          => 30,     # 100 * 0.3
+		swapHealth         => 0,
+		diskHealth         => 0,
+	}, \%weights);
+	is($r->{reachabilityHealth}, 100,  'unweight: reachability 10 -> 100');
+	is($r->{availabilityHealth}, 99.5, 'unweight: availability 9.95 -> 99.5');
+	is($r->{responseHealth},     100,  'unweight: response 20 -> 100');
+	is($r->{cpuHealth},          85,   'unweight: cpu 17 -> 85');
+	is($r->{memHealth},          100,  'unweight: mem 10 -> 100');
+	is($r->{intHealth},          100,  'unweight: int 30 -> 100');
+	is($r->{swapHealth},         0,    'unweight: swap stays 0');
+
+	# swap present -> weight_mem is split in half across mem+swap
+	my $s = unweight_health({
+		memHealth  => 3.5,   # 70 * (0.1/2)
+		swapHealth => 4.5,   # 90 * (0.1/2)
+	}, \%weights);
+	is($s->{memHealth},  70, 'unweight: mem recovers with halved weight_mem');
+	is($s->{swapHealth}, 90, 'unweight: swap recovers with halved weight_mem');
+
+	# disk present -> weight_int is split in half across int+disk
+	my $d = unweight_health({
+		intHealth  => 12,   # 80 * (0.3/2)
+		diskHealth => 9,    # 60 * (0.3/2)
+	}, \%weights);
+	is($d->{intHealth},  80, 'unweight: int recovers with halved weight_int');
+	is($d->{diskHealth}, 60, 'unweight: disk recovers with halved weight_int');
+
+	# non-numeric ("U") and unweighted fields pass through untouched
+	my $u = unweight_health({
+		cpuHealth    => 'U',
+		reachability => 100,
+		health       => 42,
+	}, \%weights);
+	is($u->{cpuHealth},    'U', 'unweight: non-numeric U left as-is');
+	is($u->{reachability}, 100, 'unweight: non-*Health field untouched');
+	is($u->{health},       42,  'unweight: overall health field untouched');
+
+	# missing weight -> value left unchanged rather than divided by zero
+	my $n = unweight_health({ cpuHealth => 17 }, {});
+	is($n->{cpuHealth}, 17, 'unweight: no weight configured leaves value as-is');
 }
 
 # ---------------------------------------------------------------------------
