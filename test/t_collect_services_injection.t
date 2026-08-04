@@ -317,6 +317,21 @@ subtest 'shell sanitiser and basename allowlist are defined exactly once' => sub
     close $uh;
     ok($uc =~ /sub strip_shell_metachars/,   'Util.pm defines strip_shell_metachars');
     ok($uc =~ /sub is_safe_script_basename/, 'Util.pm defines is_safe_script_basename');
+
+    # Every site that used to hold its own copy must still call the shared one.
+    # Centralising removed the only thing pinning the nmap host line: deleting
+    # that call leaves every behavioural subtest green, because subtest 8
+    # deliberately asserts the host reaches _exec_nmap_child intact and so
+    # cannot see the strip go missing.
+    open(my $nh, '<', $node_pm) or die "cannot open $node_pm: $!";
+    my $nc = join('', <$nh>);
+    close $nh;
+
+    my @calls = ($nc =~ /NMISNG::Util::strip_shell_metachars/g);
+    is(scalar(@calls), 2,
+        'Node.pm calls strip_shell_metachars at both sites (argv build, nmap host)');
+    ok($nc =~ /strip_shell_metachars\(\s*\$catchall_data->\{host\}/,
+        'nmap host is sanitised via the shared function');
 };
 
 # ---------------------------------------------------------------------------
