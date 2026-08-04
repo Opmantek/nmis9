@@ -483,19 +483,52 @@ is( $upcnt2, 1, "repeat up call kept exactly one doc (upsert identity)" );
 is( "$updoc2->{_id}", "$updoc->{_id}", "same doc updated, not recreated" );
 cmp_ok( $updoc2->{lastupdate}, '>=', $updoc->{lastupdate}, "lastupdate refreshed" );
 
-# (a) nodedown true -> error doc, every cycle, still no event created here
+# (a) nodedown true -> error doc, every cycle, still no event created here.
+# level/details are read directly off the live catchall
+# ($catchall_data->{nodedownlevel}/{nodedowndetails}), which handle_down
+# piggybacks onto its own catchall save - no DB read from pingable() at all.
+#
+# (a1) fallback sub-case: nodedown true but the catchall doesn't have the
+# nodedownlevel/nodedowndetails keys yet (e.g. a catchall saved before this
+# change shipped, or nodedown flipped by something other than handle_down).
+delete $catchall_data->{nodedownlevel};
+delete $catchall_data->{nodedowndetails};
 $catchall_data->{nodedown} = "true";
 $catchall_inv->save( node => $node, update => 1 );
 seed_fresh_ping( loss => 100 );
 my $pingable_down = $node->pingable( sys => $S, catchall_inventory => $catchall_inv );
 ok( !$pingable_down, "pingable() returned false for fresh loss=100 data" );
 
+my $expected_fallback_level = $C->{default_event_level} // "Major";
 my ( $downcnt, $downdoc ) = opdoc("Node Down");
 is( $downcnt, 1, "still exactly one Node Down doc while down (upsert identity)" );
 is( $downdoc->{status}, "error", "doc status is error while nodedown=true" );
+is( $downdoc->{level}, $expected_fallback_level,
+	"no nodedownlevel on catchall -> doc falls back to default_event_level" );
+is( $downdoc->{details}, "Ping failed",
+	"no nodedowndetails on catchall -> doc falls back to 'Ping failed'" );
 is( "$downdoc->{_id}", "$updoc->{_id}", "same doc flipped to error, not recreated" );
 ok( !$node->eventExist("Node Down"),
 	"pingable()'s new branch never created a Node Down event on its own" );
+
+# (a2) direct-read sub-case: catchall carries nodedownlevel/nodedowndetails
+# values that are deliberately different from the fallback defaults above -
+# proves pingable() actually reads these two catchall keys, rather than the
+# assertions above merely happening to match the fallback by coincidence.
+$catchall_data->{nodedownlevel}   = "Critical";
+$catchall_data->{nodedowndetails} = "seeded catchall detail, not the fallback string";
+$catchall_inv->save( node => $node, update => 1 );
+seed_fresh_ping( loss => 100 );
+$node->pingable( sys => $S, catchall_inventory => $catchall_inv );
+
+my ( $downcnt2, $downdoc2 ) = opdoc("Node Down");
+is( $downcnt2, 1, "still exactly one Node Down doc (upsert identity)" );
+is( $downdoc2->{level}, "Critical",
+	"doc level came from catchall nodedownlevel, not the fallback" );
+is( $downdoc2->{details}, "seeded catchall detail, not the fallback string",
+	"doc details came from catchall nodedowndetails, not the fallback" );
+is( "$downdoc2->{_id}", "$updoc->{_id}", "same doc, not recreated" );
+ok( !$node->eventExist("Node Down"), "still no real event - purely a catchall-driven read" );
 
 # (b) nodedown flips back to false -> doc refreshes back to ok
 $catchall_data->{nodedown} = "false";
@@ -506,6 +539,62 @@ my ( $backcnt, $backdoc ) = opdoc("Node Down");
 is( $backcnt, 1, "still exactly one Node Down doc after clearing (upsert identity)" );
 is( $backdoc->{status}, "ok", "doc flipped back to ok when nodedown=false" );
 is( "$backdoc->{_id}", "$updoc->{_id}", "same doc used throughout" );
+
+# ---------------------------------------------------------------------------
+# End-to-end: drive the whole chain for real via handle_down() - the
+# production write side of the OMK-12605 follow-up redesign. handle_down()
+# calls notify(), which creates the real "Node Down" event, and piggybacks
+# that event's resolved level/details onto the very same catchall save that
+# already sets the nodedown flag (Node.pm ~2205-2219). pingable()'s
+# $mustping==false branch must then read those same catchall values back out
+# with zero extra DB access, and the two must agree.
+# ---------------------------------------------------------------------------
+ok( !$node->eventExist("Node Down"), "no real Node Down event before handle_down" );
+
+$node->handle_down(
+	sys                => $S,
+	type               => "node",
+	up                 => 0,
+	details            => "real handle_down down test",
+	catchall_inventory => $catchall_inv,
+);
+ok( $node->eventExist("Node Down"), "handle_down created the real Node Down event" );
+ok( NMISNG::Util::getbool( $catchall_data->{nodedown} ), "handle_down set nodedown=true on the catchall" );
+ok( defined $catchall_data->{nodedownlevel} && length( $catchall_data->{nodedownlevel} ),
+	"handle_down piggybacked a non-empty nodedownlevel onto the catchall save" );
+ok( defined $catchall_data->{nodedowndetails} && length( $catchall_data->{nodedowndetails} ),
+	"handle_down piggybacked a non-empty nodedowndetails onto the catchall save" );
+
+# what handle_down's own notify() call actually resolved, read independently
+# via the event object (test-only verification, not part of the production
+# read path) - proves the catchall keys are the SAME values notify() chose,
+# not just "some" values.
+my $real_event = $node->event( event => "Node Down", element => "" );
+$real_event->load();
+ok( $real_event->exists, "the real Node Down event is loadable" );
+is( $catchall_data->{nodedownlevel}, $real_event->level,
+	"catchall nodedownlevel matches the real event's level" );
+is( $catchall_data->{nodedowndetails}, $real_event->details,
+	"catchall nodedowndetails matches the real event's details" );
+
+seed_fresh_ping( loss => 100 );
+$node->pingable( sys => $S, catchall_inventory => $catchall_inv );
+my ( $e2ecnt, $e2edoc ) = opdoc("Node Down");
+is( $e2ecnt, 1, "end-to-end: still exactly one Node Down doc (upsert identity)" );
+is( $e2edoc->{status}, "error", "end-to-end: doc status is error" );
+is( $e2edoc->{level}, $catchall_data->{nodedownlevel},
+	"end-to-end: doc level matches what handle_down piggybacked onto the catchall" );
+is( $e2edoc->{details}, $catchall_data->{nodedowndetails},
+	"end-to-end: doc details match what handle_down piggybacked onto the catchall" );
+
+# clean up the real event so it doesn't leak into any later test in this file
+$node->handle_down(
+	sys                => $S,
+	type               => "node",
+	up                 => 1,
+	details            => "real handle_down up test (cleanup)",
+	catchall_inventory => $catchall_inv,
+);
 
 # leave the shared test node/catchall as we found them
 $pcfg = $node->configuration;

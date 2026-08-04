@@ -2108,24 +2108,16 @@ sub pingable
 			my ( $down_level, $down_details );
 			if ($isdown)
 			{
-				# source level/details from the existing event record,
-				# same as notify()'s already-exists branch sources values
-				# from $event_obj rather than recomputing/guessing them here
-				my $downevent = $self->event( event => "Node Down", element => "" );
-				$downevent->load();
-				if ( $downevent->exists )
-				{
-					$down_level   = $downevent->level;
-					$down_details = $downevent->details;
-				}
-				else
-				{
-					# race: nodedown flag flipped but fping hasn't saved the
-					# event yet; fall back to sensible defaults so the doc
-					# still reflects reality this cycle
-					$down_level   = $C->{default_event_level} // "Major";
-					$down_details = "Ping failed";
-				}
+				# read the level/details handle_down already piggybacked onto
+				# the catchall it saves right after notify()/checkEvent - zero
+				# new database reads, just two more keys on data already live
+				# here. fallback only for a catchall saved before this change
+				# shipped, or any other edge case where the keys aren't there
+				# yet (e.g. nodedown flipped by something other than
+				# handle_down).
+				$down_level   = $catchall_data->{nodedownlevel}
+						// $C->{default_event_level} // "Major";
+				$down_details = $catchall_data->{nodedowndetails} // "Ping failed";
 			}
 
 			NMISNG::Status::save_operational_status(
@@ -2198,7 +2190,7 @@ sub handle_down
 	$details ||= "$typeofdown error";
 
 	my $eventfunc = ( $goingup ? \&Compat::NMIS::checkEvent : \&Compat::NMIS::notify );
-	&$eventfunc(
+	my $event_obj = &$eventfunc(
 		sys     => $S,
 		event   => $eventname,
 		# use specific failover closing event name
@@ -2213,9 +2205,22 @@ sub handle_down
 	# for these three we set a XYZdown marker in the catchall, in the most atomic fashion possible
 	# (to minimise race conditions with other processes holding a catchall_live)
 	if ($typeofdown =~ /^(snmp|wmi|node)$/)
-	{		
+	{
 		my $quicklynow = $catchall_inventory->data;
 		$quicklynow->{"${typeofdown}down"} = ($goingup ? 'false' : 'true');
+
+		# OMK-12605 follow-up: piggyback the event's resolved level/details
+		# onto this same catchall save, so that per-cycle status-doc refresh
+		# code elsewhere (pingable()'s $mustping==false branch, and later the
+		# backup/failover equivalent) can read them straight out of data
+		# already in memory - zero new database reads, same save call.
+		# keep this key shape (<type>downlevel/<type>downdetails) generic:
+		# Task 2 reuses it for typeofdown eq backup/failover.
+		if (!$goingup && ref($event_obj))
+		{
+			$quicklynow->{"${typeofdown}downlevel"}   = $event_obj->level;
+			$quicklynow->{"${typeofdown}downdetails"} = $event_obj->details;
+		}
 
 		# ensuring that nodestatus stays up to date with XXXXdown status
 		my $coarse = $self->coarse_status(catchall_data => $quicklynow);
