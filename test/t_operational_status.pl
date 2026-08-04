@@ -364,6 +364,18 @@ ok( defined $catchall->{status_summary}, "status_summary was computed" );
 cmp_ok( $catchall->{status_summary}, '<', 100,
 	"error Operational doc dragged status_summary below 100" );
 
+# ---------------------------------------------------------------------------
+# Task 6: shipped conf-default/Events.nmis flags
+# ---------------------------------------------------------------------------
+my %shipped_events = do "$FindBin::Bin/../conf-default/Events.nmis";
+for my $ev ( "Interface Down", "Service Down", "Service Degraded" )
+{
+	is( $shipped_events{$ev}{Status}, "false",
+		"$ev ships with Status=false (written but not counted)" );
+}
+is( $shipped_events{"Planned Outage Open"}{TrackStatus}, "false",
+	"Planned Outage Open ships with TrackStatus=false (no doc)" );
+
 # --- END OF TESTS ---
 cleanup_db();
 done_testing();
