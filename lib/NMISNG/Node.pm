@@ -2130,6 +2130,41 @@ sub pingable
 				details      => $isdown ? $down_details : "Ping ok",
 				inventory_id => $catchall_inventory->id,
 			);
+
+			# Backup Host Down (OMK-12605 follow-up, Task 2): same per-cycle
+			# refresh discipline as Node Down above, but only applicable to
+			# multihomed nodes (host_backup configured) - a node without a
+			# configured backup host gets NO status document for this event
+			# at all, not ok and not error. Trusts the backupdown flag
+			# handle_down() piggybacks onto its catchall save (same mechanism
+			# as nodedown above) as the single source of truth for backup
+			# up/down state; this branch never re-derives it from raw
+			# fping loss data itself, since bin/nmisd's own multihomed state
+			# machine has edge cases (e.g. both primary and backup dead
+			# defaults to "node" down, not "backup" down) that independent
+			# re-derivation here could subtly disagree with.
+			if (defined($self->configuration->{host_backup}) && $self->configuration->{host_backup})
+			{
+				my $backupisdown = NMISNG::Util::getbool( $catchall_data->{backupdown} );
+				my ( $backup_down_level, $backup_down_details );
+				if ($backupisdown)
+				{
+					$backup_down_level   = $catchall_data->{backupdownlevel}
+							// $C->{default_event_level} // "Major";
+					$backup_down_details = $catchall_data->{backupdowndetails} // "Backup ping failed";
+				}
+
+				NMISNG::Status::save_operational_status(
+					nmisng       => $self->nmisng,
+					node         => $self,
+					event        => "Backup Host Down",
+					element      => "",
+					status       => $backupisdown ? "error" : "ok",
+					level        => $backupisdown ? $backup_down_level   : "Normal",
+					details      => $backupisdown ? $backup_down_details : "Backup ping ok",
+					inventory_id => $catchall_inventory->id,
+				);
+			}
 		}
 
 		$RI->{pingavg}    = $ping_avg;     # results for sub runReach
@@ -2202,20 +2237,21 @@ sub handle_down
 		conf => $self->nmisng->config
 	);
 
-	# for these three we set a XYZdown marker in the catchall, in the most atomic fashion possible
+	# for these we set a XYZdown marker in the catchall, in the most atomic fashion possible
 	# (to minimise race conditions with other processes holding a catchall_live)
-	if ($typeofdown =~ /^(snmp|wmi|node)$/)
+	if ($typeofdown =~ /^(snmp|wmi|node|backup)$/)
 	{
 		my $quicklynow = $catchall_inventory->data;
 		$quicklynow->{"${typeofdown}down"} = ($goingup ? 'false' : 'true');
 
 		# OMK-12605 follow-up: piggyback the event's resolved level/details
 		# onto this same catchall save, so that per-cycle status-doc refresh
-		# code elsewhere (pingable()'s $mustping==false branch, and later the
-		# backup/failover equivalent) can read them straight out of data
-		# already in memory - zero new database reads, same save call.
-		# keep this key shape (<type>downlevel/<type>downdetails) generic:
-		# Task 2 reuses it for typeofdown eq backup/failover.
+		# code elsewhere (pingable()'s $mustping==false branch) can read them
+		# straight out of data already in memory - zero new database reads,
+		# same save call. Task 1 uses this for typeofdown eq node/snmp/wmi,
+		# Task 2 reuses it as-is for typeofdown eq backup. A future failover
+		# equivalent could reuse the same generic key shape
+		# (<type>downlevel/<type>downdetails) too.
 		if (!$goingup && ref($event_obj))
 		{
 			$quicklynow->{"${typeofdown}downlevel"}   = $event_obj->level;

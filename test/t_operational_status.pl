@@ -596,9 +596,146 @@ $node->handle_down(
 	catchall_inventory => $catchall_inv,
 );
 
+# ---------------------------------------------------------------------------
+# Follow-up Task 2 (2026-08-04 fping/dashboard follow-up): pingable() must
+# also refresh a "Backup Host Down" operational status doc every collect()
+# cycle when fping owns the up/down decision - same discipline as Task 1's
+# Node Down handling, but gated on the node being multihomed (host_backup
+# configured). A node without host_backup must get NO status document for
+# this event at all, ever - not ok, not error.
+# ---------------------------------------------------------------------------
+
+# (c) node has no host_backup configured (the shared test node's stock
+# state). Even if something else sets backupdown=true on the catchall,
+# pingable() must not create any "Backup Host Down" doc at all.
+ok( !$node->configuration->{host_backup}, "test node has no host_backup configured yet" );
+( my $precnt_backup ) = opdoc("Backup Host Down");
+is( $precnt_backup, 0, "no Backup Host Down doc exists yet" );
+
+$catchall_data->{backupdown} = "true";
+$catchall_inv->save( node => $node, update => 1 );
+seed_fresh_ping( loss => 0 );
+$node->pingable( sys => $S, catchall_inventory => $catchall_inv );
+( my $nobackupcnt ) = opdoc("Backup Host Down");
+is( $nobackupcnt, 0, "still no Backup Host Down doc without host_backup configured, even with backupdown=true" );
+delete $catchall_data->{backupdown};
+
+# now make the node multihomed for the rest of this section.
+$pcfg = $node->configuration;
+$pcfg->{host_backup} = "10.10.99.99";
+$node->configuration($pcfg);
+ok( $node->configuration->{host_backup}, "test node now has host_backup configured" );
+
+# (a) backupdown true -> error doc, level/details read from the catchall,
+# same piggyback mechanism as nodedown/nodedownlevel/nodedowndetails.
+#
+# (a1) fallback sub-case: backupdown true but the catchall doesn't have the
+# backupdownlevel/backupdowndetails keys yet.
+delete $catchall_data->{backupdownlevel};
+delete $catchall_data->{backupdowndetails};
+$catchall_data->{backupdown} = "true";
+$catchall_inv->save( node => $node, update => 1 );
+seed_fresh_ping( loss => 0 );
+$node->pingable( sys => $S, catchall_inventory => $catchall_inv );
+
+my $expected_backup_fallback_level = $C->{default_event_level} // "Major";
+my ( $backupdowncnt, $backupdowndoc ) = opdoc("Backup Host Down");
+is( $backupdowncnt, 1, "exactly one Backup Host Down doc created" );
+is( $backupdowndoc->{status}, "error", "doc status is error while backupdown=true" );
+is( $backupdowndoc->{level}, $expected_backup_fallback_level,
+	"no backupdownlevel on catchall -> doc falls back to default_event_level" );
+is( $backupdowndoc->{details}, "Backup ping failed",
+	"no backupdowndetails on catchall -> doc falls back to 'Backup ping failed'" );
+ok( !$node->eventExist("Backup Host Down"),
+	"pingable()'s new branch never created a Backup Host Down event on its own" );
+
+# (a2) direct-read sub-case: catchall carries backupdownlevel/backupdowndetails
+# values deliberately different from the fallback defaults - proves pingable()
+# actually reads these two catchall keys.
+$catchall_data->{backupdownlevel}   = "Critical";
+$catchall_data->{backupdowndetails} = "seeded backup catchall detail, not the fallback string";
+$catchall_inv->save( node => $node, update => 1 );
+seed_fresh_ping( loss => 0 );
+$node->pingable( sys => $S, catchall_inventory => $catchall_inv );
+
+my ( $backupdowncnt2, $backupdowndoc2 ) = opdoc("Backup Host Down");
+is( $backupdowncnt2, 1, "still exactly one Backup Host Down doc (upsert identity)" );
+is( $backupdowndoc2->{level}, "Critical",
+	"doc level came from catchall backupdownlevel, not the fallback" );
+is( $backupdowndoc2->{details}, "seeded backup catchall detail, not the fallback string",
+	"doc details came from catchall backupdowndetails, not the fallback" );
+is( "$backupdowndoc2->{_id}", "$backupdowndoc->{_id}", "same doc, not recreated" );
+
+# (b) backupdown flips back to false -> doc refreshes back to ok
+$catchall_data->{backupdown} = "false";
+$catchall_inv->save( node => $node, update => 1 );
+seed_fresh_ping( loss => 0 );
+$node->pingable( sys => $S, catchall_inventory => $catchall_inv );
+my ( $backupokcnt, $backupokdoc ) = opdoc("Backup Host Down");
+is( $backupokcnt, 1, "still exactly one Backup Host Down doc after clearing (upsert identity)" );
+is( $backupokdoc->{status}, "ok", "doc flipped back to ok when backupdown=false" );
+is( "$backupokdoc->{_id}", "$backupdowndoc->{_id}", "same doc used throughout" );
+
+# (d) end-to-end: drive handle_down(type => "backup", ...) for real, the
+# production write side. handle_down() calls notify(), which creates the
+# real "Backup Host Down" event and piggybacks that event's resolved
+# level/details onto the same catchall save that sets the backupdown flag
+# (Node.pm handle_down, the (snmp|wmi|node|backup) branch). pingable()'s
+# $mustping==false branch must then read those same catchall values back out,
+# and the two must agree - proving the piggyback plumbing actually works,
+# not just the fallback path exercised above.
+ok( !$node->eventExist("Backup Host Down"), "no real Backup Host Down event before handle_down" );
+
+$node->handle_down(
+	sys                => $S,
+	type               => "backup",
+	up                 => 0,
+	details            => "real backup handle_down down test",
+	catchall_inventory => $catchall_inv,
+);
+ok( $node->eventExist("Backup Host Down"), "handle_down created the real Backup Host Down event" );
+ok( NMISNG::Util::getbool( $catchall_data->{backupdown} ), "handle_down set backupdown=true on the catchall" );
+ok( defined $catchall_data->{backupdownlevel} && length( $catchall_data->{backupdownlevel} ),
+	"handle_down piggybacked a non-empty backupdownlevel onto the catchall save" );
+ok( defined $catchall_data->{backupdowndetails} && length( $catchall_data->{backupdowndetails} ),
+	"handle_down piggybacked a non-empty backupdowndetails onto the catchall save" );
+
+# what handle_down's own notify() call actually resolved, read independently
+# via the event object - proves the catchall keys are the SAME values
+# notify() chose, and (since this is a different event than Node Down) that
+# the level travelling through is specific to this event, not a leftover
+# from the Node Down test above.
+my $real_backup_event = $node->event( event => "Backup Host Down", element => "" );
+$real_backup_event->load();
+ok( $real_backup_event->exists, "the real Backup Host Down event is loadable" );
+is( $catchall_data->{backupdownlevel}, $real_backup_event->level,
+	"catchall backupdownlevel matches the real event's level" );
+is( $catchall_data->{backupdowndetails}, $real_backup_event->details,
+	"catchall backupdowndetails matches the real event's details" );
+
+seed_fresh_ping( loss => 0 );
+$node->pingable( sys => $S, catchall_inventory => $catchall_inv );
+my ( $e2ebackupcnt, $e2ebackupdoc ) = opdoc("Backup Host Down");
+is( $e2ebackupcnt, 1, "end-to-end: still exactly one Backup Host Down doc (upsert identity)" );
+is( $e2ebackupdoc->{status}, "error", "end-to-end: doc status is error" );
+is( $e2ebackupdoc->{level}, $catchall_data->{backupdownlevel},
+	"end-to-end: doc level matches what handle_down piggybacked onto the catchall" );
+is( $e2ebackupdoc->{details}, $catchall_data->{backupdowndetails},
+	"end-to-end: doc details match what handle_down piggybacked onto the catchall" );
+
+# clean up the real event so it doesn't leak into any later test in this file
+$node->handle_down(
+	sys                => $S,
+	type               => "backup",
+	up                 => 1,
+	details            => "real backup handle_down up test (cleanup)",
+	catchall_inventory => $catchall_inv,
+);
+
 # leave the shared test node/catchall as we found them
 $pcfg = $node->configuration;
 $pcfg->{ping} = "false";
+delete $pcfg->{host_backup};
 $node->configuration($pcfg);
 
 # --- END OF TESTS ---
