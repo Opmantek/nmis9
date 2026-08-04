@@ -414,6 +414,104 @@ ok( !defined $nmisng->{dashnode_context},
 	"dashnode_context cleared after save (bugfix)" );
 $C->{enable_dashnode_file} = 'false';
 
+# ---------------------------------------------------------------------------
+# Follow-up Task 1 (2026-08-04 fping/dashboard follow-up): pingable() must
+# refresh the Node Down operational status doc every collect() cycle when
+# fping owns the up/down decision (fresh cached fping data, $mustping
+# false) - not just when the fping worker itself raises/clears a transition.
+# ---------------------------------------------------------------------------
+
+# enable ping on the test node, and give it a live catchall to drive
+# $catchall_data->{nodedown} directly, the same way handle_down does.
+my $pcfg = $node->configuration;
+$pcfg->{ping} = "true";
+$node->configuration($pcfg);
+
+my ( $catchall_inv, $cinv_err ) = $S->inventory( concept => "catchall" );
+ok( !$cinv_err, "catchall inventory available for pingable test" ) or diag($cinv_err);
+my $catchall_data = $catchall_inv->data_live();
+
+# seeds a fresh "ping" inventory + timed-data record so pingable() finds
+# fresh fping-cached data and takes the $mustping == false path - mirrors
+# the shape pingable() itself writes when it owns the pinging (Node.pm
+# ~2021-2052: concept "ping", model_class "nomodel", subconcept "ping").
+sub seed_fresh_ping
+{
+	my (%args) = @_;
+	my $loss = $args{loss} // 0;
+	my ( $pinginv, $pinginv_err ) = $node->inventory(
+		concept => "ping", create => 1, model_class => "nomodel", protocol => 'ping',
+		data => {}, path_keys => [] );
+	die "ping inventory error: $pinginv_err" if ($pinginv_err);
+	$pinginv->save( node => $node ) if ( $pinginv->is_new );
+	my $timed_err = $pinginv->add_timed_data(
+		time         => time,
+		data         => { min_rtt => 1, avg_rtt => 2, max_rtt => 3, loss => $loss, ip => $node->configuration->{host} },
+		derived_data => {},
+		subconcept   => "ping",
+		node         => $node,
+	);
+	die "add_timed_data error: $timed_err" if ($timed_err);
+}
+
+# (c) never been down: no prior "Node Down" event anywhere for this node,
+# nodedown false from the start -> pingable() must still create an ok doc
+# on its very first call. No equivalent coverage existed anywhere before
+# this, since it's exactly the gap this follow-up closes.
+ok( !$node->eventExist("Node Down"), "no prior Node Down event exists yet" );
+( my $precnt ) = opdoc("Node Down");
+is( $precnt, 0, "no Node Down Operational doc exists yet either" );
+
+$catchall_data->{nodedown} = "false";
+$catchall_inv->save( node => $node, update => 1 );
+seed_fresh_ping( loss => 0 );
+my $pingable_up = $node->pingable( sys => $S, catchall_inventory => $catchall_inv );
+ok( $pingable_up, "pingable() returned true for fresh loss=0 data" );
+
+my ( $upcnt, $updoc ) = opdoc("Node Down");
+is( $upcnt, 1, "pingable() created the Node Down doc on first (never-down) call" );
+is( $updoc->{status}, "ok",     "never-down doc status is ok" );
+is( $updoc->{level},  "Normal", "never-down doc level is Normal" );
+ok( !$node->eventExist("Node Down"), "still no Node Down event - event ownership untouched" );
+
+# repeat call, still up: refreshes the same doc, does not duplicate
+sleep 1;    # ensure lastupdate advances so the refresh is observable
+seed_fresh_ping( loss => 0 );
+$node->pingable( sys => $S, catchall_inventory => $catchall_inv );
+my ( $upcnt2, $updoc2 ) = opdoc("Node Down");
+is( $upcnt2, 1, "repeat up call kept exactly one doc (upsert identity)" );
+is( "$updoc2->{_id}", "$updoc->{_id}", "same doc updated, not recreated" );
+cmp_ok( $updoc2->{lastupdate}, '>=', $updoc->{lastupdate}, "lastupdate refreshed" );
+
+# (a) nodedown true -> error doc, every cycle, still no event created here
+$catchall_data->{nodedown} = "true";
+$catchall_inv->save( node => $node, update => 1 );
+seed_fresh_ping( loss => 100 );
+my $pingable_down = $node->pingable( sys => $S, catchall_inventory => $catchall_inv );
+ok( !$pingable_down, "pingable() returned false for fresh loss=100 data" );
+
+my ( $downcnt, $downdoc ) = opdoc("Node Down");
+is( $downcnt, 1, "still exactly one Node Down doc while down (upsert identity)" );
+is( $downdoc->{status}, "error", "doc status is error while nodedown=true" );
+is( "$downdoc->{_id}", "$updoc->{_id}", "same doc flipped to error, not recreated" );
+ok( !$node->eventExist("Node Down"),
+	"pingable()'s new branch never created a Node Down event on its own" );
+
+# (b) nodedown flips back to false -> doc refreshes back to ok
+$catchall_data->{nodedown} = "false";
+$catchall_inv->save( node => $node, update => 1 );
+seed_fresh_ping( loss => 0 );
+$node->pingable( sys => $S, catchall_inventory => $catchall_inv );
+my ( $backcnt, $backdoc ) = opdoc("Node Down");
+is( $backcnt, 1, "still exactly one Node Down doc after clearing (upsert identity)" );
+is( $backdoc->{status}, "ok", "doc flipped back to ok when nodedown=false" );
+is( "$backdoc->{_id}", "$updoc->{_id}", "same doc used throughout" );
+
+# leave the shared test node/catchall as we found them
+$pcfg = $node->configuration;
+$pcfg->{ping} = "false";
+$node->configuration($pcfg);
+
 # --- END OF TESTS ---
 cleanup_db();
 done_testing();

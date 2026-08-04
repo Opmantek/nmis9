@@ -58,6 +58,7 @@ use NMISNG::Sapi;								# for collect_services()
 use NMISNG::MIB;
 use NMISNG::Sys;
 use NMISNG::Notify;
+use NMISNG::Status;
 use NMISNG::rrdfunc;
 
 use Compat::IP;
@@ -2089,6 +2090,54 @@ sub pingable
 						if ( !NMISNG::Util::getbool( $catchall_data->{nodedown} ) );
 				$self->handle_down( sys => $S, type => "node", details => "Ping failed", catchall_inventory => $catchall_inventory );
 			}
+		}
+		else
+		{
+			# fping owns the up/down decision this cycle (fresh cached fping
+			# data was found above); the event itself is untouched here, that
+			# stays the fping worker's exclusive job. But the operational
+			# status document still needs to refresh every cycle regardless
+			# of transitions, so that (a) it doesn't go stale while a down
+			# condition persists past fping's next check, and (b) a node
+			# that has never gone down still gets an 'ok' entry from its
+			# first collect() cycle (OMK-12605 follow-up). Direct
+			# save_operational_status call only, never notify/checkEvent -
+			# those can create/rename event records, and event ownership
+			# for Node Down must stay exclusively with the fping worker.
+			my $isdown = NMISNG::Util::getbool( $catchall_data->{nodedown} );
+			my ( $down_level, $down_details );
+			if ($isdown)
+			{
+				# source level/details from the existing event record,
+				# same as notify()'s already-exists branch sources values
+				# from $event_obj rather than recomputing/guessing them here
+				my $downevent = $self->event( event => "Node Down", element => "" );
+				$downevent->load();
+				if ( $downevent->exists )
+				{
+					$down_level   = $downevent->level;
+					$down_details = $downevent->details;
+				}
+				else
+				{
+					# race: nodedown flag flipped but fping hasn't saved the
+					# event yet; fall back to sensible defaults so the doc
+					# still reflects reality this cycle
+					$down_level   = $C->{default_event_level} // "Major";
+					$down_details = "Ping failed";
+				}
+			}
+
+			NMISNG::Status::save_operational_status(
+				nmisng       => $self->nmisng,
+				node         => $self,
+				event        => "Node Down",
+				element      => "",
+				status       => $isdown ? "error" : "ok",
+				level        => $isdown ? $down_level   : "Normal",
+				details      => $isdown ? $down_details : "Ping ok",
+				inventory_id => $catchall_inventory->id,
+			);
 		}
 
 		$RI->{pingavg}    = $ping_avg;     # results for sub runReach
