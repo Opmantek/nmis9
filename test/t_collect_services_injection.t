@@ -19,6 +19,8 @@ use Test::More;
 use File::Temp qw(tempdir);
 use POSIX qw();
 
+use NMISNG::Util;
+
 my $node_pm = "$FindBin::Bin/../lib/NMISNG/Node.pm";
 
 # ---------------------------------------------------------------------------
@@ -78,21 +80,25 @@ subtest 'script branch uses three-argument open and validates basename' => sub {
     ok(scalar(@new) > 0, 'three-argument open(<, $scriptfn) is present');
 };
 
-subtest 'script branch basename allowlist regex is present' => sub {
+subtest 'script branch delegates the basename check to the shared predicate' => sub {
     ok(-f $node_pm, 'Node.pm exists') or return;
     open(my $fh, '<', $node_pm) or die "cannot open $node_pm: $!";
     my $content = join('', <$fh>);
     close $fh;
 
-    ok($content =~ /A-Za-z0-9_.*\\z/, 'basename allowlist regex present in Node.pm');
+    # Structural, and labelled as such: it says who owns the rule, not that the
+    # rule is correct. Correctness is subtest 6, which calls the predicate.
+    ok($content =~ /NMISNG::Util::is_safe_script_basename/,
+        'Node.pm calls NMISNG::Util::is_safe_script_basename');
 };
 
 # ---------------------------------------------------------------------------
 # 4. Metacharacter sanitisation unit tests
 # ---------------------------------------------------------------------------
 subtest 'metacharacter sanitisation strips shell-dangerous chars' => sub {
-    sub sanitise_val { my $v = shift // ''; $v =~ s/[`\$|;&<>()\\\n\r'"]//g; $v }
-
+    # Calls the shipped sanitiser. Never re-implement it here: a local copy
+    # would keep passing after the real one changed, and report coverage of
+    # logic that no longer exists.
     my @cases = (
         [ 'localhost',             'localhost',        'clean hostname unchanged' ],
         [ '192.168.1.1',          '192.168.1.1',      'IP address unchanged' ],
@@ -112,7 +118,7 @@ subtest 'metacharacter sanitisation strips shell-dangerous chars' => sub {
     );
     for my $tc (@cases) {
         my ($input, $expected, $desc) = @$tc;
-        is(sanitise_val($input), $expected, $desc);
+        is(NMISNG::Util::strip_shell_metachars($input), $expected, $desc);
     }
 };
 
@@ -120,7 +126,7 @@ subtest 'metacharacter sanitisation strips shell-dangerous chars' => sub {
 # 5. Script basename allowlist unit tests
 # ---------------------------------------------------------------------------
 subtest 'script basename allowlist accepts safe names, rejects dangerous ones' => sub {
-    my $allowlist = qr{\A[A-Za-z0-9_.\-]+\z};
+    # Calls the shipped predicate rather than a copy of its regex.
 
     my @accept = (
         'check_disk',
@@ -130,7 +136,7 @@ subtest 'script basename allowlist accepts safe names, rejects dangerous ones' =
         'A1B2.pl',
     );
     for my $name (@accept) {
-        ok($name =~ $allowlist, "accepts safe name: '$name'");
+        ok(NMISNG::Util::is_safe_script_basename($name), "accepts safe name: '$name'");
     }
 
     my @reject = (
@@ -148,7 +154,7 @@ subtest 'script basename allowlist accepts safe names, rejects dangerous ones' =
     for my $name (@reject) {
         my $display = $name;
         $display =~ s/\n/\\n/g;
-        ok(!defined($name) || $name eq '' || $name !~ $allowlist,
+        ok(!NMISNG::Util::is_safe_script_basename($name),
             "rejects dangerous name: '$display'");
     }
 };
@@ -268,18 +274,49 @@ subtest 'nmap path: _exec_nmap_child passes host as single argv element' => sub 
 };
 
 # ---------------------------------------------------------------------------
-# 8. Static: source sanitisation regex strips \n and \r in both substitutions
-#    (confirms the source regex matches the sanitise_val used in subtests 4-5)
+# 8. Structural: the sanitiser and the allowlist exist in exactly one place.
+#    This is the guard against the anti-pattern this file used to contain: a
+#    hand-typed copy of security logic, which keeps passing after the original
+#    changes and so reports coverage that does not exist. It asserts where the
+#    logic lives, never that it is correct; correctness is subtests 5 and 6,
+#    which call the shipped functions.
 # ---------------------------------------------------------------------------
-subtest 'source sanitisation regex strips \\n and \\r in host and args paths' => sub {
-    ok(-f $node_pm, 'Node.pm exists') or return;
-    open(my $fh, '<', $node_pm) or die "cannot open $node_pm: $!";
-    my @lines = <$fh>;
-    close $fh;
+subtest 'shell sanitiser and basename allowlist are defined exactly once' => sub {
+    my $lib = "$FindBin::Bin/../lib";
+    my $util = "$lib/NMISNG/Util.pm";
+    ok(-f $util, 'Util.pm exists') or return;
 
-    my @sanitise = grep { /s\/\[/ && /\\n/ && /\\r/ } @lines;
-    ok(scalar(@sanitise) >= 2,
-        'at least 2 sanitisation substitutions strip \\n and \\r (host and args paths)');
+    # The literal character class, and the allowlist, may appear only in Util.pm.
+    my @offenders;
+    my @files;
+    my @dirs = ($lib, "$FindBin::Bin");
+    while (my $d = shift @dirs) {
+        opendir(my $dh, $d) or next;
+        for my $e (grep { !/^\.\.?$/ } readdir $dh) {
+            my $path = "$d/$e";
+            if (-d $path) { push @dirs, $path }
+            elsif ($path =~ /\.(pm|pl|t)$/) { push @files, $path }
+        }
+        closedir $dh;
+    }
+    for my $f (@files) {
+        next if ($f eq $util);
+        open(my $fh, '<', $f) or next;
+        my $c = join('', <$fh>);
+        close $fh;
+        push @offenders, "$f (metachar class)"
+            if ($c =~ /\Q[`\E\\?\$\|;&<>\(\)/);
+        push @offenders, "$f (basename allowlist)"
+            if ($c =~ /\QA-Za-z0-9_.\E\\?-\]\+\\z/);
+    }
+    is(scalar(@offenders), 0, 'no second copy of the sanitiser or the allowlist')
+        or diag("copies found in:\n  " . join("\n  ", @offenders));
+
+    open(my $uh, '<', $util) or die "cannot open $util: $!";
+    my $uc = join('', <$uh>);
+    close $uh;
+    ok($uc =~ /sub strip_shell_metachars/,   'Util.pm defines strip_shell_metachars');
+    ok($uc =~ /sub is_safe_script_basename/, 'Util.pm defines is_safe_script_basename');
 };
 
 # ---------------------------------------------------------------------------
