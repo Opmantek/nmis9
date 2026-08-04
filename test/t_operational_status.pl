@@ -732,6 +732,109 @@ $node->handle_down(
 	catchall_inventory => $catchall_inv,
 );
 
+# ---------------------------------------------------------------------------
+# Follow-up Task 3 (2026-08-04 fping/dashboard follow-up): prove that
+# pingable()'s Node Down / Backup Host Down writes (Follow-up Tasks 1-2
+# above) actually reach the per-node dashboard JSON file. This is the same
+# dashnode_context push mechanism Task 7 above already proved for a
+# notify()-raised event (Status::save()'s call to update_dashnode_data,
+# gated on enable_dashnode_file); no new wiring exists for this task,
+# because pingable() runs inside collect()'s own process and calls the same
+# NMISNG::Status::save_operational_status() -> Status->save() path. This is
+# end-to-end proof that Tasks 1-2's direct writes flow through it too, the
+# same way Interface Down/SNMP Down already do.
+# ---------------------------------------------------------------------------
+$C->{enable_dashnode_file} = 'true';
+my $dashfile = $C->{'<nmis_var>'} . "/" . $node->name . "-node.json";
+
+# --- Node Down: down case -> error entry, in-memory and on disk ---
+$nmisng->{dashnode_context} = { op => 'collect', data => { status => {} } };
+delete $catchall_data->{nodedownlevel};
+delete $catchall_data->{nodedowndetails};
+$catchall_data->{nodedown} = "true";
+$catchall_inv->save( node => $node, update => 1 );
+seed_fresh_ping( loss => 100 );
+$node->pingable( sys => $S, catchall_inventory => $catchall_inv );
+
+my $dnstatus2 = $nmisng->{dashnode_context}{data}{status};
+ok( exists $dnstatus2->{"Node Down--"},
+	"Follow-up Task 3: dashnode context gained Node Down--element key" );
+is( $dnstatus2->{"Node Down--"}{method}, "Operational",
+	"Follow-up Task 3: dashnode Node Down entry method is Operational" );
+is( $dnstatus2->{"Node Down--"}{status}, "error",
+	"Follow-up Task 3: dashnode Node Down entry status is error" );
+
+ok( $node->save_dashnode_data(), "Follow-up Task 3: save_dashnode_data succeeded (Node Down, down)" );
+ok( -r $dashfile, "Follow-up Task 3: dashnode file written" );
+my $dashdata2 = NMISNG::Util::readFiletoHash( file => $dashfile, json => 1 );
+ok( exists $dashdata2->{status}{"Node Down--"},
+	"Follow-up Task 3: dashnode file contains the Node Down entry" );
+is( $dashdata2->{status}{"Node Down--"}{status}, "error",
+	"Follow-up Task 3: file entry carries status error (Node Down, down)" );
+ok( !defined $nmisng->{dashnode_context},
+	"Follow-up Task 3: dashnode_context cleared after save" );
+
+# --- Node Down: healthy case -> ok entry, in-memory and on disk ---
+$nmisng->{dashnode_context} = { op => 'collect', data => { status => {} } };
+$catchall_data->{nodedown} = "false";
+$catchall_inv->save( node => $node, update => 1 );
+seed_fresh_ping( loss => 0 );
+$node->pingable( sys => $S, catchall_inventory => $catchall_inv );
+
+my $dnstatus3 = $nmisng->{dashnode_context}{data}{status};
+ok( exists $dnstatus3->{"Node Down--"},
+	"Follow-up Task 3: dashnode context has Node Down--element key (healthy)" );
+is( $dnstatus3->{"Node Down--"}{status}, "ok",
+	"Follow-up Task 3: dashnode Node Down entry status is ok when nodedown=false" );
+
+ok( $node->save_dashnode_data(), "Follow-up Task 3: save_dashnode_data succeeded (Node Down, healthy)" );
+my $dashdata3 = NMISNG::Util::readFiletoHash( file => $dashfile, json => 1 );
+is( $dashdata3->{status}{"Node Down--"}{status}, "ok",
+	"Follow-up Task 3: file entry carries status ok (Node Down, healthy)" );
+
+# --- Backup Host Down: down case -> error entry, in-memory and on disk ---
+# (host_backup is still configured on the test node at this point in the file)
+$nmisng->{dashnode_context} = { op => 'collect', data => { status => {} } };
+delete $catchall_data->{backupdownlevel};
+delete $catchall_data->{backupdowndetails};
+$catchall_data->{backupdown} = "true";
+$catchall_inv->save( node => $node, update => 1 );
+seed_fresh_ping( loss => 0 );
+$node->pingable( sys => $S, catchall_inventory => $catchall_inv );
+
+my $dnstatus4 = $nmisng->{dashnode_context}{data}{status};
+ok( exists $dnstatus4->{"Backup Host Down--"},
+	"Follow-up Task 3: dashnode context gained Backup Host Down--element key" );
+is( $dnstatus4->{"Backup Host Down--"}{method}, "Operational",
+	"Follow-up Task 3: dashnode Backup Host Down entry method is Operational" );
+is( $dnstatus4->{"Backup Host Down--"}{status}, "error",
+	"Follow-up Task 3: dashnode Backup Host Down entry status is error" );
+
+ok( $node->save_dashnode_data(), "Follow-up Task 3: save_dashnode_data succeeded (Backup Host Down, down)" );
+my $dashdata4 = NMISNG::Util::readFiletoHash( file => $dashfile, json => 1 );
+ok( exists $dashdata4->{status}{"Backup Host Down--"},
+	"Follow-up Task 3: dashnode file contains the Backup Host Down entry" );
+is( $dashdata4->{status}{"Backup Host Down--"}{status}, "error",
+	"Follow-up Task 3: file entry carries status error (Backup Host Down, down)" );
+
+# --- Backup Host Down: healthy case -> ok entry, in-memory and on disk ---
+$nmisng->{dashnode_context} = { op => 'collect', data => { status => {} } };
+$catchall_data->{backupdown} = "false";
+$catchall_inv->save( node => $node, update => 1 );
+seed_fresh_ping( loss => 0 );
+$node->pingable( sys => $S, catchall_inventory => $catchall_inv );
+
+my $dnstatus5 = $nmisng->{dashnode_context}{data}{status};
+is( $dnstatus5->{"Backup Host Down--"}{status}, "ok",
+	"Follow-up Task 3: dashnode Backup Host Down entry status is ok when backupdown=false" );
+
+ok( $node->save_dashnode_data(), "Follow-up Task 3: save_dashnode_data succeeded (Backup Host Down, healthy)" );
+my $dashdata5 = NMISNG::Util::readFiletoHash( file => $dashfile, json => 1 );
+is( $dashdata5->{status}{"Backup Host Down--"}{status}, "ok",
+	"Follow-up Task 3: file entry carries status ok (Backup Host Down, healthy)" );
+
+$C->{enable_dashnode_file} = 'false';
+
 # leave the shared test node/catchall as we found them
 $pcfg = $node->configuration;
 $pcfg->{ping} = "false";
