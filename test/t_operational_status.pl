@@ -376,6 +376,44 @@ for my $ev ( "Interface Down", "Service Down", "Service Degraded" )
 is( $shipped_events{"Planned Outage Open"}{TrackStatus}, "false",
 	"Planned Outage Open ships with TrackStatus=false (no doc)" );
 
+# ---------------------------------------------------------------------------
+# Task 7: dashnode file integration and context-clear bugfix
+# ---------------------------------------------------------------------------
+$C->{enable_dashnode_file} = 'true';
+$nmisng->{dashnode_context} = { op => 'collect', data => { status => {} } };
+
+Compat::NMIS::notify(
+	sys     => $S,
+	event   => "OMK12605 Dash Event",
+	element => '',
+	level   => "Major",
+	details => "dash raise",
+);
+
+my $dnstatus = $nmisng->{dashnode_context}{data}{status};
+ok( exists $dnstatus->{"OMK12605 Dash Event--"},
+	"dashnode context gained event--element key" );
+is( $dnstatus->{"OMK12605 Dash Event--"}{method}, "Operational",
+	"dashnode entry method is Operational" );
+is( $dnstatus->{"OMK12605 Dash Event--"}{status}, "error",
+	"dashnode entry status is error" );
+ok( defined $dnstatus->{"OMK12605 Dash Event--"}{updated},
+	"dashnode entry has updated field (threshold-entry shape)" );
+
+ok( $node->save_dashnode_data(), "save_dashnode_data succeeded" );
+my $dashfile = $C->{'<nmis_var>'} . "/" . $node->name . "-node.json";
+ok( -r $dashfile, "dashnode file written" );
+my $dashdata = NMISNG::Util::readFiletoHash( file => $dashfile, json => 1 );
+ok( exists $dashdata->{status}{"OMK12605 Dash Event--"},
+	"dashnode file contains the operational entry" );
+is( $dashdata->{status}{"OMK12605 Dash Event--"}{status}, "error",
+	"file entry carries status error" );
+
+# the bugfix: context must actually be cleared after save
+ok( !defined $nmisng->{dashnode_context},
+	"dashnode_context cleared after save (bugfix)" );
+$C->{enable_dashnode_file} = 'false';
+
 # --- END OF TESTS ---
 cleanup_db();
 done_testing();

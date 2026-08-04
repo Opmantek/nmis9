@@ -7219,7 +7219,7 @@ sub save_dashnode_data {
 			return 0;
 		}
 		# clear context after save so it doesn't get reused incorrectly
-		delete $self->nmisng->config->{dashnode_context};		
+		delete $self->nmisng->{dashnode_context};
 	}
 	return 1;
 }
