@@ -2104,7 +2104,14 @@ sub pingable
 			# save_operational_status call only, never notify/checkEvent -
 			# those can create/rename event records, and event ownership
 			# for Node Down must stay exclusively with the fping worker.
-			my $isdown = NMISNG::Util::getbool( $catchall_data->{nodedown} );
+			# OMK-12605 blind-review fix: $pingresult (computed above from the
+			# same cached fping data) is recomputed fresh every call and can
+			# never drift out of sync the way a catchall flag can if
+			# something closes the event out-of-band without going through
+			# handle_down. Use it for the up/down decision; the catchall
+			# flag and its piggybacked level/details remain useful only for
+			# display text when genuinely down.
+			my $isdown = !$pingresult;
 			my ( $down_level, $down_details );
 			if ($isdown)
 			{
@@ -2135,17 +2142,20 @@ sub pingable
 			# refresh discipline as Node Down above, but only applicable to
 			# multihomed nodes (host_backup configured) - a node without a
 			# configured backup host gets NO status document for this event
-			# at all, not ok and not error. Trusts the backupdown flag
+			# at all, not ok and not error. Reads the backupdown flag
 			# handle_down() piggybacks onto its catchall save (same mechanism
-			# as nodedown above) as the single source of truth for backup
-			# up/down state; this branch never re-derives it from raw
-			# fping loss data itself, since bin/nmisd's own multihomed state
-			# machine has edge cases (e.g. both primary and backup dead
-			# defaults to "node" down, not "backup" down) that independent
-			# re-derivation here could subtly disagree with.
+			# as nodedown above) for the "primary up, backup down" case, and
+			# ORs in $pingresult to cover the one state that flag can never
+			# describe (see below).
 			if (defined($self->configuration->{host_backup}) && $self->configuration->{host_backup})
 			{
-				my $backupisdown = NMISNG::Util::getbool( $catchall_data->{backupdown} );
+				# OMK-12605 blind-review fix: when both primary and backup are
+				# unreachable, bin/nmisd maps that state to plain Node Down and
+				# never sets backupdown at all, so trusting the flag alone
+				# reports a false "ok" for Backup Host Down during a total
+				# outage. $pingresult is 0 in exactly that case (neither
+				# address answered), so OR it in.
+				my $backupisdown = NMISNG::Util::getbool( $catchall_data->{backupdown} ) || !$pingresult;
 				my ( $backup_down_level, $backup_down_details );
 				if ($backupisdown)
 				{
@@ -2256,6 +2266,15 @@ sub handle_down
 		{
 			$quicklynow->{"${typeofdown}downlevel"}   = $event_obj->level;
 			$quicklynow->{"${typeofdown}downdetails"} = $event_obj->details;
+		}
+		# OMK-12605 blind-review fix: clear them again on the way up, so a
+		# later outage whose notify() doesn't return a usable $event_obj
+		# falls through to the reader's own generic fallback rather than
+		# silently reusing this outage's stale level/details text.
+		elsif ($goingup)
+		{
+			delete $quicklynow->{"${typeofdown}downlevel"};
+			delete $quicklynow->{"${typeofdown}downdetails"};
 		}
 
 		# ensuring that nodestatus stays up to date with XXXXdown status

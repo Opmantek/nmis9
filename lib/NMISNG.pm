@@ -581,6 +581,25 @@ sub config_backup
 	return {success => 1, file => "$backupfilename.gz"};
 }
 
+# OMK-12605: true if $event appears as one of the comma-separated entries in
+# $list (used for the config-driven event exclusion lists in Config.nmis).
+# Plain string equality against each trimmed entry, deliberately not a regex,
+# so event names containing metacharacters need no escaping.
+# args: list (comma-separated string, may be undef), event (string)
+# returns: 1 if listed, 0 otherwise
+sub _in_event_list
+{
+	my ($list, $event) = @_;
+	return 0 if ( !defined($list) or !length($list) or !defined($event) );
+	for my $entry ( split( /,/, $list ) )
+	{
+		$entry =~ s/^\s+//;
+		$entry =~ s/\s+$//;
+		return 1 if ( $entry eq $event );
+	}
+	return 0;
+}
+
 # fixme9: where should this function go? this isn't a great spot...should become node method
 #
 # figures out which threshold alerts need to be run for one node, based on model
@@ -748,10 +767,15 @@ sub compute_thresholds
 
 		# operational docs are maintained by the event write path (OMK-12605):
 		# not swept here (slow-polled nodes would flap), and Status=false
-		# means skip from the calculation, never stamp "ignored"
+		# means skip from the calculation, never stamp "ignored".
+		# status_summary_exclude_events (Config.nmis) is a second, site-wide
+		# source of the same "don't count this one" decision, checked in
+		# addition to the per-event flag because Config.nmis is auto-merged on
+		# upgrade and Events.nmis is not.
 		if ( ( $status_obj->method // '' ) eq "Operational" )
 		{
-			next if ( not NMISNG::Util::getbool( $thisevent_control->{Status} ) );
+			next if ( not NMISNG::Util::getbool( $thisevent_control->{Status} )
+				or _in_event_list( $self->config->{status_summary_exclude_events}, $eventKey ) );
 			++$count;
 			++$countOk if ( $status_obj->status eq "ok" );
 			next;

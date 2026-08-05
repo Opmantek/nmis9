@@ -155,6 +155,15 @@ my %hash = (
 	# To have additional fields in the node summary data.
 	'node_summary_field_list' => 'host,uuid,customer,businessService,serviceStatus,snmpdown,wmidown',
 	'non_stateful_events' => 'Node Configuration Change, Node Configuration Change Detected, Node Reset, NMIS runtime exceeded',
+	# OMK-12605: site-wide safe defaults for operational status documents, kept
+	# here rather than only in Events.nmis because upgrades auto-merge missing
+	# Config.nmis keys (admin/updateconfig.pl) but only ever diff Events.nmis
+	# for manual review, so per-event flags never reach an existing install.
+	# Both lists are consulted in addition to the per-event Events.nmis flags.
+	# status_summary_exclude_events: docs exist but never count toward the node
+	# health percentage. operational_status_untracked_events: no doc at all.
+	'status_summary_exclude_events' => 'Interface Down,Service Down,Service Degraded,Service Configuration Error,Model File Invalid',
+	'operational_status_untracked_events' => 'Planned Outage Open',
 	'opstatus_save_logs' => 1,
 	'os_cmd_file_decompress' => 'gzip -d -c',
 	'os_cmd_read_file_reverse' => 'tac',

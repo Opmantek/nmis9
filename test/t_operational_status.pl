@@ -435,10 +435,30 @@ my $catchall_data = $catchall_inv->data_live();
 # fresh fping-cached data and takes the $mustping == false path - mirrors
 # the shape pingable() itself writes when it owns the pinging (Node.pm
 # ~2021-2052: concept "ping", model_class "nomodel", subconcept "ping").
+#
+# optional backup_loss: when given, the record also carries the backup_*
+# fields the fping worker writes for a multihomed node (bin/nmisd ~2944-2954:
+# backup_min_rtt/backup_avg_rtt/backup_max_rtt/backup_loss/backup_ip). This
+# matters because pingable() only consults them when the PRIMARY reports
+# loss=100 (Node.pm ~1968-1978), and an unreachable address has undef rtts.
+# Without them a loss=100 seed on a host_backup-configured node describes
+# "primary dead, backup fine", not a total outage.
 sub seed_fresh_ping
 {
 	my (%args) = @_;
-	my $loss = $args{loss} // 0;
+	my $loss        = $args{loss} // 0;
+	my $backup_loss = $args{backup_loss};
+	my $data = { min_rtt => 1, avg_rtt => 2, max_rtt => 3, loss => $loss,
+		ip => $node->configuration->{host} };
+	if ( defined $backup_loss )
+	{
+		my $backup_up = ( $backup_loss < 100 );
+		$data->{backup_min_rtt} = $backup_up ? 4 : undef;
+		$data->{backup_avg_rtt} = $backup_up ? 5 : undef;
+		$data->{backup_max_rtt} = $backup_up ? 6 : undef;
+		$data->{backup_loss}    = $backup_loss;
+		$data->{backup_ip}      = $node->configuration->{host_backup};
+	}
 	my ( $pinginv, $pinginv_err ) = $node->inventory(
 		concept => "ping", create => 1, model_class => "nomodel", protocol => 'ping',
 		data => {}, path_keys => [] );
@@ -446,7 +466,7 @@ sub seed_fresh_ping
 	$pinginv->save( node => $node ) if ( $pinginv->is_new );
 	my $timed_err = $pinginv->add_timed_data(
 		time         => time,
-		data         => { min_rtt => 1, avg_rtt => 2, max_rtt => 3, loss => $loss, ip => $node->configuration->{host} },
+		data         => $data,
 		derived_data => {},
 		subconcept   => "ping",
 		node         => $node,
@@ -761,7 +781,14 @@ delete $catchall_data->{nodedownlevel};
 delete $catchall_data->{nodedowndetails};
 $catchall_data->{nodedown} = "true";
 $catchall_inv->save( node => $node, update => 1 );
-seed_fresh_ping( loss => 100 );
+# host_backup is still configured on the test node here, so a total outage
+# needs BOTH addresses unreachable - that is the only state in which "Node
+# Down" is genuinely true for a multihomed node (bin/nmisd maps exactly this
+# state to the node event; primary-dead-backup-alive is Backup/failover, not
+# Node Down). Before the blind-review fix that made $pingresult the up/down
+# signal, this seed's ping data was simply never consulted and only the
+# catchall flag decided, so backup_loss was irrelevant here.
+seed_fresh_ping( loss => 100, backup_loss => 100 );
 $node->pingable( sys => $S, catchall_inventory => $catchall_inv );
 
 my $dnstatus2 = $nmisng->{dashnode_context}{data}{status};
@@ -842,6 +869,307 @@ is( $dashdata5->{status}{"Backup Host Down--"}{status}, "ok",
 	"Follow-up Task 3: file entry carries status ok (Backup Host Down, healthy)" );
 
 $C->{enable_dashnode_file} = 'false';
+
+# ---------------------------------------------------------------------------
+# Blind-review fix wave (2026-08-05): seven fixes found by two independent
+# full-branch reviews. Each block below is named for the fix it pins.
+# ---------------------------------------------------------------------------
+
+# --- Fix 7: handle_down clears its piggybacked level/details on the way up ---
+# The down path sets <type>downlevel/<type>downdetails on the catchall so
+# pingable() can read them without a DB hit. Before this fix the up path left
+# them behind, so a later outage whose notify() returned no usable event
+# object would silently reuse the PREVIOUS outage's text instead of falling
+# through to pingable()'s own generic fallback.
+delete $catchall_data->{nodedownlevel};
+delete $catchall_data->{nodedowndetails};
+$node->handle_down(
+	sys                => $S,
+	type               => "node",
+	up                 => 0,
+	details            => "fix7 down: piggyback keys must appear",
+	catchall_inventory => $catchall_inv,
+);
+ok( defined $catchall_data->{nodedownlevel} && length( $catchall_data->{nodedownlevel} ),
+	"Fix 7: handle_down(down) set nodedownlevel on the catchall" );
+ok( defined $catchall_data->{nodedowndetails} && length( $catchall_data->{nodedowndetails} ),
+	"Fix 7: handle_down(down) set nodedowndetails on the catchall" );
+
+$node->handle_down(
+	sys                => $S,
+	type               => "node",
+	up                 => 1,
+	details            => "fix7 up: piggyback keys must be cleared",
+	catchall_inventory => $catchall_inv,
+);
+ok( !defined $catchall_data->{nodedownlevel},
+	"Fix 7: handle_down(up) cleared nodedownlevel, no stale text left behind" );
+ok( !defined $catchall_data->{nodedowndetails},
+	"Fix 7: handle_down(up) cleared nodedowndetails, no stale text left behind" );
+ok( !NMISNG::Util::getbool( $catchall_data->{nodedown} ),
+	"Fix 7: handle_down(up) still clears the nodedown flag itself" );
+
+# --- Fix 2a: a stale nodedown flag must not force a false "error" ---
+# If a Node Down event is closed out of band (GUI ack, API delete, escalation)
+# while nodedown stays 'true', nothing ever resets the flag. Reading the flag
+# alone left the node reporting error forever, and actively fought the
+# Event->delete close hook. $pingresult is recomputed from the cached fping
+# data on every call and cannot drift like that.
+$pcfg = $node->configuration;
+delete $pcfg->{host_backup};    # single-homed for this scenario
+$node->configuration($pcfg);
+ok( !$node->eventExist("Node Down"),
+	"Fix 2a: no active Node Down event, so the flag below is genuinely stale" );
+
+$catchall_data->{nodedown} = "true";    # set directly, bypassing handle_down
+delete $catchall_data->{nodedownlevel};
+delete $catchall_data->{nodedowndetails};
+$catchall_inv->save( node => $node, update => 1 );
+seed_fresh_ping( loss => 0 );           # ...but the node is actually answering
+my $stale_pingable = $node->pingable( sys => $S, catchall_inventory => $catchall_inv );
+ok( $stale_pingable, "Fix 2a: pingable() reports the node reachable (loss=0)" );
+
+my ( $stalecnt, $staledoc ) = opdoc("Node Down");
+is( $stalecnt, 1, "Fix 2a: exactly one Node Down doc (upsert identity)" );
+is( $staledoc->{status}, "ok",
+	"Fix 2a: stale nodedown=true does NOT produce a false error doc for a reachable node" );
+is( $staledoc->{level}, "Normal", "Fix 2a: the ok doc's level is Normal" );
+ok( NMISNG::Util::getbool( $catchall_data->{nodedown} ),
+	"Fix 2a: the stale flag is still set - the fix is in how it is read, not a write that resets it" );
+
+# --- Fix 2b: total outage must not report Backup Host Down as "ok" ---
+# When both primary and backup are unreachable, bin/nmisd maps that state to
+# plain "node" down (bin/nmisd ~3041-3046) and never sets backupdown at all,
+# so trusting the flag alone reported a false "ok" for Backup Host Down during
+# exactly the outage it exists to describe.
+$pcfg = $node->configuration;
+$pcfg->{host_backup} = "10.10.99.99";
+$node->configuration($pcfg);
+delete $catchall_data->{backupdown};            # never set by nmisd for this state
+delete $catchall_data->{backupdownlevel};
+delete $catchall_data->{backupdowndetails};
+$catchall_data->{nodedown} = "true";            # what nmisd DOES set instead
+$catchall_inv->save( node => $node, update => 1 );
+seed_fresh_ping( loss => 100, backup_loss => 100 );    # both addresses dead
+my $total_outage_pingable = $node->pingable( sys => $S, catchall_inventory => $catchall_inv );
+ok( !$total_outage_pingable,
+	"Fix 2b: pingable() false when neither primary nor backup answers" );
+ok( !defined $catchall_data->{backupdown},
+	"Fix 2b: backupdown was never set, exactly as bin/nmisd leaves it in a total outage" );
+
+my ( $tbcnt, $tbdoc ) = opdoc("Backup Host Down");
+is( $tbcnt, 1, "Fix 2b: exactly one Backup Host Down doc (upsert identity)" );
+isnt( $tbdoc->{status}, "ok",
+	"Fix 2b: Backup Host Down is NOT falsely ok while the backup address is unreachable" );
+is( $tbdoc->{status}, "error",
+	"Fix 2b: Backup Host Down reports error during a total outage, with no backupdown flag" );
+
+my ( undef, $tndoc ) = opdoc("Node Down");
+is( $tndoc->{status}, "error",
+	"Fix 2b: Node Down also reports error in the same call (both addresses dead)" );
+
+# --- Fix 1a: Config.nmis status_summary_exclude_events ---
+# Events.nmis is never auto-merged on upgrade, so its per-event Status flags
+# cannot reach an existing install. This site-wide list is consulted in
+# ADDITION to the per-event flag, and must behave identically: skip from the
+# health calculation, never stamp "ignored".
+my $saved_exclude = $C->{status_summary_exclude_events};
+delete $C->{status_summary_exclude_events};
+
+# compute_thresholds returns early for a down node (NMISNG.pm, "skip if node
+# down"), and the Fix 2b block above deliberately left nodedown=true. Clear it
+# first, or both runs below are silent no-ops reading a stale summary.
+$catchall_data->{nodedown} = "false";
+$catchall_inv->save( node => $node, update => 1 );
+ok( !NMISNG::Util::getbool( $catchall_data->{nodedown} ),
+	"Fix 1a: node marked up so compute_thresholds actually runs" );
+
+# a synthetic Operational error doc with no Events.nmis entry of its own, so
+# its per-event Status flag defaults to true and it counts normally
+NMISNG::DB::insert(
+	collection => $nmisng->status_collection(),
+	record => { %$common, method => "Operational", event => "OMK12605 CfgExcluded",
+		lastupdate => time },
+);
+$nmisng->compute_thresholds( sys => $S, running_independently => 0 );
+my $summary_counted = $S->inventory( concept => 'catchall' )->data->{status_summary};
+
+$C->{status_summary_exclude_events} = " OMK12605 CfgExcluded , OMK12605 Unused ";
+$nmisng->compute_thresholds( sys => $S, running_independently => 0 );
+my $summary_excluded = $S->inventory( concept => 'catchall' )->data->{status_summary};
+
+cmp_ok( $summary_counted, '<', 100,
+	"Fix 1a: with the event unlisted, its error doc drags status_summary below 100" );
+cmp_ok( $summary_excluded, '>', $summary_counted,
+	"Fix 1a: listing the event raised status_summary, so its error doc stopped counting" );
+my $md_excl = $nmisng->get_status_model(
+	filter => { event => "OMK12605 CfgExcluded", node_uuid => $node->uuid } );
+is( $md_excl->count, 1, "Fix 1a: the excluded doc is still present, not deleted" );
+is( $md_excl->data->[0]{status}, "error",
+	"Fix 1a: excluded doc keeps its honest error, no 'ignored' stamp (same as Status=false)" );
+
+if   ( defined $saved_exclude ) { $C->{status_summary_exclude_events} = $saved_exclude }
+else                            { delete $C->{status_summary_exclude_events} }
+
+# --- Fix 1b: Config.nmis operational_status_untracked_events ---
+my $saved_untracked = $C->{operational_status_untracked_events};
+$C->{operational_status_untracked_events} = " OMK12605 CfgUntracked , OMK12605 CfgUntracked2 ";
+
+NMISNG::Status::save_operational_status(
+	nmisng => $nmisng, node => $node, event => "OMK12605 CfgUntracked",
+	status => "error", level => "Major", details => "must not be written",
+);
+( $cnt ) = opdoc("OMK12605 CfgUntracked");
+is( $cnt, 0, "Fix 1b: config untracked-events list gated the write, same as TrackStatus=false" );
+
+NMISNG::Status::save_operational_status(
+	nmisng => $nmisng, node => $node, event => "OMK12605 CfgUntracked2",
+	status => "error", level => "Major", details => "must not be written either",
+);
+( $cnt ) = opdoc("OMK12605 CfgUntracked2");
+is( $cnt, 0, "Fix 1b: surrounding whitespace on list entries is trimmed before matching" );
+
+# an event NOT on the list is unaffected
+NMISNG::Status::save_operational_status(
+	nmisng => $nmisng, node => $node, event => "OMK12605 CfgTracked",
+	status => "error", level => "Major", details => "written normally",
+);
+( $cnt ) = opdoc("OMK12605 CfgTracked");
+is( $cnt, 1, "Fix 1b: an event absent from the list writes normally" );
+
+# ...and the same event writes once taken off the list, proving the list gated it
+delete $C->{operational_status_untracked_events};
+NMISNG::Status::save_operational_status(
+	nmisng => $nmisng, node => $node, event => "OMK12605 CfgUntracked",
+	status => "error", level => "Major", details => "written once off the list",
+);
+( $cnt ) = opdoc("OMK12605 CfgUntracked");
+is( $cnt, 1, "Fix 1b: the very same event writes once removed from the list" );
+
+if   ( defined $saved_untracked ) { $C->{operational_status_untracked_events} = $saved_untracked }
+else                              { delete $C->{operational_status_untracked_events} }
+
+# --- Fix 3: the event name is escaped before it reaches a regex ---
+# save_operational_status interpolates the event name into the
+# non_stateful_events match. This helper now runs on every checkEvent too,
+# including a path where the name comes from custom alert data in the
+# database, so an unbalanced metacharacter used to die and abort the poll.
+my $meta_name = "OMK12605 Unbalanced ( Paren";
+eval {
+	NMISNG::Status::save_operational_status(
+		nmisng => $nmisng, node => $node, event => $meta_name,
+		status => "error", level => "Major", details => "metachar raise",
+	);
+	1;
+};
+ok( !$@, "Fix 3: an event name with an unbalanced regex metacharacter did not die" )
+	or diag($@);
+my ( $mcnt, $mdoc ) = opdoc($meta_name);
+is( $mcnt, 1, "Fix 3: ...and its doc was written like any other event" );
+is( $mdoc->{status}, "error", "Fix 3: metacharacter-named doc carries the right status" );
+
+# and the stateless check still matches such a name LITERALLY, not as a pattern
+my $saved_nonstateful = $C->{non_stateful_events};
+$C->{non_stateful_events} = "$saved_nonstateful, OMK12605 (Meta) Event";
+NMISNG::Status::save_operational_status(
+	nmisng => $nmisng, node => $node, event => "OMK12605 (Meta) Event",
+	status => "error", level => "Major", details => "should be gated stateless",
+);
+( $cnt ) = opdoc("OMK12605 (Meta) Event");
+is( $cnt, 0,
+	"Fix 3: a metacharacter-named event listed in non_stateful_events is gated stateless (literal match)" );
+
+$C->{non_stateful_events} = $saved_nonstateful;
+NMISNG::Status::save_operational_status(
+	nmisng => $nmisng, node => $node, event => "OMK12605 (Meta) Event",
+	status => "error", level => "Major", details => "not stateless any more",
+);
+( $cnt ) = opdoc("OMK12605 (Meta) Event");
+is( $cnt, 1, "Fix 3: ...and it writes normally once off the stateless list" );
+
+# --- Fix 4: the eval wrap turns an unexpected die into a returned error ---
+# Reachable from a real caller now that checkEvent forwards $args{inventory_id}:
+# NMISNG::DB::make_oid dies on anything that is not 12 packed bytes or 24 hex.
+my $bad_err = eval {
+	NMISNG::Status::save_operational_status(
+		nmisng  => $nmisng, node => $node, event => "OMK12605 BadOid",
+		status  => "error", level => "Major", details => "malformed inventory_id",
+		inventory_id => "definitely-not-an-oid",
+	);
+};
+ok( !$@, "Fix 4: a malformed inventory_id did not propagate a die to the caller" )
+	or diag($@);
+ok( defined $bad_err && $bad_err =~ /^save_operational_status died for OMK12605 BadOid/,
+	"Fix 4: ...it came back as an error string instead" )
+	or diag( defined $bad_err ? $bad_err : "(undef)" );
+( $cnt ) = opdoc("OMK12605 BadOid");
+is( $cnt, 0, "Fix 4: nothing was written when the save died" );
+
+# success path is untouched by the wrap: same call without the bad id
+my $good_err = NMISNG::Status::save_operational_status(
+	nmisng => $nmisng, node => $node, event => "OMK12605 BadOid",
+	status => "error", level => "Major", details => "valid this time",
+);
+ok( !$good_err, "Fix 4: the eval wrap is transparent on the success path" ) or diag($good_err);
+( $cnt, $doc ) = opdoc("OMK12605 BadOid");
+is( $cnt, 1, "Fix 4: ...and the doc is written normally" );
+is( $doc->{details}, "valid this time", "Fix 4: ...with the expected content" );
+
+# --- Fix 5: checkEvent forwards inventory_id to the helper ---
+# notify's call always passed it; checkEvent's did not, so the field vanished
+# from the doc on every flip to ok and reappeared on the flip back to error.
+Compat::NMIS::checkEvent(
+	sys          => $S,
+	event        => "OMK12605 InvId Event",
+	element      => '',
+	details      => "healthy, with an inventory id",
+	inventory_id => $catchall_inv->id,
+);
+my ( $icnt, $idoc ) = opdoc("OMK12605 InvId Event");
+is( $icnt, 1, "Fix 5: checkEvent created the ok doc" );
+is( $idoc->{status}, "ok", "Fix 5: ...with status ok" );
+ok( defined $idoc->{inventory_id},
+	"Fix 5: checkEvent's ok doc carries inventory_id (silently dropped before this fix)" );
+is( "$idoc->{inventory_id}", "" . $catchall_inv->id,
+	"Fix 5: ...and it matches the inventory_id the caller passed" );
+
+# --- Fix 6: close_operational_status is a no-op on an already-ok doc ---
+# On the ordinary clear path checkEvent writes an honest, specific details
+# string, and escalation deletes the now-inactive event some time later. The
+# Event->delete hook used to fire anyway and overwrite that with the generic
+# "event closed".
+NMISNG::Status::save_operational_status(
+	nmisng => $nmisng, node => $node, event => "OMK12605 OrdinaryClear",
+	status => "error", level => "Major", details => "link flapped",
+);
+NMISNG::Status::save_operational_status(
+	nmisng => $nmisng, node => $node, event => "OMK12605 OrdinaryClear",
+	status => "ok", level => "Normal", details => "ping ok after 3 retries",
+);
+NMISNG::Status::close_operational_status(
+	nmisng => $nmisng, cluster_id => $node->cluster_id, node_uuid => $node->uuid,
+	event  => "OMK12605 OrdinaryClear", element => '',
+);
+my ( $occnt, $ocdoc ) = opdoc("OMK12605 OrdinaryClear");
+is( $occnt, 1, "Fix 6: still exactly one doc after the close hook ran" );
+is( $ocdoc->{status}, "ok", "Fix 6: an already-ok doc stays ok" );
+is( $ocdoc->{details}, "ping ok after 3 retries",
+	"Fix 6: the close hook left the specific details string alone (no-op on an already-ok doc)" );
+
+# contrast: a doc that IS still error is genuinely flipped and stamped
+NMISNG::Status::save_operational_status(
+	nmisng => $nmisng, node => $node, event => "OMK12605 OutOfBandClear",
+	status => "error", level => "Major", details => "still down when closed",
+);
+NMISNG::Status::close_operational_status(
+	nmisng => $nmisng, cluster_id => $node->cluster_id, node_uuid => $node->uuid,
+	event  => "OMK12605 OutOfBandClear", element => '',
+);
+my ( $obcnt, $obdoc ) = opdoc("OMK12605 OutOfBandClear");
+is( $obcnt, 1, "Fix 6 contrast: still exactly one doc" );
+is( $obdoc->{status}, "ok", "Fix 6 contrast: a still-error doc IS flipped to ok" );
+is( $obdoc->{details}, "event closed",
+	"Fix 6 contrast: ...and stamped with the generic close details" );
 
 # leave the shared test node/catchall as we found them
 $pcfg = $node->configuration;

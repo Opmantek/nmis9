@@ -2199,14 +2199,15 @@ sub checkEvent
 	# maintain the operational status doc: the condition was assessed healthy
 	# this cycle (OMK-12605); gates inside the helper
 	NMISNG::Status::save_operational_status(
-		nmisng  => $S->nmisng,
-		node    => $S->nmisng_node,
-		event   => $args{event},
-		element => $args{element},
-		status  => "ok",
-		level   => "Normal",
-		details => $args{details},
-		context => $args{context},
+		nmisng       => $S->nmisng,
+		node         => $S->nmisng_node,
+		event        => $args{event},
+		element      => $args{element},
+		status       => "ok",
+		level        => "Normal",
+		details      => $args{details},
+		context      => $args{context},
+		inventory_id => $args{inventory_id},
 	);
 
 	# create event with attributes we are looking for

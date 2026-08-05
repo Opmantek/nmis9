@@ -332,36 +332,75 @@ sub save_operational_status
 
 	# stateless events have no ok/error state; same test notify performs
 	my $C = $nmisng->config;
-	my $is_stateless = ( $C->{non_stateful_events} !~ /$event/
+	# \Q..\E: the event name is data, not a pattern. this helper runs on every
+	# notify/checkEvent call including ones whose event name comes from custom
+	# alert data in the database, so an unbalanced metacharacter would
+	# otherwise die and abort the whole poll cycle for that node.
+	my $is_stateless = ( $C->{non_stateful_events} !~ /\Q$event\E/
 		or NMISNG::Util::getbool( $thisevent_control->{Stateful} ) ) ? 0 : 1;
 	return if ($is_stateless);
 
-	# per-event write gate, on unless configured off
-	return if ( defined( $thisevent_control->{TrackStatus} )
-		and !NMISNG::Util::getbool( $thisevent_control->{TrackStatus} ) );
+	# per-event write gate, on unless configured off (per-event Events.nmis
+	# flag, or the site-wide Config.nmis untracked-events list, which exists
+	# so safe defaults reach sites whose own Events.nmis predates them -
+	# Events.nmis is not auto-merged on upgrade, Config.nmis is)
+	return if ( ( defined( $thisevent_control->{TrackStatus} )
+			and !NMISNG::Util::getbool( $thisevent_control->{TrackStatus} ) )
+		or _event_untracked_by_config( $C->{operational_status_untracked_events}, $event ) );
 
-	my $status_obj = NMISNG::Status->new(
-		nmisng     => $nmisng,
-		cluster_id => $node->cluster_id,
-		node_uuid  => $node->uuid,
-		method     => "Operational",
-		event      => $event,
-		element    => $element // '',
-		status     => $status,
-		level      => $level // 'Normal',
-		details    => $details // '',
-		property   => '',
-		index      => '',
-		class      => '',
-		section    => '',
-		source     => '',
-		value      => '',
-		( defined($inventory_id) ? ( inventory_id => NMISNG::DB::make_oid($inventory_id) ) : () ),
-	);
-	my $error = $status_obj->save();
+	# defensive wrap: this runs on the busiest path in the product (every
+	# notify/checkEvent, every node, every cycle), so an unexpected die from
+	# anything below (Status->new's confess on a missing cluster_id,
+	# make_oid on a malformed inventory_id) is caught and reported rather
+	# than aborting the caller's poll.
+	my $error;
+	eval
+	{
+		my $status_obj = NMISNG::Status->new(
+			nmisng     => $nmisng,
+			cluster_id => $node->cluster_id,
+			node_uuid  => $node->uuid,
+			method     => "Operational",
+			event      => $event,
+			element    => $element // '',
+			status     => $status,
+			level      => $level // 'Normal',
+			details    => $details // '',
+			property   => '',
+			index      => '',
+			class      => '',
+			section    => '',
+			source     => '',
+			value      => '',
+			( defined($inventory_id) ? ( inventory_id => NMISNG::DB::make_oid($inventory_id) ) : () ),
+		);
+		$error = $status_obj->save();
+	};
+	$error = "save_operational_status died for $event: $@" if ($@);
 	$nmisng->log->error("save_operational_status failed for $event: $error")
 		if ($error);
 	return $error;
+}
+
+# OMK-12605: true if $event appears as one of the comma-separated entries in
+# $list (the Config.nmis operational_status_untracked_events list). Plain
+# equality on trimmed entries, deliberately not a regex, so event names
+# containing metacharacters need no escaping. Duplicated from NMISNG.pm's
+# equivalent on purpose: these are separate modules and one shared four-line
+# helper is not worth a cross-module dependency.
+# args: list (comma-separated string, may be undef), event (string)
+# returns: 1 if listed, 0 otherwise
+sub _event_untracked_by_config
+{
+	my ($list, $event) = @_;
+	return 0 if ( !defined($list) or !length($list) or !defined($event) );
+	for my $entry ( split( /,/, $list ) )
+	{
+		$entry =~ s/^\s+//;
+		$entry =~ s/\s+$//;
+		return 1 if ( $entry eq $event );
+	}
+	return 0;
 }
 
 # flips an existing Operational status doc to ok when its event is closed
@@ -386,6 +425,13 @@ sub close_operational_status
 				method     => "Operational",
 				event      => $event,
 				element    => $element // '',
+				# only act when this hook is genuinely the thing flipping an
+				# error doc to ok (the real out-of-band case). On the ordinary
+				# clear path checkEvent has already written an honest, more
+				# specific details string moments earlier, and the doc is
+				# already ok - matching nothing here leaves that intact rather
+				# than overwriting it with the generic "event closed".
+				status     => "error",
 			}
 		),
 		record => {
