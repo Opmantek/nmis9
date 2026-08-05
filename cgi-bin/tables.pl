@@ -673,6 +673,14 @@ sub doeditTable
 
 	$AU->CheckAccess("Table_${table}_rw",'header');
 
+	# deny-by-default: only tables in the Tables registry are writable (OMK-12707)
+	if (!$AU->TableRegistered($table))
+	{
+		print header($headeropts),
+		Tr(td({class=>'error'}, escapeHTML("Table '$table' is not a known table.")));
+		return 0;
+	}
+
 	my $T = loadReqTable(table=>$table,msg=>'false');
 	
 	if ($T =~ /loadtable/) {
@@ -1100,6 +1108,14 @@ sub dodeleteTable {
 	return 1 if (NMISNG::Util::getbool($Q->{cancel}));
 
 	$AU->CheckAccess("Table_${table}_rw",'header');
+
+	# deny-by-default: only tables in the Tables registry are writable (OMK-12707)
+	if (!$AU->TableRegistered($table))
+	{
+		print header($headeropts),
+		Tr(td({class=>'error'}, escapeHTML("Table '$table' is not a known table.")));
+		return 0;
+	}
 
 	# nodes are special - magic delegated to nmisng::node.
 	# make sure to remove events for deleted nodes
