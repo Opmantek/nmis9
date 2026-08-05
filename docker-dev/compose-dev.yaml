@@ -19,7 +19,13 @@ services:
       - mongo_log:/var/log/mongodb
       - ../conf-default/docker/mongo/mongod.conf:/etc/mongod.conf
     ports:
-      - "27017:27017"
+      # OMK-12708. Loopback by default. Dev deliberately still publishes the
+      # port, because host-side test runs connect to 127.0.0.1:27017 (see the
+      # test notes in CLAUDE.md); what changes is that it is no longer reachable
+      # from anywhere else on the network. Override MONGODB_BIND_ADDR and
+      # MONGODB_HOST_PORT in .env-dev to shift the address or port, for example
+      # to run two dev stacks side by side.
+      - "${MONGODB_BIND_ADDR:-127.0.0.1}:${MONGODB_HOST_PORT:-27017}:27017"
     command: ["mongod", "--auth", "--config", "/etc/mongod.conf"]
     networks:
       - nmis_net

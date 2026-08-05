@@ -37,7 +37,12 @@ services:
       - mongo_log:/var/log/mongodb
       - ./mongo/mongod.conf:/etc/mongod.conf
     ports:
-      - "27017:27017"
+      # OMK-12708. Defaults to loopback so the database is not published on
+      # every interface. Docker port publishing bypasses the host firewall, so
+      # "27017:27017" exposed Mongo regardless of any iptables or ufw rules.
+      # Override MONGODB_BIND_ADDR and MONGODB_HOST_PORT in .env to change the
+      # address or port; .env carries the warning that goes with opening it up.
+      - "${MONGODB_BIND_ADDR:-127.0.0.1}:${MONGODB_HOST_PORT:-27017}:27017"
     command: ["mongod", "--auth", "--config", "/etc/mongod.conf"]
     networks:
       - nmis_net
