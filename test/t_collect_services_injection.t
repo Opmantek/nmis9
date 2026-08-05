@@ -95,8 +95,10 @@ subtest 'script branch delegates the basename check to the shared predicate' => 
 
     # Structural, and labelled as such: it says who owns the rule, not that the
     # rule is correct. Correctness is subtest 6, which calls the predicate.
-    ok($content =~ /NMISNG::Util::is_safe_script_basename/,
-        'Node.pm calls NMISNG::Util::is_safe_script_basename');
+    # Anchored to the call form. Matching the bare function name would be
+    # satisfied by a comment mentioning it.
+    ok($content =~ /NMISNG::Util::is_safe_script_basename\s*\(/,
+        'Node.pm calls NMISNG::Util::is_safe_script_basename(...)');
 };
 
 # ---------------------------------------------------------------------------
@@ -168,12 +170,12 @@ subtest 'script basename allowlist accepts safe names, rejects dangerous ones' =
 };
 
 # ---------------------------------------------------------------------------
-# 6. Behavioural: _exec_service_program extracted from Node.pm.
+# 6. Behavioural: _exec_service_program, called directly on the loaded module.
 #
 # Block-form exec { $program } prevents shell interpretation of a
 # metachar-containing binary name.  On the pre-fix base _exec_service_program
-# does not exist, so extraction fails and this subtest goes red.  On the
-# fixed head the sub is found, evaled, and called in a forked child with a
+# does not exist, so the callability check goes red.  On the fixed head the
+# shipped sub is called in a forked child with a
 # binary name containing "; touch <sidecar>"; block-form exec treats the
 # whole string as the binary path (not found → _exit(127)), so the sidecar
 # is never created.
@@ -200,12 +202,12 @@ subtest 'program path: block-form exec in _exec_service_program prevents shell i
 };
 
 # ---------------------------------------------------------------------------
-# 7. Behavioural: _exec_nmap_child extracted from Node.pm.
+# 7. Behavioural: _exec_nmap_child, called directly on the loaded module.
 #
 # Host with shell metacharacters is passed as a single argv element, not
 # shell-interpreted.  On the pre-fix base _exec_nmap_child does not exist,
-# so extraction fails and this subtest goes red.  On the fixed head the sub
-# is found, evaled, and called in a forked child with a mock 'nmap' on PATH;
+# so the callability check goes red.  On the fixed head the shipped sub is
+# called in a forked child with a mock 'nmap' on PATH;
 # the mock records its argv.  The host "localhost; touch <sidecar>" must
 # appear as one recorded argv element and the sidecar must not be created.
 # ---------------------------------------------------------------------------
@@ -325,20 +327,17 @@ subtest 'shell sanitiser and basename allowlist are defined exactly once' => sub
 };
 
 # ---------------------------------------------------------------------------
-# 9. Behavioural: _build_service_argv extracted from Node.pm.
+# 9. Behavioural: _build_service_argv, called directly on the loaded module.
 #
 # Drives the real node.* substitution + shellwords path without MongoDB.
-# Extracts the sub from source, evals it, then:
 #   a. asserts the returned argv for clean and metachar-containing inputs;
 #   b. forks a mock binary via the real _exec_service_program to prove the
 #      argv built by _build_service_argv reaches exec() intact.
-# On the pre-fix base _build_service_argv does not exist, so extraction
-# fails and this subtest goes red.  Mutating @arglist = () in production
+# On the pre-fix base _build_service_argv does not exist, so the callability
+# check goes red.  Mutating @arglist = () in production
 # also breaks assertion (b) because the mock binary records no argv.
 # ---------------------------------------------------------------------------
 subtest 'arg-building: _build_service_argv substitutes node.* and passes argv to exec' => sub {
-    open(my $fh, '<', $node_pm) or die "cannot open $node_pm: $!";
-    my @lines = <$fh>; close $fh;
 
     ok(defined &NMISNG::Node::_build_service_argv,
         '_build_service_argv exists in the loaded NMISNG::Node') or return;
@@ -398,10 +397,8 @@ subtest 'arg-building: _build_service_argv substitutes node.* and passes argv to
 # argv element (Important 1: tokenise-first approach).
 # ---------------------------------------------------------------------------
 subtest 'runner: _run_service_program wires arg-building to exec' => sub {
-    open(my $fh, '<', $node_pm) or die "cannot open $node_pm: $!";
-    my @lines = <$fh>; close $fh;
 
-    # Extract _exec_service_program, _build_service_argv, _run_service_program
+    # All three are shipped subs on the loaded module, not copies of them.
     for my $name (qw(_exec_service_program _build_service_argv _run_service_program)) {
         ok(defined &{"NMISNG::Node::$name"},
             "$name exists in the loaded NMISNG::Node") or return;
@@ -530,8 +527,6 @@ subtest 'ext_ping: fork+exec replaces two-arg piped open, alarm restored on both
 # The fix strips leading dashes from substituted values.
 # ---------------------------------------------------------------------------
 subtest 'arg-building: leading-dash node.* value does not inject a flag' => sub {
-    open(my $fh, '<', $node_pm) or die "cannot open $node_pm: $!";
-    my @lines = <$fh>; close $fh;
 
     ok(defined &NMISNG::Node::_build_service_argv,
         '_build_service_argv exists in the loaded NMISNG::Node') or return;
