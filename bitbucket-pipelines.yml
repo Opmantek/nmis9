@@ -23,6 +23,13 @@ pipelines:
             - mkdir $WORKING_DIRECTORY/build
             - cp -a "$BITBUCKET_CLONE_DIR" "$WORKING_DIRECTORY/build/nmis9"
             - cd $WORKING_DIRECTORY/build/nmis9
+            # The runner injects "umask 000" before cloning, so the checkout is
+            # world-writable. This tree is bind-mounted at /usr/local/nmis9, and
+            # NMIS refuses to eval a world-writable config or model file
+            # (OMK-12696), which fails every collect and every test. The
+            # container runs as DEV_UID/DEV_GID below, i.e. this same user, so
+            # dropping other-write costs it nothing.
+            - chmod -R o-w .
             - sed -i "s/^DEV_UID=.*/DEV_UID=$(id -u)/; s/^DEV_GID=.*/DEV_GID=$(id -g)/" docker-dev/.env-dev
             - echo "$BB_PKG_TOKEN" | docker login crg.apkg.io -u "$BB_EMAIL" --password-stdin
             - docker compose --file docker-dev/compose-dev.yaml --env-file docker-dev/.env-dev up -d
