@@ -53,6 +53,7 @@ working_tests=(
     t_tests_snmp_injection.t
     t_http_security_headers.t
     t_config_load_perms.pl
+    t_access_policy.pl
 )
 
 for i in "${working_tests[@]}"; do
