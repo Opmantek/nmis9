@@ -125,3 +125,27 @@ should save the nodeinfo and view components.
 - (2,list of error messages) means the plugin failed to work and NMIS
 should please log the error messages. no nodeinfo/view saving will be
 performed.
+
+Plugin trust requirements (OMK-12697)
+--------------------------------------
+
+NMIS only loads plugins from directories and files that meet all of:
+- owned by the nmis_user account (or root)
+- not group- or world-writable
+- not symlinks
+
+Symlinked plugin files are rejected for security reasons; place the real
+file in the plugin directory.
+
+If plugins stop loading after an upgrade, check the NMIS log for a
+"Plugin dir rejected" message. To restore correct permissions, run as root:
+
+  /usr/local/nmis9/bin/nmis-cli act=fixperms
+
+This resolves the correct owner and group from your Config.nmis (nmis_user
+and nmis_group) and covers all configured plugin roots. Installer-based
+upgrades run this automatically. Git-pull or image-based deployments
+require a manual run.
+
+There is deliberately no config off-switch for these checks. To disable
+all plugins entirely, set plugins_enabled => 0 in Config.nmis.

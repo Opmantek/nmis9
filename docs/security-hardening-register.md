@@ -141,6 +141,64 @@ enforced in `NMISNG::Auth::_lock_sensitive_tables`.
 
 ---
 
+### H12 / OMK-12697 — plugin loader permission guard
+
+**Files:** `lib/NMISNG.pm`, `lib/NMISNG/Util.pm`, `bin/nmis-cli`,
+`conf-default/plugins/README`, `test/t_plugin_loader_guard.t`,
+`ci/scripts/perl_tests.sh`
+
+**What changed**
+
+Before this change, NMIS loaded plugin files from `conf/plugins/` and
+`conf-default/plugins/` unconditionally — any file writable by the nmis
+group (mode 0660 or 0770) was loaded and executed as root via `require`.
+
+After this change, the plugin loader rejects any plugin directory or file
+that is group- or world-writable, owned by a UID other than root or
+`nmis_user`, or a symlink. `nmis-cli act=fixperms` now tightens plugin
+directories to configured `nmis_user:nmis_group go-w` after the existing broad fixperms passes.
+
+| Check | Before | After |
+|-------|--------|-------|
+| Plugin dir mode | not checked | rejected if `& 022` |
+| Plugin file mode | not checked | rejected if `& 022` |
+| Plugin file owner | not checked | rejected if not root or nmis_user |
+| Symlinked plugin | loaded | rejected |
+| fixperms covers plugins | no | yes (`chown nmis_user:nmis_group`, `chmod go-w`) |
+
+**Why:** a group-writable plugin directory allows any process running as
+the nmis group to plant or replace a `.pm` file that executes as root at
+the next collect/update cycle. The ticket's exact scenario was
+`conf/plugins/` at mode 0770 — shipped default before OMK-12697.
+
+**Scope and boundary:** this guard matches the trust model of `lib/` after
+`fixperms` (nmis-owned, not group-writable). It does not cover the broader
+code tree (`lib/`, `bin/`); root-owns-all-code hardening for the full
+installation is a deferred follow-up — a tracking ticket must be raised and
+its ID added here before this PR merges.
+
+**Migration for existing installs:**
+Installer-based upgrades run `fixperms` automatically via
+`installer_hooks/99-postcopy-fixperms` and self-heal. Git-pull or
+image-based deployments must run the following as root after updating:
+
+```
+/usr/local/nmis9/bin/nmis-cli act=fixperms
+```
+
+This resolves the correct owner and group from `Config.nmis` (`nmis_user`
+and `nmis_group`) and covers both configured plugin roots (`plugin_root`
+and `plugin_root_default`). The rejection log message names the affected
+directory and this command. There is deliberately no config off-switch for
+this guard. To disable all plugins, set `plugins_enabled => 0` in
+`Config.nmis`.
+
+**Functionality affected:** any plugin file or directory that does not
+meet the trust criteria is silently skipped (logged at error level). No
+plugins are disabled on a correctly permissioned install.
+
+---
+
 ## Open threads to investigate (epic-wide, not tied to one change)
 
 These came up while reviewing OMK-12707 and are recorded so they are not lost.

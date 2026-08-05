@@ -1080,15 +1080,25 @@ elsif ($Q->{act} eq "fixperms")
 	}
 	else
 	{
-		system("chown","-R","$C->{nmis_user}:$C->{nmis_group}", $C->{'<nmis_base>'});
-		system("chmod","-R","g+rw", $C->{'<nmis_base>'});
+		if (system("chown", "-R", "$C->{nmis_user}:$C->{nmis_group}", $C->{'<nmis_base>'}) != 0)
+		{
+			warn "fixperms: chown -R on $C->{'<nmis_base>'} failed (exit " . ($? >> 8) . ")\n";
+		}
+		if (system("chmod", "-R", "g+rw", $C->{'<nmis_base>'}) != 0)
+		{
+			warn "fixperms: chmod -R g+rw on $C->{'<nmis_base>'} failed (exit " . ($? >> 8) . ")\n";
+		}
 
 		if ( $C->{'<nmis_base>'} ne $C->{'<nmis_data>'} )
 		{
-			system("chown","-R", "$C->{nmis_user}:$C->{nmis_group}",
-						 $C->{'<nmis_data>'});
-
-			system("chmod","-R","g+rw", $C->{'<nmis_data>'});
+			if (system("chown", "-R", "$C->{nmis_user}:$C->{nmis_group}", $C->{'<nmis_data>'}) != 0)
+			{
+				warn "fixperms: chown -R on $C->{'<nmis_data>'} failed (exit " . ($? >> 8) . ")\n";
+			}
+			if (system("chmod", "-R", "g+rw", $C->{'<nmis_data>'}) != 0)
+			{
+				warn "fixperms: chmod -R g+rw on $C->{'<nmis_data>'} failed (exit " . ($? >> 8) . ")\n";
+			}
 		}
 	}
 
@@ -1141,6 +1151,32 @@ elsif ($Q->{act} eq "fixperms")
 		NMISNG::Util::setFileProtDirectory($location, "true");
 
 		$done{$location} = 1;
+	}
+
+	# Tighten plugin directories (OMK-12697): runs after all setFileProtDirectory passes
+	# so the generic single-depth loop cannot re-loosen plugin_root back to nmis:nmis 0770.
+	# Avoid running fixperms during active polling cycles; nmisd workers forked in the
+	# brief window between the broad g+rw and this block may reject plugins.
+	if ($< == 0)
+	{
+		my $powner = "$C->{nmis_user}:$C->{nmis_group}";
+		for my $plugindir ($C->{plugin_root}, $C->{plugin_root_default})
+		{
+			next if (!defined $plugindir || !-d $plugindir);
+
+			if (system("chown", "-R", $powner, $plugindir) != 0)
+			{
+				warn "fixperms: chown -R $powner $plugindir failed (exit " . ($? >> 8) . ") — run as root\n";
+				next;
+			}
+			if (system("chmod", "-R", "go-w", $plugindir) != 0)
+			{
+				warn "fixperms: chmod -R go-w $plugindir failed (exit " . ($? >> 8) . ")\n";
+				next;
+			}
+			print "Tightened plugin directory $plugindir ($powner, group-write removed)\n"
+					if ($verbose);
+		}
 	}
 
 	# remove the selftest cache file to ensure it's regenerated;
