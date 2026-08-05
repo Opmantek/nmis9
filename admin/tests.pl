@@ -335,6 +335,47 @@ sub testrrdname
     return 1;
 }
 
+# runs a command and returns its stdout, execing it directly instead of via a
+# shell, so that no argument value can be taken as shell syntax. stderr is not
+# captured and goes to the terminal.
+sub run_without_shell
+{
+    my (@cmd) = @_;
+
+    # perl only skips the shell for a list of two or more, so refuse rather
+    # than silently hand a single element to /bin/sh
+    return "ERROR: refusing to run single-element command\n" if (@cmd < 2);
+
+    my $fh;
+    if (!open($fh, "-|", @cmd))
+    {
+        return "ERROR: cannot run $cmd[0]: $!\n";
+    }
+    my $output = do { local $/; <$fh> };
+    $output = "" if (!defined $output);
+    if (!close($fh) and $?)
+    {
+        $output .= ($? & 127)
+            ? "ERROR: $cmd[0] died with signal ".($? & 127)."\n"
+            : "ERROR: $cmd[0] exited with status ".($? >> 8)."\n";
+    }
+    return $output;
+}
+
+# builds the host:port target for snmpget, returning undef if it is not usable.
+# a host starting with "-" would be read by snmpget as an option, not a target,
+# and options such as -Lf write to an attacker-chosen path as the calling user.
+sub snmp_target
+{
+    my ($host, $port) = @_;
+
+    $host = $host // "";
+    $port = $port // "";
+    return undef if ($host eq "" or $host =~ /\A-/ or $host !~ /\A[\w.\-:\[\]]+\z/);
+    return undef if ($port !~ /\A[0-9]+\z/);
+    return $host.":".$port;
+}
+
 # Test snmp
 sub testsnmp
 {
@@ -356,37 +397,58 @@ sub testsnmp
         my $nodeobj = $nmisng->node(name => $node);
             if ($nodeobj) {
                 my $nodeconfig = $nodeobj->configuration;
-                my $exe;
-                my $exeoutput;
+                my @exe;       # argument list for run_without_shell, never a command line
+                my $exeoutput; # the same command with secrets masked, for display only
+                my $version = $nodeconfig->{version} // "";
+                my $target  = snmp_target($nodeconfig->{host}, $nodeconfig->{port});
                 my $testoid = "1.3.6.1.2.1.1.1.0"; # This is the sysDescr
+                if (!defined $target) {
+                    print "*** Skipping snmpget: node host or port is not a valid target\n";
+                }
                 # SNMP v3
-                if ($nodeconfig->{version} eq "snmpv3") {
-                    print "*** Testing snmp with snmpget ". $nodeconfig->{version} . "\n";
-                    my $authPassword = $nodeconfig->{authpassword};
-                    my $privPassword = $nodeconfig->{privpassword};
+                elsif ($version eq "snmpv3") {
+                    print "*** Testing snmp with snmpget ". $version . "\n";
+                    my $authPassword = $nodeconfig->{authpassword} // "";
+                    my $privPassword = $nodeconfig->{privpassword} // "";
+                    my $username     = $nodeconfig->{username}     // "";
+                    my $authprotocol = $nodeconfig->{authprotocol} // "";
+                    my $privprotocol = $nodeconfig->{privprotocol} // "";
                     if ($authPassword eq "" and $privPassword eq "") {
-                       $exe       = "    snmpget -v 3 -u ".$nodeconfig->{username}." -l noAuthNoPriv ".$nodeconfig->{host}.":".$nodeconfig->{port}." ".$testoid;
-                       $exeoutput = "    snmpget -v 3 -u ".$nodeconfig->{username}." -l noAuthNoPriv ".$nodeconfig->{host}.":".$nodeconfig->{port}." ".$testoid;
+                       @exe       = ("snmpget", "-v", "3", "-u", $username,
+                                     "-l", "noAuthNoPriv", $target, $testoid);
+                       $exeoutput = "    snmpget -v 3 -u ".$username." -l noAuthNoPriv ".$target." ".$testoid;
                     } elsif ($authPassword ne "" and $privPassword eq "") {
-                       $exe       = "    snmpget -v 3 -u ".$nodeconfig->{username}." -l authNoPriv -a ".$nodeconfig->{authprotocol}." -A '".NMISNG::Util::decrypt($nodeconfig->{authpassword})."' ".$nodeconfig->{host}.":".$nodeconfig->{port}." ".$testoid;
-                       $exeoutput = "    snmpget -v 3 -u ".$nodeconfig->{username}." -l authNoPriv -a ".$nodeconfig->{authprotocol}." -A ************************ ".$nodeconfig->{host}.":".$nodeconfig->{port}." ".$testoid;
+                       @exe       = ("snmpget", "-v", "3", "-u", $username,
+                                     "-l", "authNoPriv",
+                                     "-a", $authprotocol,
+                                     "-A", NMISNG::Util::decrypt($authPassword) // "",
+                                     $target, $testoid);
+                       $exeoutput = "    snmpget -v 3 -u ".$username." -l authNoPriv -a ".$authprotocol." -A ************************ ".$target." ".$testoid;
                     } else {
-                       $exe       = "    snmpget -v 3 -u ".$nodeconfig->{username}." -l authPriv -a ".$nodeconfig->{authprotocol}." -A '".NMISNG::Util::decrypt($nodeconfig->{authpassword})."' -x ".$nodeconfig->{privprotocol}." -X '".NMISNG::Util::decrypt($nodeconfig->{privpassword})."' ".$nodeconfig->{host}.":".$nodeconfig->{port}." ".$testoid;
-                       $exeoutput = "    snmpget -v 3 -u ".$nodeconfig->{username}." -l authPriv -a ".$nodeconfig->{authprotocol}." -A ************************ -x ".$nodeconfig->{privprotocol}." -X ************************ ".$nodeconfig->{host}.":".$nodeconfig->{port}." ".$testoid;
+                       @exe       = ("snmpget", "-v", "3", "-u", $username,
+                                     "-l", "authPriv",
+                                     "-a", $authprotocol,
+                                     "-A", NMISNG::Util::decrypt($authPassword) // "",
+                                     "-x", $privprotocol,
+                                     "-X", NMISNG::Util::decrypt($privPassword) // "",
+                                     $target, $testoid);
+                       $exeoutput = "    snmpget -v 3 -u ".$username." -l authPriv -a ".$authprotocol." -A ************************ -x ".$privprotocol." -X ************************ ".$target." ".$testoid;
                     }
                     print " Running... $exeoutput \n";
-                    my $output = `$exe`;
+                    my $output = run_without_shell(@exe);
                     print " Result: ". $output . "\n";
-                    
+
                 }
                 # SNMP v2c
-                elsif ($nodeconfig->{version} eq "snmpv2c") {
-                    print "*** Testing snmp with snmpget ". $nodeconfig->{version} . "\n";
-                    $exe       = "    snmpget -v 2c -c '".NMISNG::Util::decrypt($nodeconfig->{community})."' ".$nodeconfig->{host}.":".$nodeconfig->{port}." ". $testoid;
-                    $exeoutput = "    snmpget -v 2c -c ************************ ".$nodeconfig->{host}.":".$nodeconfig->{port}." ". $testoid;
+                elsif ($version eq "snmpv2c") {
+                    print "*** Testing snmp with snmpget ". $version . "\n";
+                    @exe       = ("snmpget", "-v", "2c",
+                                  "-c", NMISNG::Util::decrypt($nodeconfig->{community}) // "",
+                                  $target, $testoid);
+                    $exeoutput = "    snmpget -v 2c -c ************************ ".$target." ". $testoid;
                     print " Running... $exeoutput \n";
-                    my $output = `$exe`;
-                    print " Result: ". $output . "\n";                
+                    my $output = run_without_shell(@exe);
+                    print " Result: ". $output . "\n";
                 }
                 # Now, test Sys with NET::SNMP
                 print "\n\n*** Testing snmp with internal NMIS API \n";

@@ -406,11 +406,14 @@ sub generate_cookie
 	{
 		$expires_ts = time();
 	}
-	elsif ($expires =~ /^([+-]?\d+)\s*(s|m|min|h|d|M|y)$/)
+	# same unit set as not_expired and CGI::Session::_str2seconds (s m h d w M y). A
+	# missing unit falls through to func::parseDateTime below, and func.pm does not
+	# exist in nmis9, so an unknown unit dies rather than degrading.
+	elsif ($expires =~ /^([+-]?\d+)\s*(min|s|m|h|d|w|M|y)$/)
 	{
 		my ($offset, $unit) = ($1, $2);
 		# the last two are clearly imprecise
-		my %factors = ( s => 1, m => 60, 'min' => 60, h => 3600, d => 86400, M => 31*86400, y => 365 * 86400 );
+		my %factors = ( s => 1, m => 60, 'min' => 60, h => 3600, d => 86400, w => 604800, M => 31*86400, y => 365 * 86400 );
 
 		$expires_ts = time + ($offset * $factors{$unit});
 	}
@@ -1948,6 +1951,61 @@ sub group_allowed
 					and exists $group_table->{$group}) ? 1 : 0;
 }
 
+# visible_groups: the groups this user may see, as a table keyed by name.
+# args: list of group names, normally from NMISNG::get_group_names, which has
+#  already stripped hide_groups
+# returns: hashref suitable as the group_table argument of group_allowed
+sub visible_groups
+{
+	my ($self, @groupnames) = @_;
+	return { map { $_ => $_ } grep { $self->InGroup($_) } @groupnames };
+}
+
+# graph_refusal: may this user view the graph identified by node and/or group?
+# Every identifier present is checked, not just the first one. rrdfunc::draw
+# sets $item = $mygroup for graphtype=metrics and the rrd template is
+# '/metrics/$item.rrd', so a metrics graph resolves by group alone. Checking
+# only the node would let a permitted node launder a foreign group (OMK-12706).
+# args: node_group (the group $node belongs to, resolved by the caller),
+#  grouptable (as visible_groups), node, group, allow_global
+# $node is only the "a node was named" signal, the group decision uses
+# node_group. an undef node_group is refused, so an unknown node fails closed.
+# allow_global suppresses only the 'none' refusal, for a global graphtype the
+# caller has already authorised by other means. Identifiers that are supplied
+# are still checked.
+# returns: undef if allowed, else 'node', 'group' or 'none' naming the refusal
+sub graph_refusal
+{
+	my ($self, %args) = @_;
+	my ($node_group, $grouptable, $node, $group, $allow_global)
+			= @args{qw(node_group grouptable node group allow_global)};
+	my $checked = 0;
+
+	if (defined($group) and $group ne "")
+	{
+		# 'network' is the metrics pseudo-group: it exists no matter what the
+		# group_list configuration or group table says, so it is gated on
+		# InGroup alone
+		my $ok = ($group eq "network")? $self->InGroup($group)
+				: $self->group_allowed($group, $grouptable);
+		return 'group' if (!$ok);
+		$checked++;
+	}
+
+	if (defined($node) and $node ne "")
+	{
+		# group_allowed rejects undef, so a node the caller could not resolve
+		# is refused rather than allowed
+		return 'node' if (!$self->group_allowed($node_group, $grouptable));
+		$checked++;
+	}
+
+	# nothing to authorise against. refused unless the caller declared this a
+	# global graph it has already authorised itself
+	return 'none' if (!$checked and !$allow_global);
+	return undef;
+}
+
 #----------------------------------
 
 #	Check Access identifier agains priv of user
@@ -2008,6 +2066,53 @@ sub generate_session {
 	return $session;
 }
 
+# read_session_fields: recovers the only two fields the enumeration loops below
+# need, username and _SESSION_ATIME, treating the file purely as data. Sessions
+# are stored in the CGI::Session default-serializer format, which is Perl source,
+# so the string eval this replaces made anything able to write into the session
+# directory into code run by the reader, root included (OMK-12812). The on-disk
+# format is untouched, so existing sessions stay valid.
+# args: path to a session file
+# returns: hashref with username and _SESSION_ATIME, or undef when the file is
+# unreadable, larger than the cap below, or carries neither field. Callers must
+# treat undef as "skip this file", never as "delete it".
+sub read_session_fields
+{
+	my ($self, $path) = @_;
+
+	my $fh;
+	if (!open($fh, '<', $path))
+	{
+		# the loops this replaced logged $! here, and without it an unreadable file
+		# quietly stops being counted with nothing to say why
+		NMISNG::Util::logAuth("ERROR cannot read session file $path: $!");
+		return undef;
+	}
+	# Real session files are a few hundred bytes. Cap the read, because these loops
+	# run as root and the directory stays group-writable until OMK-12811. Refuse an
+	# oversized file rather than parse its prefix, which could carry username but
+	# lose _SESSION_ATIME, and a missing atime makes the callers unlink the file.
+	my $maxbytes = 65536;
+	my $content;
+	my $nread = read($fh, $content, $maxbytes + 1);    # one session per file
+	close($fh);
+	return undef if (!defined $nread or !defined $content);
+	if ($nread > $maxbytes)
+	{
+		NMISNG::Util::logAuth("ERROR session file $path is larger than $maxbytes bytes, refusing to parse it");
+		return undef;
+	}
+
+	# the serializer single-quotes strings and backslash-escapes embedded ' and \
+	my ($username) = $content =~ m/'username'\s*=>\s*'((?:[^'\\]|\\.)*)'/;
+	my ($atime)    = $content =~ m/'_SESSION_ATIME'\s*=>\s*'?(\d+)'?/;
+
+	return undef if (!defined $username && !defined $atime);
+	$username =~ s/\\(.)/$1/g if (defined $username);
+
+	return { username => $username, _SESSION_ATIME => $atime };
+}
+
 # returns the current session counter for the given user
 # args: user, required.
 # returns: (undef,counter) or error message
@@ -2025,38 +2130,33 @@ sub get_live_session_counter
 	# CGI:: Session does not have a max concurrent sessions
 	# Or get session by user
 	# So we will get all the session files, filter by user and calculate if they are expired
-	opendir(DIR, $session_dir) or NMISNG::Util::logAuth("Could not open $session_dir\n");
-	
-	while (my $filename = readdir(DIR)) {
-		open(FH, '<', "$session_dir/$filename") or NMISNG::Util::logAuth($!);
-		while(<FH>) {
-		   #$_ =~ /(\$D = (.*);;\$D)/;
-		   #my $s = $2;
-		   my $s = $_;
-		   $s =~ s/\$D = //;
-		   $s  =~ s/;;\$D//;
-		   my $hash = eval $s;
-		   if ($@) {
-					NMISNG::Util::logAuth("ERROR $@");
-			}
+	if (!opendir(DIR, $session_dir))
+	{
+		NMISNG::Util::logAuth("Could not open $session_dir");
+		return (undef, $count);
+	}
+	my @sessionfiles = grep { $_ !~ /^\.\.?$/ } readdir(DIR);
+	closedir(DIR);
 
-		   if (($hash->{username} eq $user) or ($user eq "ALL")) {
+	foreach my $filename (@sessionfiles) {
+		my $session = $self->read_session_fields("$session_dir/$filename");
+		next if (!defined $session or !defined $session->{username});
+
+		if (($session->{username} eq $user) or ($user eq "ALL")) {
 			 if ($remove_all) {
 				# Remove all files for the given user
 				unlink "$session_dir/$filename";
 			 } else {
 				# Remove expired sessions
-				if ($self->not_expired(time_exp => $hash->{_SESSION_ATIME}) == 1) {
+				if ($self->not_expired(time_exp => ($session->{_SESSION_ATIME} // 0)) == 1) {
 					$count++;
-					logAuth("Increment counter $count for user $user") if ($self->{debug});
+					NMISNG::Util::logAuth("Increment counter $count for user $user") if ($self->{debug});
 				 } else {
 					# Clean up
 					unlink "$session_dir/$filename";
 				 }
-			 } 
-		   }
-		}	
-		close(FH);
+			 }
+		}
 	}
 	NMISNG::Util::logAuth("** $count sessions open for user $user") if ($self->{debug});
 	
@@ -2076,22 +2176,21 @@ sub get_all_live_session_counter
 	# CGI:: Session does not have a max concurrent sessions
 	# Or get session by user
 	# So we will get all the session files, filter by user and calculate if they are expired
-	opendir(DIR, $session_dir) or NMISNG::Util::logAuth("Could not open $session_dir\n");
-	
+	if (!opendir(DIR, $session_dir))
+	{
+		NMISNG::Util::logAuth("Could not open $session_dir");
+		return $all;
+	}
+	my @sessionfiles = grep { $_ !~ /^\.\.?$/ } readdir(DIR);
+	closedir(DIR);
+
 	# Get users, init counter
-	while (my $filename = readdir(DIR)) {
-		open(FH, '<', "$session_dir/$filename") or NMISNG::Util::logAuth($!);
-		while(<FH>) {
-		   my $s = $_;
-		   $s =~ s/\$D = //;
-		   $s  =~ s/;;\$D//;
-		   my $hash = eval $s;
-		   if ($@) {
-					logAuth("ERROR $@");
-			}
-		   my $user = $hash->{username};
-		   
-		   if ($self->not_expired(time_exp => $hash->{_SESSION_ATIME}) == 1) {
+	foreach my $filename (@sessionfiles) {
+		my $session = $self->read_session_fields("$session_dir/$filename");
+		next if (!defined $session or !defined $session->{username});
+		my $user = $session->{username};
+
+		if ($self->not_expired(time_exp => ($session->{_SESSION_ATIME} // 0)) == 1) {
 			  if (defined ($all->{$user}->{sessions})) {
 				 $all->{$user}->{sessions} = $all->{$user}->{sessions} + 1;
 			   } else {
@@ -2101,10 +2200,6 @@ sub get_all_live_session_counter
 					# Clean up
 					unlink "$session_dir/$filename";
 			}
-		   
-		  
-		}	
-		close(FH);
 	}
 
 	return $all;
@@ -2117,11 +2212,15 @@ sub not_expired {
 	
 	my $expires = ($args{expires} // $self->{config}->{auth_expire}) || '+60min';
 	my $expires_ts = $expires;
-	if ($expires =~ /^([+-]?\d+)\s*(\{s|m|min|h|d|M|y})$/)
+	# generate_session hands auth_expire straight to $session->expire(), so this must
+	# accept every unit CGI::Session::_str2seconds does (s m h d w M y). A missing
+	# unit numifies to the bare digits and expires a session CGI::Session still
+	# treats as live, so the loops above delete it. Longest unit first, for 'min'.
+	if ($expires =~ /^([+-]?\d+)\s*(min|s|m|h|d|w|M|y)$/)
 		{
 			my ($offset, $unit) = ($1, $2);
 			# the last two are clearly imprecise
-			my %factors = ( s => 1, m => 60, 'min' => 60, h => 3600, d => 86400, M => 31*86400, y => 365 * 86400 );
+			my %factors = ( s => 1, m => 60, 'min' => 60, h => 3600, d => 86400, w => 604800, M => 31*86400, y => 365 * 86400 );
 
 			$expires_ts = ($offset * $factors{$unit});
 		}

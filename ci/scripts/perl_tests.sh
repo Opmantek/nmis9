@@ -32,12 +32,15 @@ working_tests=(
     t_report_filename.t
     t_isindex_guard.t
     t_rrddraw_filename.t
+    t_auth_graph_refusal.t
+    t_graph_authz.t
     t_setup_mongodb_shell.t
     t_auth_web_key.t
     t_authkey_recovery.t
     t_authkey_env.t
     t_auth_cookie_flavour.t
     t_auth_sso_shared_key.t
+    t_auth_session_no_eval.pl
     notify_depend.t
     t_nmisng_node_nomodel.pl
     t_util_escape.pl
@@ -45,6 +48,10 @@ working_tests=(
     t_cgi_xss_escaping.t
     t_cgi_modules_xbase.t
     t_filter_params.t
+    t_collect_services_injection.t
+    t_compare_models_injection.t
+    t_tests_snmp_injection.t
+    t_http_security_headers.t
     t_access_policy.pl
 )
 

@@ -47,19 +47,29 @@ if [ ! -e "$CFGTARGET/$CFGNAME" ] || ! diff -q "$CFGTARGET/$CFGNAME"  "$CFGSRC/$
 			sed -i "s!/usr/local/nmis9!$TARGETDIR!g" $CFGTARGET/$CFGNAME
 		fi
 		if [ "$OSFLAVOUR" = "debian" -o "$OSFLAVOUR" = "ubuntu" ]; then
-				logmsg "Enabling NMIS apache config and cgi module"
+				logmsg "Enabling NMIS apache config, cgi module, and headers module"
 				execPrint a2ensite $CFGNAME
 				execPrint a2enmod cgi
-
+				execPrint a2enmod headers
 				echolog "Restarting Apache"
 				execPrint "service apache2 restart"
 		else
 				# redhat: cgi automatically enabled, and no enabled/installed distinction
+				# mod_headers is loaded by default via /etc/httpd/conf.modules.d/00-base.conf.
 				echolog "Restarting Apache"
 				execPrint "service httpd restart"
 		fi
 else
 		logmsg "Apache config already exists, unchanged."
+		# Ensure mod_headers is active even when config was not changed (OMK-12711).
+		# a2query exits non-zero when the module is not currently enabled.
+		if [ "$OSFLAVOUR" = "debian" -o "$OSFLAVOUR" = "ubuntu" ]; then
+				if ! a2query -m headers >/dev/null 2>&1; then
+						execPrint a2enmod headers
+						echolog "Reloading Apache to activate mod_headers"
+						execPrint "service apache2 reload"
+				fi
+		fi
 fi
 
 exit 0

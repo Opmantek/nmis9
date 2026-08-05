@@ -9,7 +9,9 @@
 #      filename to draw(). Loads the shipped NMISNG::rrdfunc module and calls
 #      the real function; bails out if the module cannot be loaded in this env.
 #
-# IDOR companion (OMK-12706): no CheckAccess before drawing — tracked separately.
+# IDOR companion (OMK-12706): no group check before drawing. Fixed, and covered
+# by t_graph_authz.t (endpoint behaviour) and t_auth_graph_refusal.t (the
+# graph_refusal decision itself).
 # Filesystem-permission hardening: the web user's write access to config/RRD/script
 # directories is granted by in-repo code (installer_hooks/20-postcopy-user adds
 # httpd to the nmis group; installer_hooks/99-postcopy-fixperms runs

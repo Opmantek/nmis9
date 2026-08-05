@@ -74,8 +74,7 @@ if ($AU->Require) {
 exit 1 if (defined($Q->{cluster_id}) && $Q->{cluster_id} ne $C->{cluster_id});
 
 my $NT = Compat::NMIS::loadLocalNodeTable();
-my @groups   = grep { $AU->InGroup($_) } sort $nmisng->get_group_names;
-my $GT = { map { $_ => $_ } (@groups) }; # backwards compat; hash assumption sprinkled everywhere
+my $GT = $AU->visible_groups(sort $nmisng->get_group_names); # hash assumption sprinkled everywhere
 
 # When called from the Node and changed to an interface type within the dialog, the action is lost.
 if ($Q->{forceAct}) {
@@ -202,26 +201,44 @@ sub typeGraph
 		-script => {-src => $C->{'jquery'}, -type=>"text/javascript"},
 		);
 
-	# verify that user is authorized to view the node within the user's group list
-	if ( $node )
+	# graphtype 'nmis' is the global runtime graph: its rrd is the fixed
+	# /metrics/nmis-system.rrd, so it names no node and no group. it is gated on
+	# the same access right as network.pl's runtime page, which links to it.
+	my $wantglobal = (($graphtype // '') eq 'nmis');
+	if ($wantglobal and !$AU->CheckAccess("tls_nmis_runtime", "check"))
 	{
-		if ( !$AU->InGroup($NT->{$node}{group}) or !exists $GT->{$NT->{$node}{group}} )
-		{
-			# $node is a filtered CGI param; the group comes from the node table
-			# (stored config) and is untrusted on output (OMK-12702)
-			print "Not Authorized to view graphs on node '$node' in group ".escapeHTML($NT->{$node}{group});
-			return 0;
-		}
+		print "Not Authorized to view the NMIS runtime graph";
+		return 0;
 	}
-	elsif ( $group )
+
+	# verify that user is authorized to view the requested node and group.
+	# both are checked, not just the node: a metrics graph resolves its rrd
+	# from the group alone (OMK-12706). metrics also promotes an empty group
+	# to 'network' further down, so authorise the value that will be used.
+	my $wantgroup = $group;
+	$wantgroup = 'network' if (($graphtype // '') eq 'metrics'
+														 and (!defined $wantgroup or $wantgroup eq ""));
+
+	# a global graph names nothing to check, but any node or group that is
+	# supplied alongside it still is.
+	# the ref check keeps an unknown node from autovivifying an entry in $NT,
+	# which the node list loop below iterates
+	my $node_group = (defined($node) and $node ne ""
+										and ref($NT->{$node}) eq "HASH")? $NT->{$node}->{group} : undef;
+
+	my $refused = $AU->graph_refusal(node_group => $node_group, grouptable => $GT,
+																	 node => $node, group => $wantgroup,
+																	 allow_global => $wantglobal);
+	if ( defined $refused )
 	{
-		# group 'network' is used for metrics graphs and is special:
-		# it exists automatically no matter what the group_list configuration or group table says.
-		if ( ! $AU->InGroup($group) or (!exists $GT->{$group} and $group ne "network" ))
-		{
-			print "Not Authorized to view graphs on nodes in group $group";
-			return 0;
-		}
+		# $node and $wantgroup are filtered CGI params, already entity-encoded
+		# by NMISNG::Util::filter_params, so they are not escaped again here.
+		# the node's own group is deliberately not disclosed (OMK-12702).
+		print "Not Authorized to view graphs on "
+				.($refused eq 'node'? "node '$node'"
+					: $refused eq 'group'? "nodes in group '$wantgroup'"
+					: "this request");
+		return 0;
 	}
 
 	my $time = time();

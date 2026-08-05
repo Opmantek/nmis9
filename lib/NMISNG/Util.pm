@@ -182,6 +182,36 @@ sub numify
 	return ( $maybe =~ /^([+-]?)(?=\d|\.\d)\d*(\.\d*)?([Ee]([+-]?\d+))?$/ ) ? ( $maybe + 0 ) : $maybe;
 }
 
+# Strip characters that carry meaning to a shell from a device-derived value
+# (CWE-78). Defence in depth: the callers already use list-form exec, so no
+# shell is involved, but a device field must never be able to look like shell
+# syntax to anything downstream that is less careful.
+#
+# This is the single definition. Do not re-type this character class anywhere,
+# including in tests: a second copy keeps passing after this one changes and
+# then reports coverage of logic that no longer ships. Test by calling this.
+sub strip_shell_metachars
+{
+	my ($val) = @_;
+
+	$val = '' if (!defined $val);
+	$val =~ s/[`\$|;&<>()\\\n\r'"]//g;
+	return $val;
+}
+
+# True when a service script basename is safe to build a path from: a bare
+# filename, no path separators, no characters that could trigger perl's magic
+# two-argument open (CWE-78) or path traversal. Undef and empty are not safe.
+#
+# Single definition, same reasoning as strip_shell_metachars above.
+sub is_safe_script_basename
+{
+	my ($name) = @_;
+
+	return 0 if (!defined $name || !length $name);
+	return ($name =~ m{\A[A-Za-z0-9_.\-]+\z}) ? 1 : 0;
+}
+
 # fixme9 move away
 sub getCGIForm {
 	my $buffer = shift;
