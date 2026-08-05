@@ -55,7 +55,7 @@ use NMISNG::Util;
 use NMISNG::Notify;											# for auth lockout emails
 
 use MIME::Base64;
-use Digest::SHA;								# for cookie_flavour omk
+use Digest::SHA;								# for the HMAC-signed omk auth cookie
 use Data::Dumper;
 use CGI qw(:standard);					# needed for current url lookup, http header, plus td/tr/bla_field helpery
 use Time::ParseDate;
@@ -70,8 +70,16 @@ use utf8;
 BEGIN { eval { utf8->import; require 'utf8_heavy.pl' }; }
 
 
-# You MUST set config's auth_web_key so that cookies are unique for your site. this fallback key is NOT safe for internet-facing sites!
-my $CHOCOLATE_CHIP = '5nJv80DvEr3N/921tdKLk+fCjGzOS5F9IqMFhugxVHIguRC8PJKN4f2JJgcATkhv';
+# auth_web_key MUST be a unique per-site secret; there is no usable fallback.
+# MUST stay in sync with OMK::AuthKeySync @DEFAULT_KEYS (opmojo). The products
+# ship separately and cannot share code, so any change here must be mirrored there.
+my @INSECURE_WEB_KEYS = (
+	'Please Change Me!',
+	'My new Opmantek Secret',
+	'42 new Opmantek Secrets',
+	'5nJv80DvEr3N/921tdKLk+fCjGzOS5F9IqMFhugxVHIguRC8PJKN4f2JJgcATkhv',
+	'thisismysecretkey',
+);
 
 # record non-standard "conf" ONLY if confname is given as argument
 # attention: arg conf is a LIVE config (confname is the name)
@@ -90,7 +98,6 @@ sub new
 		banner => $arg{banner},
 		config => $config, # a live config, loaded or passed in by the caller
 		confname => $arg{confname},	# optional
-		cookie_flavour => $config->{auth_cookie_flavour} || 'nmis',
 		debug => NMISNG::Util::getbool($config->{auth_debug}),
 		dir => $arg{dir},
 		dn => undef,
@@ -206,33 +213,45 @@ sub CheckAccess {
 # All Java code include herein is also courtesy of Steve Shipway.
 
 
-# produces weak checksum from username,
-# remote address (or debug/fake auth_debug_remote_addr) and configured key/secret
-# used only for auth_cookie_flavour 'nmis'
-#
-# args: username
-# returns: string
-sub get_cookie_token
+# _auth_web_key: return the configured auth_web_key only when it is safe to use.
+# Returns undef, with a loud log, when the key is unset, empty, or one of the
+# known insecure defaults. Callers MUST fail closed on undef, because a cookie
+# signed or verified with a known key can be forged by anyone.
+# key_is_insecure: true when $key must not be used to sign or verify cookies,
+# i.e. it is unset, empty, a CHANGE_ME placeholder, or one of the shipped/old
+# defaults. Shared by _auth_web_key and the setup wizard (cgi-bin/setup.pl) so
+# both reject exactly the same set. Mirrors OMK::AuthKeySync::is_default_key.
+sub key_is_insecure
+{
+	my ($self, $key) = @_;
+	return 1 if (!defined $key or $key eq '' or $key =~ /^CHANGE_ME/);
+	return 1 if (grep { $key eq $_ } @INSECURE_WEB_KEYS);
+	return '';
+}
+
+sub _auth_web_key
 {
 	my $self = shift;
-	my($user_name) = @_;
-
-	my $token;
-	my $remote_addr = CGI::remote_addr();
-	if( $self->{config}{auth_debug} ne '' && $self->{config}{auth_debug_remote_addr} ne '' ) {
-		$remote_addr = $self->{config}{auth_debug_remote_addr};
+	my $key = $self->{config}->{auth_web_key};
+	if ($self->key_is_insecure($key))
+	{
+		NMISNG::Util::logAuth("ERROR auth_web_key is unset or still an insecure default; "
+				. "refusing to sign or verify authentication cookies. Set a unique auth_web_key in Config.");
+		return undef;
 	}
+	return $key;
+}
 
-	my $web_key = $self->{config}->{'auth_web_key'} // $CHOCOLATE_CHIP;
-	NMISNG::Util::logAuth("DEBUG: get_cookie_token: remote addr=$remote_addr, username=$user_name, web_key=$web_key")
-			if ($self->{debug});
-
-	# generate checksum
-	my $checksum = unpack('%32C*', $user_name . $remote_addr . $web_key);
-	NMISNG::Util::logAuth("DEBUG: get_cookie_token: generated token=$checksum")
-			if ($self->{debug});
-
-	return $checksum;
+# _secure_compare: constant-time comparison of two strings, to avoid a timing
+# oracle when checking the cookie HMAC signature on the verify path. Returns
+# true only when both are defined, of equal length, and byte-for-byte equal.
+sub _secure_compare
+{
+	my ($a, $b) = @_;
+	return '' if (!defined $a or !defined $b or length($a) != length($b));
+	my $diff = 0;
+	$diff |= ord(substr($a, $_, 1)) ^ ord(substr($b, $_, 1)) for (0 .. length($a) - 1);
+	return $diff == 0;
 }
 
 # returns the configured ssh domain (if any), or a blank string
@@ -246,17 +265,15 @@ sub get_cookie_domain
 }
 
 # produces cookie name, with sso domain factored in
-# used for both omk and nmis flavoured cookies
 sub get_cookie_name
 {
 	my $self = shift;
 
-	my $nameprefix =  ($self->{cookie_flavour} eq "nmis"?
-										 "nmis_auth" : "omk");
+	my $nameprefix = "omk";
 
 	my $name = "$nameprefix.".$self->get_cookie_domain;
 	$name =~ s/\.+/./g;						# we want a.x.y.com, not a..x.y.com...
-	$name =~ s/\.$//;							# ...not 'nmis_auth.' and not 'omk.'
+	$name =~ s/\.$//;							# ...not 'omk.'
 	return $name;
 }
 
@@ -274,83 +291,60 @@ sub verify_id
 		return ''; # not defined
 	}
 
-	if ($self->{cookie_flavour} eq "nmis")
+	# structure: base64 session info--cryptographic signature
+	my $sessiondata = $cookie;
+	# base64 doesn't use '-' BUT the mojo cookie setup replaces all = with -
+	# so we can't just split on --
+	my $signature = $1 if ($sessiondata =~ s/--([^\-]+)$//);
+
+	if (!$sessiondata or !$signature)
 	{
-		# nmis-style cookies: username:numeric weak checksum
-		if($cookie !~ /(^.+):(\d+)$/)
-		{
-			NMISNG::Util::logAuth("verify_id: cookie bad format");
-			return ''; # bad format
-		}
-		my ($user_name, $token) = ($1,$2);
-		my $checksum = $self->get_cookie_token($user_name);
-
-		NMISNG::Util::logAuth("DEBUG: verify_id: $user_name, cookie $token vs. computed $checksum")
-				if ($self->{debug});
-
-		return ($token eq $checksum)? $user_name : '';
-	}
-	elsif ($self->{cookie_flavour} eq "omk")
-	{
-		# structure: base64 session info--cryptographic signature
-		my $sessiondata = $cookie;
-		# base64 doesn't use '-' BUT the mojo cookie setup replaces all = with -
-		# so we can't just split on --
-		my $signature = $1 if ($sessiondata =~ s/--([^\-]+)$//);
-
-		if (!$sessiondata or !$signature)
-		{
-			NMISNG::Util::logAuth('Invalid OMK cookie');
-			return '';
-		}
-
-		# signed with what key?
-		my $web_key = $self->{config}->{'auth_web_key'} // $CHOCOLATE_CHIP;
-
-		# first, compare the checksum from cookie with a new one generated from cookie value
-		my $expected = Digest::SHA::hmac_sha1_hex($sessiondata, $web_key);
-		if ($expected ne $signature)
-		{
-			NMISNG::Util::logAuth('OMK cookie did not validate correctly!'
-							.($self->{debug}? " expected $expected but cookie had $signature" : ""));
-			return '';
-		}
-		# only then decode and json-parse the structure
-		$sessiondata =~ y/-/=/;
-		my $sessioninfo = eval { decode_json(decode_base64($sessiondata)); };
-		if ($@ or ref($sessioninfo) ne "HASH")
-		{
-			NMISNG::Util::logAuth("OMK cookie unparseable! $@");
-			return '';
-		}
-		if (!exists $sessioninfo->{auth_data})
-		{
-			NMISNG::Util::logAuth("OMK cookie invalid: no auth_data field!");
-			return '';
-		}
-		my $user_name = $sessioninfo->{auth_data};
-		
-		# Validate expiration 
-		if ( $sessioninfo->{expires} < time)
-		{
-			NMISNG::Util::logAuth("OMK cookie invalid: Session expired! ". $sessioninfo->{expires});
-			return '';
-		}
-		
-		NMISNG::Util::logAuth("Accepted OMK cookie for user: $user_name, cookie data: "
-						.decode_base64($sessiondata)) if $self->{debug};
-		return $user_name;
-	}
-	# unrecognisable cookie_flavour
-	else
-	{
+		NMISNG::Util::logAuth('Invalid OMK cookie');
 		return '';
 	}
+
+	# signed with what key?
+	my $web_key = $self->_auth_web_key;
+	return '' unless defined $web_key;
+
+	# first, compare the checksum from cookie with a new one generated from cookie value
+	my $expected = Digest::SHA::hmac_sha1_hex($sessiondata, $web_key);
+	if (!_secure_compare($expected, $signature))
+	{
+		NMISNG::Util::logAuth('OMK cookie did not validate correctly!'
+						.($self->{debug}? " expected $expected but cookie had $signature" : ""));
+		return '';
+	}
+	# only then decode and json-parse the structure
+	$sessiondata =~ y/-/=/;
+	my $sessioninfo = eval { decode_json(decode_base64($sessiondata)); };
+	if ($@ or ref($sessioninfo) ne "HASH")
+	{
+		NMISNG::Util::logAuth("OMK cookie unparseable! $@");
+		return '';
+	}
+	if (!exists $sessioninfo->{auth_data})
+	{
+		NMISNG::Util::logAuth("OMK cookie invalid: no auth_data field!");
+		return '';
+	}
+	my $user_name = $sessioninfo->{auth_data};
+
+	# Validate expiration
+	if ( $sessioninfo->{expires} < time)
+	{
+		NMISNG::Util::logAuth("OMK cookie invalid: Session expired! ". $sessioninfo->{expires});
+		return '';
+	}
+
+	NMISNG::Util::logAuth("Accepted OMK cookie for user: $user_name, cookie data: "
+					.decode_base64($sessiondata)) if $self->{debug};
+	return $user_name;
 }
 
 
 # generate_cookie creates a cookie string
-# based on given username, sso domain, expiration, flavour settings
+# based on given username, sso domain and expiration
 # args: user_name (required);
 #  expires (optional), value (optional, only good for producing invalid/logged-out cookie)
 # returns: cookie string, empty if problems encountered
@@ -361,68 +355,64 @@ sub generate_cookie
 	my $authuser = $args{user_name};
 	return "" if (!defined $authuser or $authuser eq '');
 	my $name = (exists ($args{name}) ? $args{name} : $self->get_cookie_name);
-	my $value = $args{value};
 
 	my $expires = ($args{expires} // $self->{config}->{auth_expire}) || '+60min';
 	my $cookiedomain = $self->get_cookie_domain;
 
-	# cookie flavor determines the ingredients
-	if ($self->{cookie_flavour} eq "nmis")
+	# an explicit value (the do_login "remove" and do_logout "" clear cookies)
+	# needs no signature, so honour it even when the key is insecure. This lets
+	# a stale cookie be cleared while authentication is disabled.
+	if (exists($args{value}))
 	{
-		return CGI::cookie( {-name => $name,
-							-domain => $cookiedomain,
-							-expires => $expires,
-							-httponly => 1,
-							-value => (exists($args{value}) ?
-										$args{value}
-										: ("$authuser:" . $self->get_cookie_token($authuser)) )}); # weak checksum
+		return CGI::cookie( { -name => $name,
+							  -domain => $cookiedomain,
+							  -httponly => 1,
+							  -value => $args{value},
+							  -expires => $expires } );
 	}
-	elsif ($self->{cookie_flavour} eq "omk")
+
+	# the omk cookie scheme needs the expiration value as unix-seconds timestamp
+	my $expires_ts;
+	if ($expires eq "now")
 	{
-		# omk flavour needs the expiration value as unix-seconds timestamp
-		my $expires_ts;
-		if ($expires eq "now")
-		{
-			$expires_ts = time();
-		}
-		elsif ($expires =~ /^([+-]?\d+)\s*(s|m|min|h|d|M|y)$/)
-		{
-			my ($offset, $unit) = ($1, $2);
-			# the last two are clearly imprecise
-			my %factors = ( s => 1, m => 60, 'min' => 60, h => 3600, d => 86400, M => 31*86400, y => 365 * 86400 );
-
-			$expires_ts = time + ($offset * $factors{$unit});
-		}
-		else # assume it's something absolute and parsable
-		{
-			$expires_ts = func::parseDateTime($expires) || func::getUnixTime($expires);
-		}
-
-		# create session data structure, encode as base64 (but - instead of =), sign with key and combine
-		my $sessiondata = encode_json( { auth_data => $authuser,
-																		 expires => $expires_ts } );
-		my $value = encode_base64($sessiondata, ''); # no end of line separator please
-		$value =~ y/=/-/;
-		my $web_key = $self->{config}->{auth_web_key} // $CHOCOLATE_CHIP;
-		my $signature = Digest::SHA::hmac_sha1_hex($value, $web_key);
-
-		NMISNG::Util::logAuth("generated OMK cookie for $authuser: $value--$signature")
-				if ($self->{debug});
-
-		return  CGI::cookie( { -name => $name,
- 							 -domain => $cookiedomain,
-							 -httponly => 1,
-							 -value => (exists($args{value}) ?
-																	 $args{value}
-																	 :"$value--$signature"),
-							 -expires => $expires } );
-
+		$expires_ts = time();
 	}
-	else
+	# same unit set as not_expired and CGI::Session::_str2seconds (s m h d w M y). A
+	# missing unit falls through to func::parseDateTime below, and func.pm does not
+	# exist in nmis9, so an unknown unit dies rather than degrading.
+	elsif ($expires =~ /^([+-]?\d+)\s*(min|s|m|h|d|w|M|y)$/)
 	{
-		NMISNG::Util::logAuth("ERROR unrecognisable auth_cookie_flavour configuration!");
-		return '';
+		my ($offset, $unit) = ($1, $2);
+		# the last two are clearly imprecise
+		my %factors = ( s => 1, m => 60, 'min' => 60, h => 3600, d => 86400, w => 604800, M => 31*86400, y => 365 * 86400 );
+
+		$expires_ts = time + ($offset * $factors{$unit});
 	}
+	else # assume it's something absolute and parsable
+	{
+		$expires_ts = func::parseDateTime($expires) || func::getUnixTime($expires);
+	}
+
+	# create session data structure, encode as base64 (but - instead of =), sign with key and combine
+	my $sessiondata = encode_json( { auth_data => $authuser,
+																	 expires => $expires_ts } );
+	my $value = encode_base64($sessiondata, ''); # no end of line separator please
+	$value =~ y/=/-/;
+	my $web_key = $self->_auth_web_key;
+	return '' unless defined $web_key;
+	my $signature = Digest::SHA::hmac_sha1_hex($value, $web_key);
+
+	NMISNG::Util::logAuth("generated OMK cookie for $authuser: $value--$signature")
+			if ($self->{debug});
+
+	# an explicit value was already returned early above, so at this point the
+	# cookie always carries the freshly signed value.
+	return CGI::cookie( { -name => $name,
+						  -domain => $cookiedomain,
+						  -httponly => 1,
+						  -value => "$value--$signature",
+						  -expires => $expires } );
+
 }
 
 
@@ -945,22 +935,31 @@ EOHTML
 	NMISNG::Util::logAuth("DEBUG: do_login: sending cookie to remove existing cookies=$cookie") if $self->{debug};
 	print CGI::header(-target=>"_top", -type=>"text/html", -expires=>'now', -cookie=>[$cookie]);
 
+	# login page is served pre-authentication; config values are untrusted on
+	# output (OMK-12702). Escape the title and scheme-check/escape asset URLs.
+	my $login_title    = NMISNG::Util::escape_html($self->{config}->{auth_login_title});
+	my $login_favicon  = NMISNG::Util::escape_html(NMISNG::Util::safe_url($self->{config}->{'nmis_favicon'}));
+	my $login_jqui_css = NMISNG::Util::escape_html(NMISNG::Util::safe_url($self->{config}->{'jquery_ui_css'}));
+	my $login_styles   = NMISNG::Util::escape_html(NMISNG::Util::safe_url($self->{config}->{'styles'}));
+	my $login_jquery   = NMISNG::Util::escape_html(NMISNG::Util::safe_url($self->{config}->{'jquery'}));
+	my $login_jqui     = NMISNG::Util::escape_html(NMISNG::Util::safe_url($self->{config}->{'jquery_ui'}));
+
 	print qq
 |<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN" "http://www.w3.org/TR/html4/loose.dtd">
 <html>
   <head>
-    <title>$self->{config}->{auth_login_title}</title>
+    <title>$login_title</title>
     <meta http-equiv="Content-Type" content="text/html; charset=iso-8859-1" />
     <meta http-equiv="Pragma" content="no-cache" />
     <meta http-equiv="Cache-Control" content="no-cache, no-store" />
     <meta http-equiv="Expires" content="-1" />
     <meta http-equiv="Robots" content="none" />
     <meta http-equiv="Googlebot" content="noarchive" />
-    <link type="image/x-icon" rel="shortcut icon" href="$self->{config}->{'nmis_favicon'}" />
-    <link type="text/css" rel="stylesheet" href="$self->{config}->{'jquery_ui_css'}" />
-    <link type="text/css" rel="stylesheet" href="$self->{config}->{'styles'}" />
-    <script src="$self->{config}->{'jquery'}" type="text/javascript"></script>
-    <script src="$self->{config}->{'jquery_ui'}" type="text/javascript"></script>
+    <link type="image/x-icon" rel="shortcut icon" href="$login_favicon" />
+    <link type="text/css" rel="stylesheet" href="$login_jqui_css" />
+    <link type="text/css" rel="stylesheet" href="$login_styles" />
+    <script src="$login_jquery" type="text/javascript"></script>
+    <script src="$login_jqui" type="text/javascript"></script>
   </head>
   <body>
 |;
@@ -977,13 +976,16 @@ EOHTML
 	print CGI::start_table({class=>""});
 
 	if ( $self->{config}->{'company_logo'} ne "" ) {
-		print CGI::Tr(CGI::td({class=>"info Plain",colspan=>'2'}, qq|<img class="logo" src="$self->{config}->{'company_logo'}"/>|));
+		my $company_logo = NMISNG::Util::escape_html(NMISNG::Util::safe_url($self->{config}->{'company_logo'}));
+		print CGI::Tr(CGI::td({class=>"info Plain",colspan=>'2'}, qq|<img class="logo" src="$company_logo"/>|));
 	}
 
 	my $motd = "Authentication required: Please log in with your appropriate username and password in order to gain access to this system";
 	$motd = $self->{config}->{auth_login_motd} if $self->{config}->{auth_login_motd} ne "";
 
-	print CGI::Tr(CGI::td({class=>'infolft Plain',colspan=>'2'},$motd));
+	# motd is admin config rendered on the pre-auth page: escape it (now shown as
+	# text, not HTML) so a config-write attacker cannot inject script here
+	print CGI::Tr(CGI::td({class=>'infolft Plain',colspan=>'2'},NMISNG::Util::escape_html($motd)));
 
 	print CGI::Tr(CGI::td({class=>'info Plain'},"Username") . CGI::td({class=>'info Plain'},textfield({name=>'auth_username'})));
 	print CGI::Tr(CGI::td({class=>'info Plain'},"Password") . CGI::td({class=>'info Plain'},password_field({name=>'auth_password'}) ));
@@ -991,7 +993,7 @@ EOHTML
 
 
 	if ( $self->{config}->{'auth_sso_domain'} ne "" and $self->{config}->{'auth_sso_domain'} ne ".domain.com" ) {
-		print CGI::Tr(CGI::td({class=>"info",colspan=>'2'}, "Single Sign On configured with \"$self->{config}->{'auth_sso_domain'}\""));
+		print CGI::Tr(CGI::td({class=>"info",colspan=>'2'}, "Single Sign On configured with \"".NMISNG::Util::escape_html($self->{config}->{'auth_sso_domain'})."\""));
 	}
 
 	print CGI::Tr(CGI::td({colspan=>'2'},p({style=>"color: red"}, "&nbsp;$msg&nbsp;"))) if $msg ne "";
@@ -1014,29 +1016,44 @@ EOHTML
 
 	print "\n      </div>\n";
 
-	if (ref($listmodules) eq "ARRAY" and @$listmodules)
-	{
-		print qq|
-      <div>&nbsp;</div>
-      <div id='login_dialog' class='ui-dialog ui-widget ui-widget-content ui-corner-all'>
-        <div class='header'>Available NMIS Modules</div>
-        <table>
-|;
-		for my $entry (@$listmodules)
-		{
-			my ($name, $link, $descr) = @$entry;
-			print "          <tr><td class='lft Plain'><a href=\"$link\" target='_blank'>$name</a> - $descr</td></tr>\n";
-		}
-		print qq|        </table>
-      </div>
-|;
-	}
+	print NMISNG::Auth::login_modules_html($listmodules);
 
 		print qq|
     </div>
 |;
 
 	print CGI::end_html;
+}
+
+# login_modules_html: build the "Available NMIS Modules" block shown on the
+# unauthenticated login page from a getModuleLinks-style arrayref of
+# [name, link, tagline] triples. Every field is config-sourced and untrusted, so
+# names and taglines are HTML-escaped and links are scheme-checked (OMK-12703).
+# args: arrayref of [name, link, descr] (may be undef or empty)
+# returns: the HTML block, or "" when there is nothing to show
+sub login_modules_html
+{
+	my ($listmodules) = @_;
+	return "" if (ref($listmodules) ne "ARRAY" or !@$listmodules);
+
+	my $html = qq|
+      <div>&nbsp;</div>
+      <div id='login_dialog' class='ui-dialog ui-widget ui-widget-content ui-corner-all'>
+        <div class='header'>Available NMIS Modules</div>
+        <table>
+|;
+	for my $entry (@$listmodules)
+	{
+		my ($name, $link, $descr) = @$entry;
+		my $safelink  = NMISNG::Util::escape_html(NMISNG::Util::safe_url($link));
+		my $safename  = NMISNG::Util::escape_html($name);
+		my $safedescr = NMISNG::Util::escape_html($descr);
+		$html .= "          <tr><td class='lft Plain'><a href=\"$safelink\" target='_blank'>$safename</a> - $safedescr</td></tr>\n";
+	}
+	$html .= qq|        </table>
+      </div>
+|;
+	return $html;
 }
 
 ##############################################################################
@@ -1077,7 +1094,7 @@ EOHTML
 
 	$javascript = "function redir() { ";
 #	$javascript .= "alert('$err'); " if($err);
-	$javascript .= " window.location = '" . $url . "'; }";
+	$javascript .= " window.location = '" . NMISNG::Util::escape_js_string($url) . "'; }";
 
 	$javascript = "function redir() {} " if($self->{config}->{'web-auth-debug'});
 
@@ -1107,7 +1124,8 @@ sub do_logout {
 	# Javascript that sets window.location to login URL
 	### fixing the logout so it can be reverse proxied
 	CGI::delete('auth_type'); 		# but don't keep that one
-	my $url = CGI::url(-full=>1, -query=>1);
+	# do NOT reflect the incoming query string into the redirect (OMK-12703)
+	my $url = CGI::url(-full=>1);
 	$url =~ s!^[^:]+://!//!;
 
 	if ($max_sessions_enabled)
@@ -1123,7 +1141,7 @@ sub do_logout {
 		}
 	}
 	
-	my $javascript = "function redir() { window.location = '" . $url ."'; }";
+	my $javascript = "function redir() { window.location = '" . NMISNG::Util::escape_js_string($url) . "'; }";
 	my $cookie = $self->generate_cookie(user_name => $self->{user}, expires => "now", value => "" );
 
 	NMISNG::Util::logAuth("INFO logout of user=$self->{user}");
@@ -1137,6 +1155,14 @@ sub do_logout {
 	#	-style=>{'src'=>"$self->{config}->{'<menu_url_base>'}/css/dash8.css"}
 	#	}),"\n";
 
+	# config-sourced asset URLs on this pre/post-auth page are untrusted on
+	# output (OMK-12703): scheme-check and escape them
+	my $fl_favicon  = NMISNG::Util::escape_html(NMISNG::Util::safe_url($self->{config}->{'nmis_favicon'}));
+	my $fl_jqui_css = NMISNG::Util::escape_html(NMISNG::Util::safe_url($self->{config}->{'jquery_ui_css'}));
+	my $fl_styles   = NMISNG::Util::escape_html(NMISNG::Util::safe_url($self->{config}->{'styles'}));
+	my $fl_jquery   = NMISNG::Util::escape_html(NMISNG::Util::safe_url($self->{config}->{'jquery'}));
+	my $fl_jqui     = NMISNG::Util::escape_html(NMISNG::Util::safe_url($self->{config}->{'jquery_ui'}));
+
 	print qq
 |<!DOCTYPE html>
 <html>
@@ -1148,11 +1174,11 @@ sub do_logout {
     <meta http-equiv="Expires" content="-1" />
     <meta http-equiv="Robots" content="none" />
     <meta http-equiv="Googlebot" content="noarchive" />
-    <link type="image/x-icon" rel="shortcut icon" href="$self->{config}->{'nmis_favicon'}" />
-    <link type="text/css" rel="stylesheet" href="$self->{config}->{'jquery_ui_css'}" />
-    <link type="text/css" rel="stylesheet" href="$self->{config}->{'styles'}" />
-    <script src="$self->{config}->{'jquery'}" type="text/javascript"></script>
-    <script src="$self->{config}->{'jquery_ui'}" type="text/javascript"></script>
+    <link type="image/x-icon" rel="shortcut icon" href="$fl_favicon" />
+    <link type="text/css" rel="stylesheet" href="$fl_jqui_css" />
+    <link type="text/css" rel="stylesheet" href="$fl_styles" />
+    <script src="$fl_jquery" type="text/javascript"></script>
+    <script src="$fl_jqui" type="text/javascript"></script>
     <script type="text/javascript">//<![CDATA[
 $javascript
 //]]></script>
@@ -1195,8 +1221,11 @@ sub do_login_banner {
 
 	#print STDERR "DEBUG AUTH banner=$banner_string self->{banner}=$self->{banner}\n";
 
-	my $logo = qq|<a href="http://www.opmantek.com"><img height="20px" width="20px" class="logo" src="$self->{config}->{'nmis_favicon'}"/></a>|;
-	push @banner,CGI::div({class=>'ui-dialog-titlebar ui-dialog-header ui-corner-top ui-widget-header lrg pad'},$logo, $banner_string);
+	# favicon is config-sourced on the (pre-auth) login banner; scheme-check and
+	# escape it, and escape the banner text (OMK-12703)
+	my $safe_favicon = NMISNG::Util::escape_html(NMISNG::Util::safe_url($self->{config}->{'nmis_favicon'}));
+	my $logo = qq|<a href="http://www.opmantek.com"><img height="20px" width="20px" class="logo" src="$safe_favicon"/></a>|;
+	push @banner,CGI::div({class=>'ui-dialog-titlebar ui-dialog-header ui-corner-top ui-widget-header lrg pad'},$logo, NMISNG::Util::escape_html($banner_string));
 	push @banner,CGI::div({class=>'title2'},"Network Management Information System");
 
 	return @banner;
@@ -1420,6 +1449,17 @@ sub loginout {
 		
 	NMISNG::Util::logAuth("DEBUG: loginout, Type=$type Username=$username")
 			if $self->{debug};
+
+	# C2 (OMK-12687): refuse to authenticate when the cookie-signing key is
+	# insecure, so no forgeable cookie is ever issued or accepted. Logout is
+	# still permitted so existing cookies can be cleared.
+	if (lc $type ne 'logout' and !defined $self->_auth_web_key)
+	{
+		NMISNG::Util::logAuth("ERROR loginout: refusing authentication because auth_web_key is unset or an insecure default");
+		$self->do_login(msg => "Authentication is disabled until a unique auth_web_key is set. Please contact your administrator.",
+										listmodules => $listmodules);
+		return 0;
+	}
 
 	#2011-11-14 Integrating changes from Till Dierkesmann
 	### 2013-01-22 markd, fixing Auth to use Cookies!
@@ -1867,6 +1907,76 @@ sub InGroup {
 	return 0;
 }
 
+# group_allowed: true only if the user may see $group AND it is a configured group
+# (present in $group_table). Provided as a method so the "in group and group
+# exists" check has correct operator precedence and is shared, rather than being
+# repeated inline where it is easy to get wrong (OMK-12731).
+# args: group name, the loaded groups table (hashref keyed by group name)
+# returns: 1 if allowed, 0 otherwise
+sub group_allowed
+{
+	my ($self, $group, $group_table) = @_;
+	return 0 if (!defined $group || $group eq "");
+	return ($self->InGroup($group)
+					and ref($group_table) eq "HASH"
+					and exists $group_table->{$group}) ? 1 : 0;
+}
+
+# visible_groups: the groups this user may see, as a table keyed by name.
+# args: list of group names, normally from NMISNG::get_group_names, which has
+#  already stripped hide_groups
+# returns: hashref suitable as the group_table argument of group_allowed
+sub visible_groups
+{
+	my ($self, @groupnames) = @_;
+	return { map { $_ => $_ } grep { $self->InGroup($_) } @groupnames };
+}
+
+# graph_refusal: may this user view the graph identified by node and/or group?
+# Every identifier present is checked, not just the first one. rrdfunc::draw
+# sets $item = $mygroup for graphtype=metrics and the rrd template is
+# '/metrics/$item.rrd', so a metrics graph resolves by group alone. Checking
+# only the node would let a permitted node launder a foreign group (OMK-12706).
+# args: node_group (the group $node belongs to, resolved by the caller),
+#  grouptable (as visible_groups), node, group, allow_global
+# $node is only the "a node was named" signal, the group decision uses
+# node_group. an undef node_group is refused, so an unknown node fails closed.
+# allow_global suppresses only the 'none' refusal, for a global graphtype the
+# caller has already authorised by other means. Identifiers that are supplied
+# are still checked.
+# returns: undef if allowed, else 'node', 'group' or 'none' naming the refusal
+sub graph_refusal
+{
+	my ($self, %args) = @_;
+	my ($node_group, $grouptable, $node, $group, $allow_global)
+			= @args{qw(node_group grouptable node group allow_global)};
+	my $checked = 0;
+
+	if (defined($group) and $group ne "")
+	{
+		# 'network' is the metrics pseudo-group: it exists no matter what the
+		# group_list configuration or group table says, so it is gated on
+		# InGroup alone
+		my $ok = ($group eq "network")? $self->InGroup($group)
+				: $self->group_allowed($group, $grouptable);
+		return 'group' if (!$ok);
+		$checked++;
+	}
+
+	if (defined($node) and $node ne "")
+	{
+		# group_allowed rejects undef, so a node the caller could not resolve
+		# is refused rather than allowed
+		return 'node' if (!$self->group_allowed($node_group, $grouptable));
+		$checked++;
+	}
+
+	# nothing to authorise against. refused unless the caller declared this a
+	# global graph it has already authorised itself
+	return 'none' if (!$checked and !$allow_global);
+	return undef;
+}
+
 #----------------------------------
 
 #	Check Access identifier agains priv of user
@@ -1890,55 +2000,67 @@ sub generate_session {
 	
 	my ($self, %args) = @_;
 	
-	my $token;
 	my $user = $args{user_name};
 	my $name = $self->get_cookie_name;
 	my $session_dir = $self->{config}->{'session_dir'} // $self->{config}->{'<nmis_var>'}."/nmis_system/user_session";
 	my $expires = ($args{expires} // $self->{config}->{auth_expire}) || '+60min';
 	my $cookiedomain = $self->get_cookie_domain;
-	
-	if ($self->{cookie_flavour} eq "nmis")
-	{
-		$token = $self->get_cookie_token($user);
-	}
-	elsif ($self->{cookie_flavour} eq "omk")
-	{
-		my $expires_ts;
-		if ($expires eq "now")
-		{
-			$expires_ts = time();
-		}
-		elsif ($expires =~ /^([+-]?\d+)\s*(\{s|m|min|h|d|M|y})$/)
-		{
-			my ($offset, $unit) = ($1, $2);
-			# the last two are clearly imprecise
-			my %factors = ( s => 1, m => 60, 'min' => 60, h => 3600, d => 86400, M => 31*86400, y => 365 * 86400 );
-	
-			$expires_ts = time + ($offset * $factors{$unit});
-		}
-		else # assume it's something absolute and parsable
-		{
-			$expires_ts = NMISNG::Util::parseDateTime($expires) || NMISNG::Util::getUnixTime($expires);
-		}
-	
-		# create session data structure, encode as base64 (but - instead of =), sign with key and combine
-		my $sessiondata = encode_json( { auth_data => $user,
-																		 expires => $expires_ts } );
-		my $value = encode_base64($sessiondata, ''); # no end of line separator please
-		$value =~ y/=/-/;
-		my $web_key = $self->{config}->{auth_web_key} // $CHOCOLATE_CHIP;
-		my $signature = Digest::SHA::hmac_sha1_hex($value, $web_key);
-		
-		$token = $self->get_cookie_token($signature);
-	}
-	# Generate sesssion
-	my $session = CGI::Session->new(undef, $token, {Directory=>$session_dir});
+
+	# Generate session; CGI::Session creates its own unpredictable id
+	my $session = CGI::Session->new(undef, undef, {Directory=>$session_dir});
 	NMISNG::Util::logAuth("INFO Generating session $name for user $user") if ($self->{debug});
 	
 	$session->param('username', $user);
 	$expires =~ s/min/m/g; 
 	$session->expire($expires);
 	return $session;
+}
+
+# read_session_fields: recovers the only two fields the enumeration loops below
+# need, username and _SESSION_ATIME, treating the file purely as data. Sessions
+# are stored in the CGI::Session default-serializer format, which is Perl source,
+# so the string eval this replaces made anything able to write into the session
+# directory into code run by the reader, root included (OMK-12812). The on-disk
+# format is untouched, so existing sessions stay valid.
+# args: path to a session file
+# returns: hashref with username and _SESSION_ATIME, or undef when the file is
+# unreadable, larger than the cap below, or carries neither field. Callers must
+# treat undef as "skip this file", never as "delete it".
+sub read_session_fields
+{
+	my ($self, $path) = @_;
+
+	my $fh;
+	if (!open($fh, '<', $path))
+	{
+		# the loops this replaced logged $! here, and without it an unreadable file
+		# quietly stops being counted with nothing to say why
+		NMISNG::Util::logAuth("ERROR cannot read session file $path: $!");
+		return undef;
+	}
+	# Real session files are a few hundred bytes. Cap the read, because these loops
+	# run as root and the directory stays group-writable until OMK-12811. Refuse an
+	# oversized file rather than parse its prefix, which could carry username but
+	# lose _SESSION_ATIME, and a missing atime makes the callers unlink the file.
+	my $maxbytes = 65536;
+	my $content;
+	my $nread = read($fh, $content, $maxbytes + 1);    # one session per file
+	close($fh);
+	return undef if (!defined $nread or !defined $content);
+	if ($nread > $maxbytes)
+	{
+		NMISNG::Util::logAuth("ERROR session file $path is larger than $maxbytes bytes, refusing to parse it");
+		return undef;
+	}
+
+	# the serializer single-quotes strings and backslash-escapes embedded ' and \
+	my ($username) = $content =~ m/'username'\s*=>\s*'((?:[^'\\]|\\.)*)'/;
+	my ($atime)    = $content =~ m/'_SESSION_ATIME'\s*=>\s*'?(\d+)'?/;
+
+	return undef if (!defined $username && !defined $atime);
+	$username =~ s/\\(.)/$1/g if (defined $username);
+
+	return { username => $username, _SESSION_ATIME => $atime };
 }
 
 # returns the current session counter for the given user
@@ -1958,38 +2080,33 @@ sub get_live_session_counter
 	# CGI:: Session does not have a max concurrent sessions
 	# Or get session by user
 	# So we will get all the session files, filter by user and calculate if they are expired
-	opendir(DIR, $session_dir) or NMISNG::Util::logAuth("Could not open $session_dir\n");
-	
-	while (my $filename = readdir(DIR)) {
-		open(FH, '<', "$session_dir/$filename") or NMISNG::Util::logAuth($!);
-		while(<FH>) {
-		   #$_ =~ /(\$D = (.*);;\$D)/;
-		   #my $s = $2;
-		   my $s = $_;
-		   $s =~ s/\$D = //;
-		   $s  =~ s/;;\$D//;
-		   my $hash = eval $s;
-		   if ($@) {
-					NMISNG::Util::logAuth("ERROR $@");
-			}
+	if (!opendir(DIR, $session_dir))
+	{
+		NMISNG::Util::logAuth("Could not open $session_dir");
+		return (undef, $count);
+	}
+	my @sessionfiles = grep { $_ !~ /^\.\.?$/ } readdir(DIR);
+	closedir(DIR);
 
-		   if (($hash->{username} eq $user) or ($user eq "ALL")) {
+	foreach my $filename (@sessionfiles) {
+		my $session = $self->read_session_fields("$session_dir/$filename");
+		next if (!defined $session or !defined $session->{username});
+
+		if (($session->{username} eq $user) or ($user eq "ALL")) {
 			 if ($remove_all) {
 				# Remove all files for the given user
 				unlink "$session_dir/$filename";
 			 } else {
 				# Remove expired sessions
-				if ($self->not_expired(time_exp => $hash->{_SESSION_ATIME}) == 1) {
+				if ($self->not_expired(time_exp => ($session->{_SESSION_ATIME} // 0)) == 1) {
 					$count++;
-					logAuth("Increment counter $count for user $user") if ($self->{debug});
+					NMISNG::Util::logAuth("Increment counter $count for user $user") if ($self->{debug});
 				 } else {
 					# Clean up
 					unlink "$session_dir/$filename";
 				 }
-			 } 
-		   }
-		}	
-		close(FH);
+			 }
+		}
 	}
 	NMISNG::Util::logAuth("** $count sessions open for user $user") if ($self->{debug});
 	
@@ -2009,22 +2126,21 @@ sub get_all_live_session_counter
 	# CGI:: Session does not have a max concurrent sessions
 	# Or get session by user
 	# So we will get all the session files, filter by user and calculate if they are expired
-	opendir(DIR, $session_dir) or NMISNG::Util::logAuth("Could not open $session_dir\n");
-	
+	if (!opendir(DIR, $session_dir))
+	{
+		NMISNG::Util::logAuth("Could not open $session_dir");
+		return $all;
+	}
+	my @sessionfiles = grep { $_ !~ /^\.\.?$/ } readdir(DIR);
+	closedir(DIR);
+
 	# Get users, init counter
-	while (my $filename = readdir(DIR)) {
-		open(FH, '<', "$session_dir/$filename") or NMISNG::Util::logAuth($!);
-		while(<FH>) {
-		   my $s = $_;
-		   $s =~ s/\$D = //;
-		   $s  =~ s/;;\$D//;
-		   my $hash = eval $s;
-		   if ($@) {
-					logAuth("ERROR $@");
-			}
-		   my $user = $hash->{username};
-		   
-		   if ($self->not_expired(time_exp => $hash->{_SESSION_ATIME}) == 1) {
+	foreach my $filename (@sessionfiles) {
+		my $session = $self->read_session_fields("$session_dir/$filename");
+		next if (!defined $session or !defined $session->{username});
+		my $user = $session->{username};
+
+		if ($self->not_expired(time_exp => ($session->{_SESSION_ATIME} // 0)) == 1) {
 			  if (defined ($all->{$user}->{sessions})) {
 				 $all->{$user}->{sessions} = $all->{$user}->{sessions} + 1;
 			   } else {
@@ -2034,10 +2150,6 @@ sub get_all_live_session_counter
 					# Clean up
 					unlink "$session_dir/$filename";
 			}
-		   
-		  
-		}	
-		close(FH);
 	}
 
 	return $all;
@@ -2050,11 +2162,15 @@ sub not_expired {
 	
 	my $expires = ($args{expires} // $self->{config}->{auth_expire}) || '+60min';
 	my $expires_ts = $expires;
-	if ($expires =~ /^([+-]?\d+)\s*(\{s|m|min|h|d|M|y})$/)
+	# generate_session hands auth_expire straight to $session->expire(), so this must
+	# accept every unit CGI::Session::_str2seconds does (s m h d w M y). A missing
+	# unit numifies to the bare digits and expires a session CGI::Session still
+	# treats as live, so the loops above delete it. Longest unit first, for 'min'.
+	if ($expires =~ /^([+-]?\d+)\s*(min|s|m|h|d|w|M|y)$/)
 		{
 			my ($offset, $unit) = ($1, $2);
 			# the last two are clearly imprecise
-			my %factors = ( s => 1, m => 60, 'min' => 60, h => 3600, d => 86400, M => 31*86400, y => 365 * 86400 );
+			my %factors = ( s => 1, m => 60, 'min' => 60, h => 3600, d => 86400, w => 604800, M => 31*86400, y => 365 * 86400 );
 
 			$expires_ts = ($offset * $factors{$unit});
 		}

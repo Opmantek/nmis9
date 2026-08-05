@@ -70,7 +70,12 @@ for my $fn (keys %candidates)
 	}
 	else
 	{
-		my @output = `$difftool $olddir/$fn $newdir/$fn`;
+		# list-form open bypasses the shell, so shell metacharacters in the
+		# readdir-supplied $fn or in the argv-supplied dirs cannot be injected
+		open(my $ph, "-|", $difftool, "$olddir/$fn", "$newdir/$fn")
+				or die "cannot run $difftool: $!\n";
+		my @output = <$ph>;
+		close($ph);									# sets $? from the child
 		my $exitcode = $? >> 8;
 		
 		if (!$exitcode)						# exit 0 == no changes 

@@ -46,7 +46,10 @@ $Data::Dumper::Indent = 1;
 my $q = new CGI; # This processes all parameters passed via GET and POST
 my $Q = $q->Vars; # values in hash
 my $C;
-$Q = NMISNG::Util::filter_params($Q) if ($Q->{act} ne 'event_table_update');
+# always filter params (OMK-12723). filter_params works on a plain copy and does
+# not write back through $q->Vars (a tied hash), so event_table_update's
+# multi-value $q->param reads below are preserved.
+$Q = NMISNG::Util::filter_params($Q);
 
 if (!($C = NMISNG::Util::loadConfTable(debug=>$Q->{debug}))) { exit 1; };
 

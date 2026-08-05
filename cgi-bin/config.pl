@@ -49,13 +49,16 @@ use Data::Dumper;
 my $q = new CGI; # This processes all parameters passed via GET and POST
 my $Q = $q->Vars; # values in hash
 
-$Q = NMISNG::Util::filter_params($Q) if ($Q->{item} ne "hide_groups");
+# always filter params (OMK-12723). filter_params works on a plain copy and does
+# not write back through $q->Vars (a tied hash), so the multi-value hide_groups
+# read below via $q->multi_param is preserved.
+$Q = NMISNG::Util::filter_params($Q);
 
 my $C = NMISNG::Util::loadConfTable(debug=>$Q->{debug});
 die "failed to load configuration!\n" if (!$C or ref($C) ne "HASH" or !keys %$C);
 
 # if arguments present, then called from command line
-if ( @ARGV ) { $C->{auth_require} = 0; } # bypass auth
+if ( @ARGV and not $ENV{GATEWAY_INTERFACE} ) { $C->{auth_require} = 0; } # bypass auth for CLI only
 
 # this cgi script defaults to widget mode ON
 my $wantwidget = exists $Q->{widget}?

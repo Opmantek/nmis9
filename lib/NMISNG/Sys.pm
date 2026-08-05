@@ -1666,12 +1666,16 @@ sub eval_string
 			return "Error: CVAR$varuse used but not defined in expression \"$input\""
 				if ( !exists $cvar{$varuse} );
 
-			$rebuiltcalc .= $cvar{$varuse};    # sub in the actual value
+			# OMK-12689: the CVAR value can be device-controlled (raw SNMP/WMI data).
+			# Do NOT concatenate it into the code to be eval'd. Emit a reference to a
+			# lexical bound below, so the value is data and can never be executed.
+			$rebuiltcalc .= "\$CVAR{" . ( 0 + $varuse ) . "}";
 		}
 	}
 	$rebuiltcalc .= $consumeme;                # and the non-CVAR-containing remainder.
 
 	my $r = $context;                          # backwards compat naming: allow $r inside expression
+	my %CVAR = %cvar;                          # OMK-12689: CVAR values bound as data, referenced as $CVAR{n}
 	$r = eval $rebuiltcalc;
 
 	$self->nmisng->log->debug3("calc translated \"$input\" into \"$rebuiltcalc\", used variables: "
@@ -2461,11 +2465,45 @@ sub parseString
 	#
 	# if the extras substitution were to be done first, then the identically named
 	# but OCCASIONALLY DIFFERENT hardcoded global values will clash and we get breakage all over the place.
+	# OMK-12689 (review I5): bind substituted values by generated id, not by key
+	# name, so a (possibly device-derived) extras KEY is never spliced into the
+	# eval'd source. Populated in the eval branch below, referenced at the eval.
+	my %EXTRAS_BY_ID;
+	my $bind_id = 0;
 	if ( ref($extras) eq "HASH" && keys %$extras)
 	{
 		# must be done longest-first or we'll wreck $ifSpeedIn by replacing it with <value of ifSpeed>In...
 		for my $maybe ( sort { length($b) <=> length($a) } keys %$extras )
 		{
+			# OMK-12689: in eval mode, do not splice the (possibly device-controlled)
+			# value into the code to be eval'd. Substitute a reference into the lexical
+			# %EXTRAS_BY_ID bound below, so the value stays data and can never be
+			# executed. The fragile single-quote stripping/wrapping "defence" is
+			# dropped for this path (it corrupted values and was escapable).
+			# Applies whenever eval is on, regardless of filter: eval mode must never
+			# fall back to the escapable quote-splice path. (filterName is only used by
+			# name-building callers, which pass eval => 0.)
+			if ( $eval )
+			{
+				# Substitute a sentinel placeholder that contains no '$', so a later
+				# (shorter) key cannot re-match it and corrupt the source: e.g. a key
+				# 'E' would otherwise match the '$E' inside an already-substituted
+				# $EXTRAS_BY_ID{0}. Placeholders are converted to $EXTRAS_BY_ID{n}
+				# refs after ALL key substitution completes (below). The key name never
+				# enters the eval'd source; quotemeta keeps a metacharacter-bearing key
+				# from corrupting the match.
+				my $id       = $bind_id;
+				my $ref      = "\x00EXTRASBIND${id}\x00";
+				my $presubst = $str;
+				if ( $str =~ s/(\$\Q$maybe\E|\$\{\Q$maybe\E\})/$ref/g )
+				{
+					$EXTRAS_BY_ID{$id} = $extras->{$maybe};
+					$bind_id++;
+					$self->nmisng->log->debug3( sub { "bound '$maybe' as data (id $id), str before '$presubst', after '$str'" } );
+				}
+				next;
+			}
+
 			# used to quote with double quotes, changed to single quotes and remove any single quotes to make sure our quoting is not interrupted
 			# NOTE: Is there any reason not to quote every time?
 			$extras->{$maybe} =~ s/'//g; # remove any single quotes because we will be quoting with them
@@ -2479,12 +2517,14 @@ sub parseString
 			# this substitutes $varname and ${varname},
 			# the latter is safer b/c the former has trouble with varnames sharing a prefix.
 			# no look-ahead assertion is possible, we don't know what the string is used for...
-			if ( $str =~ s/(\$$maybe|\$\{$maybe\})/$extras->{$maybe}/g )
+			# OMK-12689 (re-review M2): quotemeta the key so a metacharacter-bearing
+			# key matches literally (not CWE-94 here - eval is off - a correctness fix).
+			if ( $str =~ s/(\$\Q$maybe\E|\$\{\Q$maybe\E\})/$extras->{$maybe}/g )
 			{
 				if ($filter) {
 					$str = $presubst;
 					my $str2 = NMISNG::Util::filterName($extras->{$maybe});
-					$str =~ s/(\$$maybe|\$\{$maybe\})/$str2/g;
+					$str =~ s/(\$\Q$maybe\E|\$\{\Q$maybe\E\})/$str2/g;
 					$self->nmisng->log->debug3(sub { "substituted '$maybe', str before '$presubst', after '$str'" });
 				}
 			
@@ -2502,6 +2542,12 @@ sub parseString
 		Carp::confess("parseString failed to fully expand \"$str\"!");
 	}
 
+	# OMK-12689 (re-review I1): now that all key substitution is complete, convert
+	# the sentinel placeholders to lexical %EXTRAS_BY_ID references. Done after the
+	# loop so a placeholder can never be re-matched by a later key during it.
+	$str =~ s/\x00EXTRASBIND(\d+)\x00/\$EXTRAS_BY_ID{$1}/g if ($eval);
+
+	# %EXTRAS_BY_ID (declared above) holds the bound values; eval-mode $EXTRAS_BY_ID{n} refs resolve here, as data
 	my $product = ($eval) ? eval $str : $str;
 	$self->nmisng->log->error("($node_name) parseString failed for str:$str, error:$@") if($@);
 	$self->nmisng->log->debug3(sub { "parseString:: result is str=$product"});

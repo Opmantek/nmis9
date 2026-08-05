@@ -57,7 +57,7 @@ my $C = $nmisng->config;
 # an authentication login or logout request
 
 # if arguments present, then called from command line, no auth.
-if ( @ARGV ) { $C->{auth_require} = 0; }
+if ( @ARGV and not $ENV{GATEWAY_INTERFACE} ) { $C->{auth_require} = 0; } # bypass auth for CLI only
 
 my $user;
 my $privlevel;
@@ -74,8 +74,7 @@ if ($AU->Require) {
 exit 1 if (defined($Q->{cluster_id}) && $Q->{cluster_id} ne $C->{cluster_id});
 
 my $NT = Compat::NMIS::loadLocalNodeTable();
-my @groups   = grep { $AU->InGroup($_) } sort $nmisng->get_group_names;
-my $GT = { map { $_ => $_ } (@groups) }; # backwards compat; hash assumption sprinkled everywhere
+my $GT = $AU->visible_groups(sort $nmisng->get_group_names); # hash assumption sprinkled everywhere
 
 # When called from the Node and changed to an interface type within the dialog, the action is lost.
 if ($Q->{forceAct}) {
@@ -202,24 +201,44 @@ sub typeGraph
 		-script => {-src => $C->{'jquery'}, -type=>"text/javascript"},
 		);
 
-	# verify that user is authorized to view the node within the user's group list
-	if ( $node )
+	# graphtype 'nmis' is the global runtime graph: its rrd is the fixed
+	# /metrics/nmis-system.rrd, so it names no node and no group. it is gated on
+	# the same access right as network.pl's runtime page, which links to it.
+	my $wantglobal = (($graphtype // '') eq 'nmis');
+	if ($wantglobal and !$AU->CheckAccess("tls_nmis_runtime", "check"))
 	{
-		if ( !$AU->InGroup($NT->{$node}{group}) or !exists $GT->{$NT->{$node}{group}} )
-		{
-			print "Not Authorized to view graphs on node '$node' in group $NT->{$node}{group}";
-			return 0;
-		}
+		print "Not Authorized to view the NMIS runtime graph";
+		return 0;
 	}
-	elsif ( $group )
+
+	# verify that user is authorized to view the requested node and group.
+	# both are checked, not just the node: a metrics graph resolves its rrd
+	# from the group alone (OMK-12706). metrics also promotes an empty group
+	# to 'network' further down, so authorise the value that will be used.
+	my $wantgroup = $group;
+	$wantgroup = 'network' if (($graphtype // '') eq 'metrics'
+														 and (!defined $wantgroup or $wantgroup eq ""));
+
+	# a global graph names nothing to check, but any node or group that is
+	# supplied alongside it still is.
+	# the ref check keeps an unknown node from autovivifying an entry in $NT,
+	# which the node list loop below iterates
+	my $node_group = (defined($node) and $node ne ""
+										and ref($NT->{$node}) eq "HASH")? $NT->{$node}->{group} : undef;
+
+	my $refused = $AU->graph_refusal(node_group => $node_group, grouptable => $GT,
+																	 node => $node, group => $wantgroup,
+																	 allow_global => $wantglobal);
+	if ( defined $refused )
 	{
-		# group 'network' is used for metrics graphs and is special:
-		# it exists automatically no matter what the group_list configuration or group table says.
-		if ( ! $AU->InGroup($group) or (!exists $GT->{$group} and $group ne "network" ))
-		{
-			print "Not Authorized to view graphs on nodes in group $group";
-			return 0;
-		}
+		# $node and $wantgroup are filtered CGI params, already entity-encoded
+		# by NMISNG::Util::filter_params, so they are not escaped again here.
+		# the node's own group is deliberately not disclosed (OMK-12702).
+		print "Not Authorized to view graphs on "
+				.($refused eq 'node'? "node '$node'"
+					: $refused eq 'group'? "nodes in group '$wantgroup'"
+					: "this request");
+		return 0;
 	}
 
 	my $time = time();
@@ -518,13 +537,13 @@ sub typeGraph
 		print Tr(td({colspan=>'1'},
 			table({class=>'table',border=>'0',width=>'100%'},
 						Tr(td({class=>'header',align=>'center',},'Type'),
-							 td({class=>'info Plain',},$intf_data->{ifType}),
+							 td({class=>'info Plain',},escapeHTML($intf_data->{ifType})),
 							 td({class=>'header',align=>'center',},'Speed'),
 							 td({class=>'info Plain'},$speed)),
 						Tr(td({class=>'header',align=>'center',},'Last Updated'),
 							 td({class=>'info Plain'},$lastUpdate),
 							 td({class=>'header',align=>'center',},'Description'),
-							 td({class=>'info Plain'},$intf_data->{Description})) )));
+							 td({class=>'info Plain'},escapeHTML($intf_data->{Description}))) )));
 
 	}
 	elsif ( $subconcept =~ /hrdisk/i and $index ne "")
@@ -532,9 +551,9 @@ sub typeGraph
 		print Tr(td({colspan=>'1'},
 								table({class=>'table',border=>'0',width=>'100%'},
 											Tr(td({class=>'header',align=>'center',},'Type'),
-												 td({class=>'info Plain'},$index_model->{data}{hrStorageType}),
+												 td({class=>'info Plain'},escapeHTML($index_model->{data}{hrStorageType})),
 												 td({class=>'header',align=>'center',},'Description'),
-												 td({class=>'info Plain'},$index_model->{data}{hrStorageDescr})) )));
+												 td({class=>'info Plain'},escapeHTML($index_model->{data}{hrStorageDescr}))) )));
 	}
 
 	my @output;
@@ -639,12 +658,12 @@ sub show_export_options
 
 	# verify that user is authorized to view the node within the user's group list
 	my $nodegroup = $S->nmisng_node->configuration->{group} if ($S->nmisng_node);
-	if ($node && (!$AU->InGroup($nodegroup || !exists $GT->{$nodegroup})))
+	if ($node && !$AU->group_allowed($nodegroup, $GT))
 	{
 		bailout(code => 403,
 						message => escapeHTML("Not Authorized to export rrd data for node '$node' in group '$nodegroup'."));
 	}
-	elsif ($group && (!$AU->InGroup($group) || !exists $GT->{$group}))
+	elsif ($group && !$AU->group_allowed($group, $GT))
 	{
 		bailout(code => 403,
 						message => escapeHTML("Not Authorized to export rrd data for nodes in group '$group'."));
@@ -712,7 +731,7 @@ sub show_export_options
 			if ($graphtype ne "nmis" && $graphtype ne "metrics");
 	if (defined $label && defined $property)
 	{
-		print qq|<tr><td class="header">$label</td><td>|.escapeHTML($property).qq|</td></tr>|;
+		print qq|<tr><td class="header">|.escapeHTML($label).qq|</td><td>|.escapeHTML($property).qq|</td></tr>|;
 	}
 
 	my $graphhours =$C->{graph_amount};
@@ -779,12 +798,12 @@ sub typeExport
 
 	# verify that user is authorized to view the node within the user's group list
 	my $nodegroup = $S->nmisng_node->configuration->{group} if ($Q->{node});
-	if ($Q->{node} && !$AU->InGroup($nodegroup))
+	if ($Q->{node} && !$AU->group_allowed($nodegroup, $GT))
 	{
-		bailout(code => 403, message => "Not Authorized to export rrd data for node '$Q->{node}' in group '$nodegroup'.");
-	} elsif ( $Q->{group} && !$AU->InGroup($Q->{group}))
+		bailout(code => 403, message => escapeHTML("Not Authorized to export rrd data for node '$Q->{node}' in group '$nodegroup'."));
+	} elsif ( $Q->{group} && !$AU->group_allowed($Q->{group}, $GT))
 	{
-		bailout(code => 403, message => "Not Authorized to export rrd data for nodes in group '$Q->{group}'.");
+		bailout(code => 403, message => escapeHTML("Not Authorized to export rrd data for nodes in group '$Q->{group}'."));
 	}
 	# check for overlays (which currently are only percentile)
 	my $res = NMISNG::Util::getModelFile(model => "Graph-$graphtype");
@@ -835,7 +854,8 @@ sub typeExport
 	# some graphtypes have a heading that includes an identifier (eg. most interface graphs),
 	# but most others don't (e.g. Services, disks...), so we must include the intf/item in the filename
 	my $filename  = join("-", ($Q->{node} || $Q->{group}), $heading, $Q->{intf}//$Q->{item}).".csv";
-	$filename =~ s![/: '"]+!_!g;	# no /, no colons or quotes or spaces please
+	# also strips control chars incl CR/LF so the value cannot inject a header (OMK-12731)
+	$filename = NMISNG::Util::safe_filename($filename);
 
 	$headeropts->{type} = "text/csv";
 	$headeropts->{"Content-Disposition"} = "attachment; filename=\"$filename\"";
@@ -956,12 +976,12 @@ sub typeStats
 
 	# verify that user is authorized to view the node within the user's group list
 	my $nodegroup = $S->nmisng_node->configuration->{group} if ($Q->{node});
-	if ( $Q->{node} && !$AU->InGroup($nodegroup) )
+	if ( $Q->{node} && !$AU->group_allowed($nodegroup, $GT) )
 	{
-		bailout(code => 403, message => "Not Authorized to export rrd data on node $Q->{node} in group $nodegroup");
-	} elsif ( $Q->{group} && !$AU->InGroup($Q->{group}) )
+		bailout(code => 403, message => escapeHTML("Not Authorized to export rrd data on node $Q->{node} in group $nodegroup"));
+	} elsif ( $Q->{group} && !$AU->group_allowed($Q->{group}, $GT) )
 	{
-		bailout(code => 403, message => "Not Authorized to export rrd data on nodes in group $Q->{group}");
+		bailout(code => 403, message => escapeHTML("Not Authorized to export rrd data on nodes in group $Q->{group}"));
 	}
 
 	print header($headeropts), start_html(

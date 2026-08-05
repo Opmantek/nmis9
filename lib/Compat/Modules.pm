@@ -131,7 +131,11 @@ sub getModuleCode
 		my $link = ((!$base and !$modules->{$mod}->{file})
 								or ($base && -f (($self->{searchbases}->{$basetag} || "")."/".$modules->{$mod}->{file})))?
 								$modules->{$mod}->{link} : $self->{nmis_cgi_url_base}."/modules.pl?module=$mod";
-		$modOption .= qq|<option value="$link">$modules->{$mod}{name}</option>\n|;
+		# config-sourced values are untrusted on output (OMK-12703): scheme-check
+		# the link and HTML-escape both the link attribute and the visible name
+		my $safelink = NMISNG::Util::escape_html(NMISNG::Util::safe_url($link));
+		my $safename = NMISNG::Util::escape_html($modules->{$mod}{name});
+		$modOption .= qq|<option value="$safelink">$safename</option>\n|;
 	}
 
 	return qq|

@@ -182,6 +182,36 @@ sub numify
 	return ( $maybe =~ /^([+-]?)(?=\d|\.\d)\d*(\.\d*)?([Ee]([+-]?\d+))?$/ ) ? ( $maybe + 0 ) : $maybe;
 }
 
+# Strip characters that carry meaning to a shell from a device-derived value
+# (CWE-78). Defence in depth: the callers already use list-form exec, so no
+# shell is involved, but a device field must never be able to look like shell
+# syntax to anything downstream that is less careful.
+#
+# This is the single definition. Do not re-type this character class anywhere,
+# including in tests: a second copy keeps passing after this one changes and
+# then reports coverage of logic that no longer ships. Test by calling this.
+sub strip_shell_metachars
+{
+	my ($val) = @_;
+
+	$val = '' if (!defined $val);
+	$val =~ s/[`\$|;&<>()\\\n\r'"]//g;
+	return $val;
+}
+
+# True when a service script basename is safe to build a path from: a bare
+# filename, no path separators, no characters that could trigger perl's magic
+# two-argument open (CWE-78) or path traversal. Undef and empty are not safe.
+#
+# Single definition, same reasoning as strip_shell_metachars above.
+sub is_safe_script_basename
+{
+	my ($name) = @_;
+
+	return 0 if (!defined $name || !length $name);
+	return ($name =~ m{\A[A-Za-z0-9_.\-]+\z}) ? 1 : 0;
+}
+
 # fixme9 move away
 sub getCGIForm {
 	my $buffer = shift;
@@ -1663,6 +1693,10 @@ sub _write_data_to_handle
 	return undef;
 }
 
+# Serializer used by writeHashtoFile, held in a package variable so tests can
+# override it (e.g. to simulate an error-free write that produces no bytes).
+our $_data_writer = \&_write_data_to_handle;
+
 # write hash data to file in suitable format
 # Uses atomic write (temp file + rename) to prevent 0-length files on disk-full or crash.
 # returns: undef or error message
@@ -1725,12 +1759,34 @@ sub writeHashtoFile
 			or do { close($lockhandle);
 					return("writeHashtoFile: cannot create temp file $tmpfile: $!"); };
 
-		my $errormsg = _write_data_to_handle($tmphandle, $data, $file, $useJson, $pretty);
+		my $errormsg = $_data_writer->($tmphandle, $data, $file, $useJson, $pretty);
+
+		# Force buffered data all the way to disk before the rename. flush()
+		# pushes perlio buffers down to the OS. sync() (fsync) then forces the
+		# OS to write them to the physical medium. Without this, a crash or
+		# power loss between the write and the rename could leave the renamed
+		# file pointing at data that never reached disk.
+		if (!$errormsg && !$tmphandle->flush)
+		{
+			$errormsg = "cannot flush temp file $tmpfile: $!";
+		}
+		if (!$errormsg && $^O !~ /Win32/ && !$tmphandle->sync)
+		{
+			$errormsg = "cannot sync temp file $tmpfile: $!";
+		}
 
 		# close flushes buffers — check for write errors (e.g. disk full)
 		if (!close($tmphandle) && !$errormsg)
 		{
 			$errormsg = "cannot close temp file $tmpfile: $!";
+		}
+
+		# Refuse to rename an empty temp file over the target. A 0-byte temp
+		# file after an error-free write means something went wrong upstream,
+		# and overwriting a good config with it would lose data.
+		if (!$errormsg && !-s $tmpfile)
+		{
+			$errormsg = "temp file $tmpfile is empty, refusing to overwrite $file";
 		}
 
 		if ($errormsg)
@@ -1753,7 +1809,7 @@ sub writeHashtoFile
 		seek($handle, 0, 0) or return("writeHashtoFile: can't seek in $file: $!");
 		truncate($handle, 0) or return("writeHashtoFile: can't truncate $file: $!");
 
-		my $errormsg = _write_data_to_handle($handle, $data, $file, $useJson, $pretty);
+		my $errormsg = $_data_writer->($handle, $data, $file, $useJson, $pretty);
 		close $handle;
 		return("writeHashtoFile: $errormsg") if ($errormsg);
 	}
@@ -1901,7 +1957,7 @@ sub logAuth
 	my $string = &NMISNG::Log::trace();
 
 	$string .= "<br>$msg";
-	$string =~ s/\n/ /g;      #remove all embedded newlines
+	$string = sanitise_log_line($string);   # flatten CR/LF/control chars - no log-line forgery
 
 	open($handle,">>$C->{auth_log}") or return " logAuth, Couldn't open log file $C->{auth_log}. $!";
 	flock($handle, LOCK_EX)  or return "logAuth, can't lock filename: $!";
@@ -3841,12 +3897,20 @@ sub replace_files_recursive {
 # Used by CGI
 sub filter_params {
 	my ($vars) = @_;
-	
-	foreach my $param (%$vars) {
-		$param = encode_entities($param);
+
+	# Build a plain hash: $vars is usually CGI's $q->Vars, a TIED hash, and
+	# writing back through the tie collapses multi-value params (OMK-12723).
+	# Multi-value params arrive NUL-joined (e.g. "n1\0n2"); encode each segment
+	# and rejoin with the NUL so consumers that split on \0 (e.g. outages.pl)
+	# still round-trip. Encode values only, not keys.
+	my %filtered;
+	foreach my $key (keys %$vars) {
+		my $value = $vars->{$key};
+		$value = join("\0", map { encode_entities($_) } split(/\0/, $value, -1))
+				if defined $value;
+		$filtered{$key} = $value;
 	}
-	
-	return $vars;
+	return \%filtered;
 }
 
 # Get policy for a node based on policy name
@@ -4982,6 +5046,94 @@ sub spew_file
 	{
         Mojo::File->new($file)->spurt($data);
     }
+}
+
+# escape_html: HTML-escape a string for safe output in element or attribute context.
+# Encodes & < > " ' so attacker-supplied config or device data cannot break out of the
+# surrounding markup. Returns "" for undef so callers can drop the result straight into
+# a template without an undef warning.
+# args: a scalar string
+# returns: the escaped string (never undef)
+sub escape_html
+{
+	my ($str) = @_;
+	return "" if (!defined $str);
+	return encode_entities($str, q{&<>"'});
+}
+
+# safe_url: validate a URL before it is placed in an href/src/value attribute.
+# Permits http, https and mailto absolute URLs plus scheme-relative, root-relative,
+# relative and fragment URLs. Anything carrying another scheme (javascript:, data:,
+# vbscript: ...) or an ASCII control character is rejected and "" is returned.
+# The result must still be passed through escape_html for attribute-safe output.
+# args: a scalar URL string
+# returns: the URL if allowed, otherwise ""
+sub safe_url
+{
+	my ($url) = @_;
+	return "" if (!defined $url || $url eq "");
+
+	# reject any ASCII control character (real URLs percent-encode these); this also
+	# closes scheme-obfuscation tricks such as "java\tscript:".
+	return "" if ($url =~ /[\x00-\x1f\x7f]/);
+
+	# browsers ignore leading whitespace before the scheme, so strip it before testing
+	$url =~ s/^\s+//;
+
+	# a leading scheme must be on the allowlist; no scheme (relative, root-relative,
+	# scheme-relative, fragment or query only) is always fine
+	if ($url =~ /^([a-zA-Z][a-zA-Z0-9+.\-]*):/)
+	{
+		my $scheme = lc($1);
+		return "" if (!grep { $scheme eq $_ } qw(http https mailto));
+	}
+
+	return $url;
+}
+
+# safe_filename: reduce a string to a safe download filename. Replaces path
+# separators, quotes, whitespace and control characters (including CR/LF, which
+# would otherwise split a Content-Disposition header) with underscores. Keeps
+# dots so an extension survives (OMK-12731).
+# args: a scalar
+# returns: the sanitised string (never undef)
+sub safe_filename
+{
+	my ($name) = @_;
+	return "" if (!defined $name);
+	$name =~ s![/: '"\x00-\x1f\x7f]+!_!g;
+	return $name;
+}
+
+# sanitise_log_line: flatten a string for single-line logging. Replaces any run
+# of control characters (CR, LF, tab ...) with a single space so attacker-supplied
+# values (e.g. a login username) cannot forge extra log lines (OMK-12731).
+# args: a scalar
+# returns: the flattened string ("" for undef)
+sub sanitise_log_line
+{
+	my ($str) = @_;
+	return "" if (!defined $str);
+	$str =~ s/[\x00-\x1f\x7f]+/ /g;
+	return $str;
+}
+
+# escape_js_string: encode a string for safe inclusion inside a single- or
+# double-quoted JavaScript string literal in an inline <script> block. Escapes
+# backslash and both quote characters, neutralises a literal "</" (so a
+# </script> cannot close the block early) and drops the JS line separators.
+# This is NOT HTML escaping - the browser does not HTML-decode inside <script>
+# (OMK-12703/OMK-12731). Combine with safe_url for a URL destination.
+# args: a scalar
+# returns: the encoded string ("" for undef)
+sub escape_js_string
+{
+	my ($str) = @_;
+	return "" if (!defined $str);
+	$str =~ s/([\\'"])/\\$1/g;
+	$str =~ s{</}{<\\/}g;
+	$str =~ s/[\r\n\x{2028}\x{2029}]//g;
+	return $str;
 }
 
 

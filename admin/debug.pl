@@ -54,7 +54,7 @@ my $C;
 if (!($C = NMISNG::Util::loadConfTable(debug=>$Q->{debug}))) { exit 1; };
 
 # bypass auth iff called from command line
-$C->{auth_require} = 0 if (@ARGV);
+$C->{auth_require} = 0 if (@ARGV and not $ENV{GATEWAY_INTERFACE});
 
 # variables used for the security mods
 my $headeropts = {type=>'text/html',expires=>'now'};

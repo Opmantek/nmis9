@@ -50,6 +50,7 @@ use Fcntl qw(:DEFAULT :flock :mode); # for flock
 use Errno qw(ESRCH EPERM);           # for stale-lock detection + holder diagnostics in lock()
 use Net::SNMP;									# for oid_lex_sort
 use File::Temp;
+use Text::ParseWords qw(shellwords);
 
 use NMISNG::Util;
 use NMISNG::DB;
@@ -6314,50 +6315,32 @@ sub handle_custom_alerts
 					my ( $test, $value, $alert, $test_value, $test_result );
 
 					# do this for test and value
+					# OMK-12689: evaluate through the hardened Sys::eval_string so CVAR
+					# values (which include raw device data from $data) are bound as data
+					# and never concatenated into the code that gets eval'd. This removes
+					# the second injection sink that duplicated eval_string's logic.
 					for my $thingie ( ['test', \$test_result], ['value', \$test_value] )
 					{
 						my ( $key, $target ) = @$thingie;
-
 						my $origexpr = $CA->{$sect}{$alrt}{$key};
-						my ( $rebuilt, @CVAR );
 
-						# rip apart expression, rebuild it with var substitutions
-						while ( $origexpr =~ s/^(.*?)(CVAR(\d)=(\w+);|\$CVAR(\d))// )
+						my ( $everr, $evres ) = $S->eval_string(
+							string    => $origexpr,
+							context   => '',          # this alert path historically leaves $r unset
+							variables => [ $data ],
+						);
+						if ( defined $everr )
 						{
-							$rebuilt .= $1;    # the unmatched, non-cvar stuff at the begin
-							my ( $varnum, $decl, $varuse ) = ( $3, $4, $5 );    # $2 is the whole |-group
-
-							if ( defined $varnum )                              # cvar declaration
-							{
-								$CVAR[$varnum] = $data->{$decl};
-								$self->nmisng->log->error("CVAR$varnum references unknown object \"$decl\" in \""
-										. $CA->{$sect}{$alrt}{$key}  ." of section $sect, alert $alrt, key $key, model $nodemodel" )
-									if ( !exists $data->{$decl} );
-							}
-							elsif ( defined $varuse )                           # cvar use
-							{
-								$self->nmisng->log->error("CVAR$varuse used but not defined in test \""
-										. $CA->{$sect}{$alrt}{$key} ." of section $sect, alert $alrt, key $key, model $nodemodel" )
-									if ( !exists $CVAR[$varuse] );
-
-								$rebuilt .= $CVAR[$varuse];                     # sub in the actual value
-							}
-							else                                                # shouldn't be reached, ever
-							{
-								$self->nmisng->log->error( "CVAR parsing failure for \"" .
-																					 $CA->{$sect}{$alrt}{$key}
-																					 . " of section $sect, alert $alrt, key $key, model $nodemodel");
-
-								$rebuilt = $origexpr = '';
-								last;
-							}
+							$self->nmisng->log->error("alert eval failed for key $key, section $sect, "
+									. "alert $alrt, model $nodemodel: $everr");
+							$$target = undef;
 						}
-						$rebuilt .= $origexpr;    # and the non-CVAR-containing remainder.
-
-						$$target = eval { eval $rebuilt; };
-						$self->nmisng->log->debug2("substituted $key sect=$sect index=$index, orig=\""
-								. $CA->{$sect}{$alrt}{$key}
-								. "\", expr=\"$rebuilt\", result=$$target");
+						else
+						{
+							$$target = $evres;
+						}
+						$self->nmisng->log->debug2("evaluated $key sect=$sect index=$index, orig=\""
+								. $origexpr . "\", result=" . ( defined $$target ? $$target : "<undef>" ) );
 					}
 
 					if ( $test_value =~ /^[\+-]?\d+\.\d+$/ )
@@ -8255,6 +8238,61 @@ sub services
 #
 # attention: when run with snmp false then snmp-based services are NOT checked!
 # fixme: this function does not support service definitions from wmi!
+
+# Child-side exec dispatch for the service program/nagios-plugin path.
+# Called in the child after fork(); never returns on success.
+sub _exec_service_program
+{
+	my ($program, @arglist) = @_;
+	{ no warnings 'exec'; exec { $program } $program, @arglist }
+	print STDERR "exec failed for $program: $!\n";
+	POSIX::_exit(127);
+}
+
+# Child-side exec dispatch for the nmap port-scan path.
+# Called in the child after fork(); never returns on success.
+sub _exec_nmap_child
+{
+	my (@nmap_args) = @_;
+	open( STDERR, '>&', \*STDOUT ) or POSIX::_exit(1);
+	{ no warnings 'exec'; exec { 'nmap' } 'nmap', @nmap_args }
+	print "exec nmap failed: $!\n";
+	POSIX::_exit(1);
+}
+
+# Builds the argv list from $args_template + $catchall_data via
+# _build_service_argv, then delegates to _exec_service_program.
+# Extracted so the arg-building -> exec wiring can be tested without
+# a live collect_services / MongoDB run.  Never returns on exec success.
+sub _run_service_program
+{
+	my ( $program, $args_template, $catchall_data ) = @_;
+	my @arglist = _build_service_argv( $args_template, $catchall_data );
+	_exec_service_program( $program, @arglist );
+}
+
+# Tokenise $args_template first, then substitute node.FIELD placeholders into
+# each token in-place.  Shell metacharacters are stripped from substituted
+# values; leading dashes are also stripped so a device field value cannot
+# become a bare option flag in a root-run program (CWE-88).  Whitespace is
+# not separately stripped — tokenise-first prevents whitespace from splitting
+# tokens into extra argv elements.  Returns an argv list (may be empty).
+sub _build_service_argv
+{
+	my ( $args_template, $node_data ) = @_;
+	return () unless defined $args_template && length($args_template);
+	my @tokens = shellwords($args_template);
+	for my $tok (@tokens) {
+		$tok =~ s{(^|\W)(node\.([a-zA-Z0-9_-]+))}{
+			my ($pre, undef, $field) = ($1, $2, $3);
+			my $val = NMISNG::Util::strip_shell_metachars($node_data->{$field});
+			$val =~ s/^-+//;	# CWE-88: must not become a bare option flag
+			$pre . $val
+		}ge;
+	}
+	return @tokens;
+}
+
 sub collect_services
 {
 	my ($self, %args) = @_;
@@ -8698,35 +8736,45 @@ sub collect_services
 			{
 				my ( $scan, $port ) = split ':', $thisservice->{Port};
 
-				my $nmap = (
-					$scan =~ /^udp$/i
-					? "nmap -sU --host-timeout 3000 -p $port -oG - $catchall_data->{host}"
-					: "nmap -sT --host-timeout 3000 -p $port -oG - $catchall_data->{host}"
-						);
+				# sanitise device-derived host before using in exec() args (CWE-78)
+				my $target_host = NMISNG::Util::strip_shell_metachars($catchall_data->{host});
 
-				# fork and read from pipe
-				my $pid = open( NMAP, "$nmap 2>&1 |" );
+				my @nmap_args = (
+					$scan =~ /^udp$/i
+					? ( '-sU', '--host-timeout', '3000', '-p', $port, '-oG', '-', '--', $target_host )
+					: ( '-sT', '--host-timeout', '3000', '-p', $port, '-oG', '-', '--', $target_host )
+				);
+
+				# fork and read from pipe (list-form: no shell, CWE-78); stderr merged to stdout to preserve nmap diagnostics
+				my $pid = open( NMAP, '-|' );
 				if ( !defined $pid )
 				{
 					my $errmsg = "ERROR, Cannot fork to execute nmap: $!";
 					$self->nmisng->log->error($errmsg);
 				}
-				while (<NMAP>)
+				elsif ( $pid == 0 )
 				{
-					$msg .= $_;    # this retains the newlines
+					NMISNG::Node::_exec_nmap_child(@nmap_args);
 				}
-				close(NMAP);
-				my $exitcode = $?;
+				else
+				{
+					while (<NMAP>)
+					{
+						$msg .= $_;    # this retains the newlines
+					}
+					close(NMAP);
+					my $exitcode = $?;
 
-				# if the pipe close doesn't wait until the child is gone (which it may do...)
-				# then wait and collect explicitely
-				if ( waitpid( $pid, 0 ) == $pid )
-				{
-					$exitcode = $?;
-				}
-				if ($exitcode)
-				{
-					$self->nmisng->log->error( "NMAP ($nmap) returned exitcode " . ( $exitcode >> 8 ) . " (raw $exitcode)" );
+					# if the pipe close doesn't wait until the child is gone (which it may do...)
+					# then wait and collect explicitely
+					if ( defined($pid) && waitpid( $pid, 0 ) == $pid )
+					{
+						$exitcode = $?;
+					}
+					if ($exitcode)
+					{
+						$self->nmisng->log->error( "nmap returned exitcode " . ( $exitcode >> 8 ) . " (raw $exitcode)" );
+					}
 				}
 				if ( $msg =~ /Ports: $port\/open/ )
 				{
@@ -8819,26 +8867,37 @@ sub collect_services
 		{
 			# OMK-3237, use sensible and non-clashing config source:
 			# now service_name sets the script file name, temporarily falling back to $service
-			my $scriptfn = $C->{script_root}."/". ($servicename || $service);
-			# try conf/scripts, fallback to conf-default/scripts
-			$scriptfn = $C->{script_root_default}. "/". ($servicename || $service) if (!-e  $scriptfn);
-			if (!open(F, $scriptfn))
+			my $script_basename = $servicename || $service;
+			# reject names that could trigger magic open (pipe trick) or path traversal (CWE-78)
+			if ( !NMISNG::Util::is_safe_script_basename($script_basename) )
 			{
-				my $cause = $!;
-				$self->nmisng->log->error("can't open script file $scriptfn for $service: $cause");
-				$status{status_text} = "Service misconfigured: cannot open script file $scriptfn: $cause";
+				$self->nmisng->log->error("($node) invalid script name for service $service");
+				$status{status_text} = "Service misconfigured: invalid script name";
 				$ret = 0;
 			}
 			else
 			{
-				my $scripttext = join( "", <F> );
-				close(F);
+			my $scriptfn = $C->{script_root}."/".$script_basename;
+			# try conf/scripts, fallback to conf-default/scripts
+			$scriptfn = $C->{script_root_default}."/".$script_basename if (!-e $scriptfn);
+			if (!open(my $F, '<', $scriptfn))
+			{
+				my $cause = $!;
+				$self->nmisng->log->error("can't open script file for $service: $cause");
+				$status{status_text} = "Service misconfigured: cannot open script file";
+				$ret = 0;
+			}
+			else
+			{
+				my $scripttext = join( "", <$F> );
+				close($F);
 
 				my $timeout = ( $thisservice->{Max_Runtime} > 0 ) ? $thisservice->{Max_Runtime} : 3;
 
 				( $ret, $msg ) = NMISNG::Sapi::sapi( $catchall_data->{host}, $thisservice->{Port}, $scripttext, $timeout );
 				$status{status_text} = "Results of $service is $ret";
 				$self->nmisng->log->debug("Results of $service is $ret, msg is $msg");
+			}
 			}
 		}
 
@@ -8858,17 +8917,8 @@ sub collect_services
 				# exit codes and output handling differ
 				my $flavour_nagios = ( $svc->{Service_Type} eq "nagios-plugin" );
 
-				# check the arguments (if given), substitute node.XYZ values
-				my $finalargs;
-				if ( $svc->{Args} )
-				{
-					$finalargs = $svc->{Args};
-
-					# don't touch anything AFTER a node.xyz, and only subst if node.xyz is the first/only thing,
-					# or if there's a nonword char before node.xyz.
-					$finalargs =~ s/(^|\W)(node\.([a-zA-Z0-9_-]+))/$1$catchall_data->{$3}/g;
-					$self->nmisng->log->debug3(sub {"external program args were $svc->{Args}, now $finalargs"});
-				}
+				# substitute node.* placeholders and tokenise; done before
+				# entering the eval so the logic is testable via _build_service_argv
 
 				my $programexit = 0;
 
@@ -8885,20 +8935,32 @@ sub collect_services
 					my @responses;
 					my $svcruntime = defined( $svc->{Max_Runtime} ) && $svc->{Max_Runtime} > 0 ? $svc->{Max_Runtime} : 0;
 
+					# log before arming alarm: narrows the window where SIGALRM can fire
+					# with $pid still undef (which would cause kill('TERM',undef) → kill to whole process group)
+					# argv is built inside _run_service_program (child path) to avoid a
+					# parent-side build that could silently diverge from the child's execution
+					$self->nmisng->log->debug2("running external program '$svc->{Program}' args template=["
+																		 . ( $svc->{Args} // '' ) . "], "
+																		 . ( NMISNG::Util::getbool( $svc->{Collect_Output} ) ? "collecting" : "ignoring" )
+																		 . " output" );
+
 					local $SIG{ALRM} = sub { die "alarm\n"; };
 					alarm($svcruntime) if ($svcruntime);    # setup execution timeout
 
-					# run given program with given arguments and possibly read from it
-					# program is disconnected from stdin; stderr goes into a tmpfile and is collected separately for diagnostics
-					$self->nmisng->log->debug2("running external program '$svc->{Program} $finalargs', "
-																		 . ( NMISNG::Util::getbool( $svc->{Collect_Output} ) ? "collecting" : "ignoring" )
-																		 . " output" );
-					$pid = open( PRG, "$svc->{Program} $finalargs </dev/null 2>$stderrsink |" );
-					if ( !$pid )
+					# list-form fork+exec: no shell involved, stdin=/dev/null, stderr=$stderrsink
+					$pid = open( PRG, '-|' );
+					if ( !defined $pid )
 					{
 						alarm(0) if ($svcruntime);       # cancel any timeout
 						$status{status_text} = "cannot start service program $svc->{Program}: $!";
 						$self->nmisng->log->error("cannot start service program $svc->{Program}: $!");
+					}
+					elsif ( $pid == 0 )
+					{
+						# child: redirect stdin + stderr, then exec directly (no shell)
+						open( STDIN,  '<', '/dev/null' )  or POSIX::_exit(1);
+						open( STDERR, '>', $stderrsink )  or POSIX::_exit(1);
+						NMISNG::Node::_run_service_program( $svc->{Program}, $svc->{Args}, $catchall_data );
 					}
 					else
 					{
@@ -8912,7 +8974,7 @@ sub collect_services
 						# consume and warn about any stderr-output
 						if ( -f $stderrsink && -s $stderrsink )
 						{
-							open( UNWANTED, $stderrsink );
+							open( UNWANTED, '<', $stderrsink );
 							my $badstuff = join( "", <UNWANTED> );
 							chomp($badstuff);
 							$status{status_text} = "Service program $svc->{Program} returned unexpected error output";
@@ -9041,11 +9103,11 @@ sub collect_services
 
 				if ( $@ and $@ eq "alarm\n" )
 				{
-					kill('TERM', $pid);    # get rid of the service tester, it ran over time...
+					kill('TERM', $pid) if defined $pid;    # get rid of the service tester, it ran over time...
 					$self->nmisng->log->error("service program $svc->{Program} exceeded Max_Runtime of $svc->{Max_Runtime}s, terminated.");
 					$status{status_text} = "service program $svc->{Program} exceeded Max_Runtime of $svc->{Max_Runtime}s, terminated.";
 					$ret = 0;
-					kill( "KILL", $pid );
+					kill( "KILL", $pid ) if defined $pid;
 				}
 				else
 				{
@@ -9850,7 +9912,9 @@ sub ext_ping
 	my ($self, %args) = @_;
 	my($host, $length, $count, $timeout) = @args{"host","packet","retries","timeout"};
 
-	my ($ping_output, $redirect_stderr, $pid, %pt, $alarm_exists);
+	die "ext_ping: invalid host\n" unless defined $host && $host =~ /\A[\w.\-:]+\z/;
+
+	my ($ping_output, $pid, %pt);
 
 	$timeout ||= 3;
 	$count ||= 3;
@@ -9892,51 +9956,69 @@ sub ext_ping
 		die "ext_ping not yet configured for \"$kernel\"\n"; # fixme: should this really kill nmis?
 	}
 
-	# windows 95/98 does not support stderr redirection...
-	# also OS/2 users reported problems with stderr redirection...
-	$redirect_stderr = $kernel =~ /^(MSWin32|os2|OS\/2)$/i ? "" : "2>&1";
-
 	# initialize return values
 	$pt{loss} = 100;
 	$pt{min} = $pt{avg} = $pt{max} = undef;
 	$self->nmisng->log->debug4(sub {"ext_ping: $ping{$kernel}"});
+
+	# Fork and exec the ping binary with the command split into an argv list.
+	# $host appears as one intact token (valid IPs/hostnames have no spaces),
+	# so no shell is involved and device-derived $host cannot inject metacharacters.
+	# Stderr is merged to stdout in the child to preserve diagnostic output.
+	my @ping_argv = split( /\s+/, $ping{$kernel} );
+	my ( $rh, $wh );
+	pipe( $rh, $wh ) or die "ext_ping: pipe: $!\n";
+	unless ( defined( $pid = fork() ) )
+	{
+		die "ext_ping: fork: $!\n";
+	}
+	if ( $pid == 0 )
+	{
+		close($rh);
+		open( STDOUT, '>&', $wh ) or POSIX::_exit(1);
+		unless ( $kernel =~ /^(?:mswin32|os2|os\/2)$/i )
+		{
+			open( STDERR, '>&', \*STDOUT ) or POSIX::_exit(1);
+		}
+		close($wh);
+		{ no warnings 'exec'; exec { $ping_argv[0] } @ping_argv }
+		POSIX::_exit(1);
+	}
+	close($wh);
 
 	# save and restore any previously set alarm,
 	# but don't bother subtracting the time spent here
 	my $remaining = alarm(0);
 	eval
 	{
-		local $SIG{ALRM} = sub { die "timeout\n" };
-		alarm ($timeout*$count);		# make sure alarm timer is ping count * ping timeout - assuming default ping wait is 1 sec.!
+		local $SIG{ALRM} = sub { die "alarm\n" };
+		alarm( $timeout * $count );    # ping count * ping timeout
 
-		# read and timeout ping() if it takes too long...
-		unless ($pid = open(PING, "$ping{$kernel} $redirect_stderr |"))
+		while ( my $line = <$rh> )
 		{
-			die("\t ext_ping: FATAL: Can't open $ping{$kernel}: $!\n");
-		}
-		while (<PING>)
-		{
-			$ping_output .= $_;
+			$ping_output .= $line;
 		}
 		alarm 0;
 	};
 
 	if ($@)
 	{
-		die unless $@ eq "alarm\n";	# propagate unexpected errors
-		# timed out: kill child
-		kill('TERM', $pid);
-		close(PING);
-
+		die unless $@ eq "alarm\n";    # propagate unexpected errors
+		# timed out: kill and reap child; restore caller's alarm before returning
+		kill( 'TERM', $pid ) if defined $pid;
+		close($rh);
+		waitpid( $pid, 0 ) if defined $pid;
+		alarm($remaining) if $remaining;
 		$self->nmisng->log->error("ext_ping hit timeout $timeout, assuming target $host is unreachable");
 		# ... and set return values to dead values
-		return($pt{min}, $pt{avg}, $pt{max}, $pt{loss});
+		return ( $pt{min}, $pt{avg}, $pt{max}, $pt{loss} );
 	}
 	# didn't time out, analyse ping output.
-	close(PING);
+	close($rh);
+	waitpid( $pid, 0 );
 
 	# restore previously running alarm
-	alarm($remaining) if ($remaining);
+	alarm($remaining) if $remaining;
 
 	# try to find round trip times
 	if ($ping_output =~ m@(?:round-trip|rtt)(?:\s+\(ms\))?\s+min/avg/max(?:/(?:m|std)-?dev)?\s+=\s+(\d+(?:\.\d+)?)/(\d+(?:\.\d+)?)/(\d+(?:\.\d+)?)@m) {

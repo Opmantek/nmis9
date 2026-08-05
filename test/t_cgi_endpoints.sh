@@ -179,9 +179,10 @@ do_login() {
 		return 1
 	fi
 
-	# Any session cookie in the jar indicates a working session. NMIS can set
-	# different cookie names depending on version/config (omk, CGISESSID,
-	# nmis_auth, etc.). Cookie records are tab-separated; genuine comment
+	# Any session cookie in the jar indicates a working session. NMIS sets
+	# an omk-prefixed auth cookie plus a CGISESSID tracking cookie (older
+	# releases also used a nmis_auth name, no longer issued). Cookie records
+	# are tab-separated; genuine comment
 	# lines have no tabs. Note: curl marks HttpOnly cookies with a
 	# "#HttpOnly_" prefix, which looks like a comment but still contains tabs.
 	if ! grep -qP '\t' "$COOKIE_JAR"; then

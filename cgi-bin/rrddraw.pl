@@ -35,6 +35,7 @@ use strict;
 use NMISNG::Util;
 use NMISNG::rrdfunc;
 use NMISNG::Sys;
+use NMISNG::DB;
 use Compat::NMIS;
 use NMISNG::Auth;
 use Data::Dumper;
@@ -51,7 +52,7 @@ my $C = $nmisng->config;
 &NMISNG::rrdfunc::require_RRDs;
 
 # bypass auth iff called from command line
-$C->{auth_require} = 0 if (@ARGV);
+$C->{auth_require} = 0 if (@ARGV and not $ENV{GATEWAY_INTERFACE}); # bypass auth for CLI only
 
 # variables used for the security mods
 my $headeropts = {type=>'text/html',expires=>'now'};
@@ -94,36 +95,9 @@ sub error {
 # returns: nothing
 sub rrdDraw
 {
-	my %args = @_;
+	return if (!graph_authorised());
 
-	# Break the query up for the names
-	my $type = $Q->{obj};
-	my $nodename = $Q->{node};
-	my $debug = $Q->{debug};
-	my $grp = $Q->{group};
-	my $graphtype = $Q->{graphtype};
-	my $graphstart = $Q->{graphstart};
-	my $width = $Q->{width};
-	my $height = $Q->{height};
-	my $start = $Q->{start};
-	my $end = $Q->{end};
-	my $intf = $Q->{intf};
-	my $item = $Q->{item};
-	my $filename = $Q->{filename};
-	my $when = $Q->{time};
-
-	my $result = NMISNG::rrdfunc::draw(node => $nodename,
-																		 group => $grp,
-																		 graphtype => $graphtype,
-																		 intf => $intf,
-																		 item => $item,
-																		 width => $width,
-																		 height => $height,
-																		 filename => $filename,
-																		 start => $start,
-																		 end => $end,
-																		 debug => $debug,
-																		 time => $when);
+	my $result = NMISNG::rrdfunc::draw(NMISNG::rrdfunc::rrdDraw_web_args(%$Q));
 	if (!$result->{success})
 	{
 		error("rrddraw failed: $result->{error}");
@@ -131,4 +105,51 @@ sub rrdDraw
 		return;
 	}
 	return $result->{graph};
+}
+
+# authorisation gate for rrdDraw. the decision itself lives in
+# NMISNG::Auth::graph_refusal, shared with cgi-bin/node.pl.
+# returns: 1 if the caller may draw, 0 otherwise (denial already sent)
+sub graph_authorised
+{
+	my ($node, $group) = ($Q->{node}, $Q->{group});
+
+	my $GT = $AU->visible_groups($nmisng->get_group_names);
+	# only this node's group is needed, so don't load the whole node table
+	my $have_node = (defined($node) and $node ne "");
+
+	# no allow_global here on purpose: global graphtypes such as 'nmis' are drilled
+	# into through node.pl, which authorises them on tls_nmis_runtime first. a
+	# request naming neither node nor group is refused outright.
+	my $refused = $AU->graph_refusal(node_group => $have_node? node_group($node) : undef,
+																	 grouptable => $GT,
+																	 node => $node, group => $group);
+	return 1 if (!defined $refused);
+
+	# the response is deliberately identical to a draw failure, so an
+	# unauthorised caller cannot tell the two apart
+	error();
+	$nmisng->log->warn("rrddraw: user '".NMISNG::Util::sanitise_log_line($AU->{user})
+										 ."' not authorised, refused on $refused"
+										 .", node='".NMISNG::Util::sanitise_log_line($node)."', group='".NMISNG::Util::sanitise_log_line($group)."'");
+	return 0;
+}
+
+# look up one local node's group, without loading every node and its config
+# args: node name
+# returns: group name, or undef if the node is not known locally
+sub node_group
+{
+	my ($node) = @_;
+
+	# '$eq' stops a crafted 'regex:...' name becoming a Mongo pattern
+	# (DB.pm get_query_part), which would resolve a different node here than the
+	# draw path does. make_string keeps the numeric-name handling that
+	# get_nodes_model applies only to plain scalar filters (NMISNG.pm:2494).
+	my $md = $nmisng->get_nodes_model(filter => { name => { '$eq' => NMISNG::DB::make_string($node) },
+																								cluster_id => $C->{cluster_id} },
+																		fields_hash => { 'configuration.group' => 1 },
+																		limit => 1);
+	return undef if ($md->error);
+	return $md->data->[0]->{configuration}->{group};
 }
