@@ -686,10 +686,12 @@ is( $backupdowndoc2->{details}, "seeded backup catchall detail, not the fallback
 	"doc details came from catchall backupdowndetails, not the fallback" );
 is( "$backupdowndoc2->{_id}", "$backupdowndoc->{_id}", "same doc, not recreated" );
 
-# (b) backupdown flips back to false -> doc refreshes back to ok
+# (b) backup genuinely recovers (live data) -> doc refreshes back to ok.
+# Also clears the flag, though it's no longer what the decision reads -
+# see the Fix 2d block later in this file for proof of that specifically.
 $catchall_data->{backupdown} = "false";
 $catchall_inv->save( node => $node, update => 1 );
-seed_fresh_ping( loss => 0 );
+seed_fresh_ping( loss => 0, backup_loss => 0 );
 $node->pingable( sys => $S, catchall_inventory => $catchall_inv );
 my ( $backupokcnt, $backupokdoc ) = opdoc("Backup Host Down");
 is( $backupokcnt, 1, "still exactly one Backup Host Down doc after clearing (upsert identity)" );
@@ -856,7 +858,7 @@ is( $dashdata4->{status}{"Backup Host Down--"}{status}, "error",
 $nmisng->{dashnode_context} = { op => 'collect', data => { status => {} } };
 $catchall_data->{backupdown} = "false";
 $catchall_inv->save( node => $node, update => 1 );
-seed_fresh_ping( loss => 0 );
+seed_fresh_ping( loss => 0, backup_loss => 0 );
 $node->pingable( sys => $S, catchall_inventory => $catchall_inv );
 
 my $dnstatus5 = $nmisng->{dashnode_context}{data}{status};
@@ -989,6 +991,34 @@ isnt( $unmeasured_ndoc->{status}, "ok",
 	"Fix 2c: Node Down is NOT falsely ok when backup data is simply missing" );
 is( $unmeasured_ndoc->{status}, "error",
 	"Fix 2c: Node Down reports error rather than guessing up from missing backup data" );
+
+# --- Fix 2d: a stuck backupdown flag must not force a permanent false error ---
+# Two independent reviews found the same bug class Fix 2a already closed for
+# Node Down, reopened for Backup Host Down: if the backup's own event is
+# closed out-of-band (GUI/API) rather than through handle_down()'s own up
+# transition, backupdown never gets reset to 'false' - bin/nmisd's clear
+# gate only runs when the event still exists and is active. Every
+# subsequent cycle would then keep reporting error even after the backup
+# genuinely recovered, fighting the Event->delete close hook. Backup Host
+# Down must now be decided from live ping data ($backup_loss), the same
+# way Node Down is decided from $pingresult - not from the flag at all.
+$catchall_data->{backupdown}        = "true";    # stuck from a resolved, never-cleared outage
+$catchall_data->{backupdownlevel}   = "Major";
+$catchall_data->{backupdowndetails} = "stale text from the old outage";
+$catchall_data->{nodedown}          = "false";
+$catchall_inv->save( node => $node, update => 1 );
+seed_fresh_ping( loss => 0, backup_loss => 0 );    # both addresses genuinely fine now
+my $stuck_flag_pingable = $node->pingable( sys => $S, catchall_inventory => $catchall_inv );
+ok( $stuck_flag_pingable, "Fix 2d: pingable() reports the node reachable" );
+ok( NMISNG::Util::getbool( $catchall_data->{backupdown} ),
+	"Fix 2d: the stale backupdown flag is still 'true' - proving the fix reads live data, not a write that resets the flag" );
+
+my ( $stuckcnt, $stuckdoc ) = opdoc("Backup Host Down");
+is( $stuckcnt, 1, "Fix 2d: exactly one Backup Host Down doc (upsert identity)" );
+isnt( $stuckdoc->{status}, "error",
+	"Fix 2d: Backup Host Down is NOT stuck at error because of the stale flag" );
+is( $stuckdoc->{status}, "ok",
+	"Fix 2d: Backup Host Down correctly reports ok once the backup is genuinely reachable again" );
 
 # --- Fix 1a: Config.nmis status_summary_exclude_events ---
 # Events.nmis is never auto-merged on upgrade, so its per-event Status flags

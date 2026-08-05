@@ -1921,6 +1921,7 @@ sub pingable
 	my $catchall_data = $catchall_inventory->data_live();
 
 	my ( $ping_min, $ping_avg, $ping_max, $ping_loss, $pingresult, $lastping );
+	my $backup_loss;    # captured independently of $ping_loss - see below
 
 	my $nodename = $self->name;
 	my $uuid = $self->uuid;
@@ -1964,6 +1965,20 @@ sub pingable
 
 					$self->nmisng->log->debug2(sub {"$uuid ($nodename = $newestping->{data}->{ip}) PINGability at $lastping min/avg/max = $ping_min/$ping_avg/$ping_max ms loss=$ping_loss%"});
 
+					# capture the backup's own reading independently of whether
+					# the primary succeeded (bin/nmisd writes backup_loss into
+					# this same record every fping cycle, not only when the
+					# primary is down) - this is what lets Backup Host Down be
+					# decided from live data below, the same way Node Down is,
+					# rather than only a catchall flag that can go stale if an
+					# event is closed out-of-band without going through
+					# handle_down.
+					if (defined($self->configuration->{host_backup})
+							&& $self->configuration->{host_backup})
+					{
+						$backup_loss = $newestping->{data}->{ping}->{backup_loss};
+					}
+
 					# ...and use the backup host data if the primary is unreachable
 					# and the backup has actually been measured yet (a just-added
 					# host_backup, or a sibling not yet pinged this cycle, has no
@@ -1974,12 +1989,12 @@ sub pingable
 					if (defined($self->configuration->{host_backup})
 							&& $self->configuration->{host_backup}
 							&& $ping_loss == 100
-							&& defined($newestping->{data}->{ping}->{backup_loss}))
+							&& defined($backup_loss))
 					{
 						$ping_min = $newestping->{data}->{ping}->{backup_min_rtt};
 						$ping_avg = $newestping->{data}->{ping}->{backup_avg_rtt};
 						$ping_max = $newestping->{data}->{ping}->{backup_max_rtt};
-						$ping_loss = $newestping->{data}->{ping}->{backup_loss};
+						$ping_loss = $backup_loss;
 
 						$self->nmisng->log->debug2(sub {"$uuid ($nodename = $newestping->{data}->{backup_ip}) PINGability at $lastping min/avg/max = $ping_min/$ping_avg/$ping_max ms loss=$ping_loss%"});
 					}
@@ -2149,20 +2164,27 @@ sub pingable
 			# refresh discipline as Node Down above, but only applicable to
 			# multihomed nodes (host_backup configured) - a node without a
 			# configured backup host gets NO status document for this event
-			# at all, not ok and not error. Reads the backupdown flag
-			# handle_down() piggybacks onto its catchall save (same mechanism
-			# as nodedown above) for the "primary up, backup down" case, and
-			# ORs in $pingresult to cover the one state that flag can never
-			# describe (see below).
+			# at all, not ok and not error.
+			#
+			# OMK-12605 blind-review round 2 fix: this now decides up/down
+			# from $backup_loss (captured above, live, every cycle, straight
+			# from the same cached fping data Node Down already trusts) -
+			# exactly the same principle as Node Down using $pingresult
+			# instead of the catchall flag. An earlier version of this code
+			# read the backupdown flag handle_down() piggybacks onto the
+			# catchall, OR'd with !$pingresult for the total-outage case.
+			# Two independent reviews found that flag-reliant version could
+			# get stuck: if the event is closed out-of-band (GUI/API) rather
+			# than through handle_down()'s own up transition, the flag never
+			# resets, so the doc kept reporting error indefinitely even after
+			# the backup genuinely recovered - fighting the Event->delete
+			# close hook every subsequent cycle. Live data can't go stale
+			# that way. "Not yet measured" is treated the same conservative
+			# way as Node Down's equivalent case (Fix 2c): report down, don't
+			# guess ok, until there's an actual reading.
 			if (defined($self->configuration->{host_backup}) && $self->configuration->{host_backup})
 			{
-				# OMK-12605 blind-review fix: when both primary and backup are
-				# unreachable, bin/nmisd maps that state to plain Node Down and
-				# never sets backupdown at all, so trusting the flag alone
-				# reports a false "ok" for Backup Host Down during a total
-				# outage. $pingresult is 0 in exactly that case (neither
-				# address answered), so OR it in.
-				my $backupisdown = NMISNG::Util::getbool( $catchall_data->{backupdown} ) || !$pingresult;
+				my $backupisdown = !defined($backup_loss) || $backup_loss == 100;
 				my ( $backup_down_level, $backup_down_details );
 				if ($backupisdown)
 				{
