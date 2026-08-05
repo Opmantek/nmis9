@@ -8285,9 +8285,8 @@ sub _build_service_argv
 	for my $tok (@tokens) {
 		$tok =~ s{(^|\W)(node\.([a-zA-Z0-9_-]+))}{
 			my ($pre, undef, $field) = ($1, $2, $3);
-			my $val = $node_data->{$field} // '';
-			$val =~ s/[`\$|;&<>()\\\n\r'"]//g;
-			$val =~ s/^-+//;
+			my $val = NMISNG::Util::strip_shell_metachars($node_data->{$field});
+			$val =~ s/^-+//;	# CWE-88: must not become a bare option flag
 			$pre . $val
 		}ge;
 	}
@@ -8738,8 +8737,7 @@ sub collect_services
 				my ( $scan, $port ) = split ':', $thisservice->{Port};
 
 				# sanitise device-derived host before using in exec() args (CWE-78)
-				my $target_host = $catchall_data->{host} // '';
-				$target_host =~ s/[`\$|;&<>()\\\n\r'"]//g;
+				my $target_host = NMISNG::Util::strip_shell_metachars($catchall_data->{host});
 
 				my @nmap_args = (
 					$scan =~ /^udp$/i
@@ -8871,7 +8869,7 @@ sub collect_services
 			# now service_name sets the script file name, temporarily falling back to $service
 			my $script_basename = $servicename || $service;
 			# reject names that could trigger magic open (pipe trick) or path traversal (CWE-78)
-			if ( !defined $script_basename || $script_basename !~ m{\A[A-Za-z0-9_.\-]+\z} )
+			if ( !NMISNG::Util::is_safe_script_basename($script_basename) )
 			{
 				$self->nmisng->log->error("($node) invalid script name for service $service");
 				$status{status_text} = "Service misconfigured: invalid script name";

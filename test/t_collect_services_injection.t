@@ -19,6 +19,15 @@ use Test::More;
 use File::Temp qw(tempdir);
 use POSIX qw();
 
+use NMISNG::Util;
+use NMISNG::Node;
+
+# Both modules are loaded directly so the subtests below exercise the shipped
+# subs rather than copies of them. That makes this file need the dev container:
+# NMISNG::Util alone pulls in Time::ParseDate, Time::Moment and UUID::Tiny, and
+# NMISNG::Node adds Net::SNMP and friends. CI runs in the container. Failing
+# loudly outside it is deliberate for a security regression test.
+
 my $node_pm = "$FindBin::Bin/../lib/NMISNG/Node.pm";
 
 # ---------------------------------------------------------------------------
@@ -78,21 +87,27 @@ subtest 'script branch uses three-argument open and validates basename' => sub {
     ok(scalar(@new) > 0, 'three-argument open(<, $scriptfn) is present');
 };
 
-subtest 'script branch basename allowlist regex is present' => sub {
+subtest 'script branch delegates the basename check to the shared predicate' => sub {
     ok(-f $node_pm, 'Node.pm exists') or return;
     open(my $fh, '<', $node_pm) or die "cannot open $node_pm: $!";
     my $content = join('', <$fh>);
     close $fh;
 
-    ok($content =~ /A-Za-z0-9_.*\\z/, 'basename allowlist regex present in Node.pm');
+    # Structural, and labelled as such: it says who owns the rule, not that the
+    # rule is correct. Correctness is subtest 6, which calls the predicate.
+    # Anchored to the call form. Matching the bare function name would be
+    # satisfied by a comment mentioning it.
+    ok($content =~ /NMISNG::Util::is_safe_script_basename\s*\(/,
+        'Node.pm calls NMISNG::Util::is_safe_script_basename(...)');
 };
 
 # ---------------------------------------------------------------------------
 # 4. Metacharacter sanitisation unit tests
 # ---------------------------------------------------------------------------
 subtest 'metacharacter sanitisation strips shell-dangerous chars' => sub {
-    sub sanitise_val { my $v = shift // ''; $v =~ s/[`\$|;&<>()\\\n\r'"]//g; $v }
-
+    # Calls the shipped sanitiser. Never re-implement it here: a local copy
+    # would keep passing after the real one changed, and report coverage of
+    # logic that no longer exists.
     my @cases = (
         [ 'localhost',             'localhost',        'clean hostname unchanged' ],
         [ '192.168.1.1',          '192.168.1.1',      'IP address unchanged' ],
@@ -112,7 +127,7 @@ subtest 'metacharacter sanitisation strips shell-dangerous chars' => sub {
     );
     for my $tc (@cases) {
         my ($input, $expected, $desc) = @$tc;
-        is(sanitise_val($input), $expected, $desc);
+        is(NMISNG::Util::strip_shell_metachars($input), $expected, $desc);
     }
 };
 
@@ -120,7 +135,7 @@ subtest 'metacharacter sanitisation strips shell-dangerous chars' => sub {
 # 5. Script basename allowlist unit tests
 # ---------------------------------------------------------------------------
 subtest 'script basename allowlist accepts safe names, rejects dangerous ones' => sub {
-    my $allowlist = qr{\A[A-Za-z0-9_.\-]+\z};
+    # Calls the shipped predicate rather than a copy of its regex.
 
     my @accept = (
         'check_disk',
@@ -130,10 +145,11 @@ subtest 'script basename allowlist accepts safe names, rejects dangerous ones' =
         'A1B2.pl',
     );
     for my $name (@accept) {
-        ok($name =~ $allowlist, "accepts safe name: '$name'");
+        ok(NMISNG::Util::is_safe_script_basename($name), "accepts safe name: '$name'");
     }
 
     my @reject = (
+        undef,
         '',
         '../etc/shadow',
         '/etc/passwd',
@@ -146,44 +162,27 @@ subtest 'script basename allowlist accepts safe names, rejects dangerous ones' =
         '| cat /etc/passwd',
     );
     for my $name (@reject) {
-        my $display = $name;
+        my $display = defined($name) ? $name : '(undef)';
         $display =~ s/\n/\\n/g;
-        ok(!defined($name) || $name eq '' || $name !~ $allowlist,
+        ok(!NMISNG::Util::is_safe_script_basename($name),
             "rejects dangerous name: '$display'");
     }
 };
 
 # ---------------------------------------------------------------------------
-# 6. Behavioural: _exec_service_program extracted from Node.pm.
+# 6. Behavioural: _exec_service_program, called directly on the loaded module.
 #
 # Block-form exec { $program } prevents shell interpretation of a
 # metachar-containing binary name.  On the pre-fix base _exec_service_program
-# does not exist, so extraction fails and this subtest goes red.  On the
-# fixed head the sub is found, evaled, and called in a forked child with a
+# does not exist, so the callability check goes red.  On the fixed head the
+# shipped sub is called in a forked child with a
 # binary name containing "; touch <sidecar>"; block-form exec treats the
 # whole string as the binary path (not found → _exit(127)), so the sidecar
 # is never created.
 # ---------------------------------------------------------------------------
 subtest 'program path: block-form exec in _exec_service_program prevents shell interpretation' => sub {
-    open(my $fh, '<', $node_pm) or die "cannot open $node_pm: $!";
-    my @lines = <$fh>; close $fh;
-
-    my $start;
-    for my $i (0 .. $#lines) {
-        if ($lines[$i] =~ /^sub _exec_service_program\b/) { $start = $i; last }
-    }
-    ok(defined $start, '_exec_service_program found in Node.pm (absent on pre-fix base)') or return;
-
-    my ($depth, $end) = (0, $start);
-    for my $i ($start .. $#lines) {
-        $depth += () = $lines[$i] =~ /\{/g;
-        $depth -= () = $lines[$i] =~ /\}/g;
-        if ($depth == 0 && $i > $start) { $end = $i; last }
-    }
-    my $sub_code = join('', @lines[$start .. $end]);
-    eval "package _ESP; use POSIX; no warnings; $sub_code; 1" or do {
-        fail("could not eval _exec_service_program: $@"); return;
-    };
+    ok(defined &NMISNG::Node::_exec_service_program,
+        '_exec_service_program exists in the loaded NMISNG::Node (absent on pre-fix base)') or return;
 
     my $tmpdir = tempdir(CLEANUP => 1);
     my $inject = "$tmpdir/INJECTED_$$";
@@ -194,7 +193,7 @@ subtest 'program path: block-form exec in _exec_service_program prevents shell i
     if ($pid == 0) {
         open(STDIN,  '<', '/dev/null') or POSIX::_exit(1);
         open(STDERR, '>', '/dev/null') or POSIX::_exit(1);
-        _ESP::_exec_service_program($evil);    # real Node.pm code
+        NMISNG::Node::_exec_service_program($evil);    # the shipped sub, called directly
         POSIX::_exit(1);
     }
     waitpid($pid, 0);
@@ -203,35 +202,18 @@ subtest 'program path: block-form exec in _exec_service_program prevents shell i
 };
 
 # ---------------------------------------------------------------------------
-# 7. Behavioural: _exec_nmap_child extracted from Node.pm.
+# 7. Behavioural: _exec_nmap_child, called directly on the loaded module.
 #
 # Host with shell metacharacters is passed as a single argv element, not
 # shell-interpreted.  On the pre-fix base _exec_nmap_child does not exist,
-# so extraction fails and this subtest goes red.  On the fixed head the sub
-# is found, evaled, and called in a forked child with a mock 'nmap' on PATH;
+# so the callability check goes red.  On the fixed head the shipped sub is
+# called in a forked child with a mock 'nmap' on PATH;
 # the mock records its argv.  The host "localhost; touch <sidecar>" must
 # appear as one recorded argv element and the sidecar must not be created.
 # ---------------------------------------------------------------------------
 subtest 'nmap path: _exec_nmap_child passes host as single argv element' => sub {
-    open(my $fh, '<', $node_pm) or die "cannot open $node_pm: $!";
-    my @lines = <$fh>; close $fh;
-
-    my $start;
-    for my $i (0 .. $#lines) {
-        if ($lines[$i] =~ /^sub _exec_nmap_child\b/) { $start = $i; last }
-    }
-    ok(defined $start, '_exec_nmap_child found in Node.pm (absent on pre-fix base)') or return;
-
-    my ($depth, $end) = (0, $start);
-    for my $i ($start .. $#lines) {
-        $depth += () = $lines[$i] =~ /\{/g;
-        $depth -= () = $lines[$i] =~ /\}/g;
-        if ($depth == 0 && $i > $start) { $end = $i; last }
-    }
-    my $sub_code = join('', @lines[$start .. $end]);
-    eval "package _ENC; use POSIX; no warnings; $sub_code; 1" or do {
-        fail("could not eval _exec_nmap_child: $@"); return;
-    };
+    ok(defined &NMISNG::Node::_exec_nmap_child,
+        '_exec_nmap_child exists in the loaded NMISNG::Node (absent on pre-fix base)') or return;
 
     my $tmpdir   = tempdir(CLEANUP => 1);
     my $inject   = "$tmpdir/INJECTED_NMAP_$$";
@@ -251,7 +233,7 @@ subtest 'nmap path: _exec_nmap_child passes host as single argv element' => sub 
     my $pid = open(my $pipe, '-|');
     if (!defined $pid) { fail("fork: $!"); return }
     if ($pid == 0) {
-        _ENC::_exec_nmap_child(@nmap_args);    # real Node.pm code
+        NMISNG::Node::_exec_nmap_child(@nmap_args);    # the shipped sub, called directly
         POSIX::_exit(1);
     }
     1 while <$pipe>;
@@ -268,83 +250,115 @@ subtest 'nmap path: _exec_nmap_child passes host as single argv element' => sub 
 };
 
 # ---------------------------------------------------------------------------
-# 8. Static: source sanitisation regex strips \n and \r in both substitutions
-#    (confirms the source regex matches the sanitise_val used in subtests 4-5)
+# 8. Structural: the sanitiser and the allowlist exist in exactly one place.
+#    This is the guard against the anti-pattern this file used to contain: a
+#    hand-typed copy of security logic, which keeps passing after the original
+#    changes and so reports coverage that does not exist. It asserts where the
+#    logic lives, never that it is correct; correctness is subtests 5 and 6,
+#    which call the shipped functions.
 # ---------------------------------------------------------------------------
-subtest 'source sanitisation regex strips \\n and \\r in host and args paths' => sub {
-    ok(-f $node_pm, 'Node.pm exists') or return;
-    open(my $fh, '<', $node_pm) or die "cannot open $node_pm: $!";
-    my @lines = <$fh>;
-    close $fh;
+subtest 'shell sanitiser and basename allowlist are defined exactly once' => sub {
+    my $lib = "$FindBin::Bin/../lib";
+    my $util = "$lib/NMISNG/Util.pm";
+    ok(-f $util, 'Util.pm exists') or return;
 
-    my @sanitise = grep { /s\/\[/ && /\\n/ && /\\r/ } @lines;
-    ok(scalar(@sanitise) >= 2,
-        'at least 2 sanitisation substitutions strip \\n and \\r (host and args paths)');
+    # Each literal rule must appear exactly once across the Perl in the repo,
+    # in Util.pm. Util.pm is counted rather than exempted, so a second copy
+    # inside it is caught too.
+    #
+    # Limit, stated deliberately: this matches the literal spelling. A copy
+    # written with a reordered character class or an extra escape would evade
+    # it. It is a tripwire against the copy-paste that actually happened, not
+    # a proof of uniqueness.
+    my $root = "$FindBin::Bin/..";
+    my @files;
+    my @dirs = grep { -d $_ } ("$root/lib", "$root/test", "$root/cgi-bin",
+                               "$root/admin", "$root/bin");
+    while (my $d = shift @dirs) {
+        opendir(my $dh, $d) or next;
+        for my $e (grep { !/^\.\.?$/ } readdir $dh) {
+            my $path = "$d/$e";
+            if (-d $path) { push @dirs, $path }
+            elsif ($path =~ /\.(pm|pl|t|cgi)$/) { push @files, $path }
+        }
+        closedir $dh;
+    }
+    ok(scalar(@files) > 10, 'the duplication scan actually found files to scan');
+
+    my (%count, %where);
+    for my $f (@files) {
+        open(my $fh, '<', $f) or next;
+        my $c = join('', <$fh>);
+        close $fh;
+        for my $rule (['metachar class',     qr/\Q[`\E\\?\$\|;&<>\(\)/],
+                      ['basename allowlist', qr/\QA-Za-z0-9_.\E\\?-\]\+\\z/]) {
+            my ($label, $re) = @$rule;
+            my $n = () = ($c =~ /$re/g);
+            next unless $n;
+            $count{$label} += $n;
+            push @{ $where{$label} }, "$f x$n";
+        }
+    }
+    for my $label ('metachar class', 'basename allowlist') {
+        is($count{$label} // 0, 1, "$label is written out exactly once in the repo")
+            or diag("found in:\n  " . join("\n  ", @{ $where{$label} || [] }));
+    }
+
+    open(my $uh, '<', $util) or die "cannot open $util: $!";
+    my $uc = join('', <$uh>);
+    close $uh;
+    ok($uc =~ /sub strip_shell_metachars/,   'Util.pm defines strip_shell_metachars');
+    ok($uc =~ /sub is_safe_script_basename/, 'Util.pm defines is_safe_script_basename');
+
+    # Every site that used to hold its own copy must still call the shared one.
+    # Centralising removed the only thing pinning the nmap host line: deleting
+    # that call leaves every behavioural subtest green, because subtest 8
+    # deliberately asserts the host reaches _exec_nmap_child intact and so
+    # cannot see the strip go missing.
+    open(my $nh, '<', $node_pm) or die "cannot open $node_pm: $!";
+    my $nc = join('', <$nh>);
+    close $nh;
+
+    my @calls = ($nc =~ /NMISNG::Util::strip_shell_metachars/g);
+    is(scalar(@calls), 2,
+        'Node.pm calls strip_shell_metachars at both sites (argv build, nmap host)');
+    ok($nc =~ /strip_shell_metachars\(\s*\$catchall_data->\{host\}/,
+        'nmap host is sanitised via the shared function');
 };
 
 # ---------------------------------------------------------------------------
-# 9. Behavioural: _build_service_argv extracted from Node.pm.
+# 9. Behavioural: _build_service_argv, called directly on the loaded module.
 #
 # Drives the real node.* substitution + shellwords path without MongoDB.
-# Extracts the sub from source, evals it, then:
 #   a. asserts the returned argv for clean and metachar-containing inputs;
 #   b. forks a mock binary via the real _exec_service_program to prove the
 #      argv built by _build_service_argv reaches exec() intact.
-# On the pre-fix base _build_service_argv does not exist, so extraction
-# fails and this subtest goes red.  Mutating @arglist = () in production
+# On the pre-fix base _build_service_argv does not exist, so the callability
+# check goes red.  Mutating @arglist = () in production
 # also breaks assertion (b) because the mock binary records no argv.
 # ---------------------------------------------------------------------------
 subtest 'arg-building: _build_service_argv substitutes node.* and passes argv to exec' => sub {
-    open(my $fh, '<', $node_pm) or die "cannot open $node_pm: $!";
-    my @lines = <$fh>; close $fh;
 
-    # Extract _build_service_argv
-    my $bsa_start;
-    for my $i (0 .. $#lines) {
-        if ($lines[$i] =~ /^sub _build_service_argv\b/) { $bsa_start = $i; last }
-    }
-    ok(defined $bsa_start, '_build_service_argv found in Node.pm') or return;
-    my ($depth, $end) = (0, $bsa_start);
-    for my $i ($bsa_start .. $#lines) {
-        $depth += () = $lines[$i] =~ /\{/g;
-        $depth -= () = $lines[$i] =~ /\}/g;
-        if ($depth == 0 && $i > $bsa_start) { $end = $i; last }
-    }
-    my $bsa_code = join('', @lines[$bsa_start .. $end]);
-    eval "package _BSA; use Text::ParseWords qw(shellwords); no warnings; $bsa_code; 1" or do {
-        fail("could not eval _build_service_argv: $@"); return;
-    };
+    ok(defined &NMISNG::Node::_build_service_argv,
+        '_build_service_argv exists in the loaded NMISNG::Node') or return;
 
-    # (a) Unit assertions on the extracted helper
-    my @argv1 = _BSA::_build_service_argv('--host node.host --name node.sysName',
+    # (a) Unit assertions on the shipped helper
+    my @argv1 = NMISNG::Node::_build_service_argv('--host node.host --name node.sysName',
         {host => '10.0.0.1', sysName => 'myrouter'});
     is_deeply(\@argv1, ['--host', '10.0.0.1', '--name', 'myrouter'],
         'clean node.* substitution produces correct argv');
 
-    my @argv2 = _BSA::_build_service_argv('--host node.host',
+    my @argv2 = NMISNG::Node::_build_service_argv('--host node.host',
         {host => '10.0.0.1; touch /tmp/x'});
     is(scalar(@argv2) > 0, 1, 'metachar-stripped input returns non-empty argv');
     unlike($argv2[1] // '', qr/;/, 'semicolon stripped from substituted host');
 
-    my @argv3 = _BSA::_build_service_argv(undef, {});
+    my @argv3 = NMISNG::Node::_build_service_argv(undef, {});
     is_deeply(\@argv3, [], 'undef Args returns empty argv');
 
     # (b) End-to-end: argv from _build_service_argv reaches exec via _exec_service_program
-    my $esp_start;
-    for my $i (0 .. $#lines) {
-        if ($lines[$i] =~ /^sub _exec_service_program\b/) { $esp_start = $i; last }
-    }
-    ok(defined $esp_start, '_exec_service_program found in Node.pm') or return;
-    my ($d2, $e2) = (0, $esp_start);
-    for my $i ($esp_start .. $#lines) {
-        $d2 += () = $lines[$i] =~ /\{/g;
-        $d2 -= () = $lines[$i] =~ /\}/g;
-        if ($d2 == 0 && $i > $esp_start) { $e2 = $i; last }
-    }
-    my $esp_code = join('', @lines[$esp_start .. $e2]);
-    eval "package _BSA; use POSIX; no warnings; $esp_code; 1" or do {
-        fail("could not eval _exec_service_program: $@"); return;
-    };
+    ok(defined &NMISNG::Node::_exec_service_program,
+        '_exec_service_program exists in the loaded NMISNG::Node') or return;
 
     my $tmpdir   = tempdir(CLEANUP => 1);
     my $argv_log = "$tmpdir/argv.txt";
@@ -353,13 +367,13 @@ subtest 'arg-building: _build_service_argv substitutes node.* and passes argv to
     print $mh "#!/bin/sh\nprintf '%s\n' \"\$@\" > '$argv_log'\nexit 0\n";
     close $mh; chmod 0755, $mock_bin;
 
-    my @build_argv = _BSA::_build_service_argv('--host node.host', {host => '192.0.2.1'});
+    my @build_argv = NMISNG::Node::_build_service_argv('--host node.host', {host => '192.0.2.1'});
     my $pid = fork();
     if (!defined $pid) { fail("fork: $!"); return }
     if ($pid == 0) {
         open(STDIN,  '<', '/dev/null') or POSIX::_exit(1);
         open(STDERR, '>', '/dev/null') or POSIX::_exit(1);
-        _BSA::_exec_service_program($mock_bin, @build_argv);
+        NMISNG::Node::_exec_service_program($mock_bin, @build_argv);
         POSIX::_exit(1);
     }
     waitpid($pid, 0);
@@ -383,25 +397,11 @@ subtest 'arg-building: _build_service_argv substitutes node.* and passes argv to
 # argv element (Important 1: tokenise-first approach).
 # ---------------------------------------------------------------------------
 subtest 'runner: _run_service_program wires arg-building to exec' => sub {
-    open(my $fh, '<', $node_pm) or die "cannot open $node_pm: $!";
-    my @lines = <$fh>; close $fh;
 
-    # Extract _exec_service_program, _build_service_argv, _run_service_program
+    # All three are shipped subs on the loaded module, not copies of them.
     for my $name (qw(_exec_service_program _build_service_argv _run_service_program)) {
-        my $start;
-        for my $i (0 .. $#lines) {
-            if ($lines[$i] =~ /^sub \Q$name\E\b/) { $start = $i; last }
-        }
-        ok(defined $start, "$name found in Node.pm") or return;
-        my ($depth, $end) = (0, $start);
-        for my $i ($start .. $#lines) {
-            $depth += () = $lines[$i] =~ /\{/g;
-            $depth -= () = $lines[$i] =~ /\}/g;
-            if ($depth == 0 && $i > $start) { $end = $i; last }
-        }
-        my $code = join('', @lines[$start .. $end]);
-        eval "package _RSP; use Text::ParseWords qw(shellwords); use POSIX; no warnings; $code; 1"
-            or do { fail("could not eval $name: $@"); return };
+        ok(defined &{"NMISNG::Node::$name"},
+            "$name exists in the loaded NMISNG::Node") or return;
     }
 
     my $tmpdir   = tempdir(CLEANUP => 1);
@@ -417,7 +417,7 @@ subtest 'runner: _run_service_program wires arg-building to exec' => sub {
     if ($pid == 0) {
         open(STDIN,  '<', '/dev/null') or POSIX::_exit(1);
         open(STDERR, '>', '/dev/null') or POSIX::_exit(1);
-        _RSP::_run_service_program($mock_bin, '--host node.host', {host => '192.0.2.1'});
+        NMISNG::Node::_run_service_program($mock_bin, '--host node.host', {host => '192.0.2.1'});
         POSIX::_exit(1);
     }
     waitpid($pid, 0);
@@ -437,7 +437,7 @@ subtest 'runner: _run_service_program wires arg-building to exec' => sub {
     if ($pid2 == 0) {
         open(STDIN,  '<', '/dev/null') or POSIX::_exit(1);
         open(STDERR, '>', '/dev/null') or POSIX::_exit(1);
-        _RSP::_run_service_program($mock_bin,
+        NMISNG::Node::_run_service_program($mock_bin,
             '--file=node.sysDescr',
             {sysDescr => 'x --output=/tmp/injected'});
         POSIX::_exit(1);
@@ -527,37 +527,20 @@ subtest 'ext_ping: fork+exec replaces two-arg piped open, alarm restored on both
 # The fix strips leading dashes from substituted values.
 # ---------------------------------------------------------------------------
 subtest 'arg-building: leading-dash node.* value does not inject a flag' => sub {
-    open(my $fh, '<', $node_pm) or die "cannot open $node_pm: $!";
-    my @lines = <$fh>; close $fh;
 
-    my $start;
-    for my $i (0 .. $#lines) {
-        if ($lines[$i] =~ /^sub _build_service_argv\b/) { $start = $i; last }
-    }
-    ok(defined $start, '_build_service_argv found in Node.pm') or return;
-    my ($depth, $end) = (0, $start);
-    for my $i ($start .. $#lines) {
-        $depth += () = $lines[$i] =~ /\{/g;
-        $depth -= () = $lines[$i] =~ /\}/g;
-        if ($depth == 0 && $i > $start) { $end = $i; last }
-    }
-    my $code = join('', @lines[$start .. $end]);
-    eval "package _LDBSA; use Text::ParseWords qw(shellwords); no warnings; $code; 1"
-        or do { fail("could not eval _build_service_argv: $@"); return };
+    ok(defined &NMISNG::Node::_build_service_argv,
+        '_build_service_argv exists in the loaded NMISNG::Node') or return;
 
     # (a) standalone node.* placeholder: value starting with '-' must not
     #     produce a leading-dash argv element (the key CWE-88 vector)
-    my @a = _LDBSA::_build_service_argv('node.host', {host => '-sV'});
+    my @a = NMISNG::Node::_build_service_argv('node.host', {host => '-sV'});
     ok( !(grep { /^-/ } @a), 'standalone leading-dash value does not become option flag');
 
     # (b) embedded placeholder (--opt=node.host): leading-dash stripping must
     #     not produce a standalone element — value stays within the token
-    my @b = _LDBSA::_build_service_argv('--host=node.host', {host => '--oX=/tmp/evil'});
+    my @b = NMISNG::Node::_build_service_argv('--host=node.host', {host => '--oX=/tmp/evil'});
     is(scalar(@b), 1, 'embedded leading-dash case still produces exactly one token');
     ok( !(grep { /^--oX/ } @b), 'embedded leading-dash value does not escape as standalone arg');
-
-    # (c) verify the leading-dash strip is present in source
-    ok($code =~ /s\s*\/\s*\^-/, 'leading-dash strip present in _build_service_argv source');
 };
 
 # --- Access.nmis: table_services_rw must be admin-only (OMK-12692 review) ---
