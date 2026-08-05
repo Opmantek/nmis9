@@ -1019,6 +1019,46 @@ sub getConfigDefaults
 # Load a .nmis config file and flatten its two-level hash to a single level.
 # Uses shared lock to avoid reading partially-written files.
 # Returns: ($flattened_hashref, $section_map_hashref, $raw_two_level_hashref)
+# OMK-12696: a .nmis config/table/model file is loaded by eval'ing its contents
+# as Perl, and the poller runs as root, so a file an attacker can write is root
+# code execution. Refuse to evaluate any config file that is WORLD-writable
+# (writable by any local user).
+#
+# We deliberately allow GROUP-writable config: NMIS ships config group-writable
+# (fixperms does chmod -R g+rw) so httpd, which the installer places in the nmis
+# group, can edit config through the GUI. Closing the group-member/httpd -> root
+# escalation requires root-owning config plus a privileged write path for the
+# GUI, tracked as a separate architectural fix; a mode check cannot make that
+# distinction.
+#
+# Uses fstat on the already-open handle (TOCTOU-safe: it is the same open file
+# we are about to read/eval). Returns an error string when unsafe, undef when
+# the file is safe to evaluate.
+sub _config_perms_error
+{
+	my ($fh, $file) = @_;
+	# CORE::stat: this package imports File::stat, which overrides stat() to
+	# return an object rather than the 13-element list we need for the mode.
+	my @st = CORE::stat($fh);    # fstat on the open handle we are about to eval
+	# Fail closed: if we cannot determine the mode of a file we are about to eval
+	# as root, refuse it rather than assume it is safe. fstat on an open handle
+	# essentially never fails, so this is not expected to reject legitimate files.
+	if (!@st)
+	{
+		return "refusing to evaluate config file '$file': cannot determine its"
+			. " permissions (stat failed: $!); refusing rather than eval an"
+			. " unknown file as root.";
+	}
+	my $mode = $st[2];
+	if ($mode & 0002)            # writable by other (any local user)
+	{
+		return "refusing to evaluate config file '$file': it is world-writable"
+			. sprintf(" (mode %04o)", $mode & 07777)
+			. "; a world-writable config file is arbitrary code execution. Fix with 'chmod o-w'.";
+	}
+	return undef;
+}
+
 sub _load_and_flatten
 {
 	my ($filepath) = @_;
@@ -1035,6 +1075,13 @@ sub _load_and_flatten
 	};
 	local $/;
 	my $content = <$fh>;
+	# OMK-12696: never eval a config file that an attacker could have written
+	if (my $permerr = _config_perms_error($fh, $filepath))
+	{
+		warn($permerr . "\n");
+		close($fh);
+		return (undef, undef, undef);
+	}
 	close($fh);
 
 	# no strict 'vars' needed because .nmis files use %hash = (...) without declaring it
@@ -1440,12 +1487,20 @@ sub loadTable
 	if ($lock) {
 		my $table = NMISNG::Util::readFiletoHash(file=>$file, lock=>$lock, conf => $conf);
 
-		foreach (@$externalFiles) {
-			# Read and mix
-			my $lock = NMISNG::Util::getbool($args{lock});
-			my $extfile = NMISNG::Util::readFiletoHash(file=>$_, lock=>$lock, conf => $conf);
-			$table = {%$table, %$extfile};
-		}		
+		# OMK-12696: readFiletoHash returns an error string (not a hashref) when it
+		# refuses an unsafe (e.g. world-writable) or unreadable file. Preserve that
+		# error return for the main table (callers test ref()); only merge fragments
+		# into a real hash, and skip any fragment we refused rather than die
+		# dereferencing a string.
+		if (ref($table)) {
+			foreach (@$externalFiles) {
+				# Read and mix
+				my $lock = NMISNG::Util::getbool($args{lock});
+				my $extfile = NMISNG::Util::readFiletoHash(file=>$_, lock=>$lock, conf => $conf);
+				if (!ref($extfile)) { warn("loadTable: skipping external file: $extfile\n"); next; }
+				$table = {%$table, %$extfile};
+			}
+		}
 		return $table;
 	}
 	
@@ -1457,10 +1512,15 @@ sub loadTable
 	{
 		my $table = NMISNG::Util::readFiletoHash(file=>$file, conf => $conf);
 
-		foreach (@$externalFiles) {
-			# Read and mix
-			my $extfile = NMISNG::Util::readFiletoHash(file=>$_, conf => $conf);
-			$table = {%$table, %$extfile};
+		# OMK-12696: see the note in the lock branch above. Preserve the main-table
+		# error-string return; only merge real hashref fragments; skip refused ones.
+		if (ref($table)) {
+			foreach (@$externalFiles) {
+				# Read and mix
+				my $extfile = NMISNG::Util::readFiletoHash(file=>$_, conf => $conf);
+				if (!ref($extfile)) { warn("loadTable: skipping external file: $extfile\n"); next; }
+				$table = {%$table, %$extfile};
+			}
 		}
 		# nope, reread
 		$cache{$file} = { "data" => $table,
@@ -1831,6 +1891,12 @@ sub readFiletoHash
 			}
 			else											# perl
 			{
+				# OMK-12696: never eval a config file that an attacker could have written
+				if (my $permerr = NMISNG::Util::_config_perms_error($handle, $file))
+				{
+					close $handle;
+					return $permerr;
+				}
 				# convert data to hash. this is really very yucky.
 				%hash = eval $data;
 				if ($@)
