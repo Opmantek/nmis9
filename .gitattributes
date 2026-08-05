@@ -1,0 +1,16 @@
+# ci/scripts/perl_tests.sh holds an append-only list of test filenames in its
+# working_tests array. Every security and bug-fix branch adds its own entry, so
+# a normal three-way merge conflicts on almost every branch: 12 open branches
+# touch this one file as of August 2026, and the OMK-12644 hardening epic has
+# roughly another nine tickets still to land. `merge=union` keeps the added
+# lines from both sides instead of raising a conflict.
+#
+# Caveat, so nobody is surprised later: union does not understand the file, it
+# just keeps both sides. Two branches appending different tests is the case this
+# is for, and it resolves correctly. Two branches editing the SAME line (renaming
+# a test, say) leaves both versions in the array, and the stale filename then
+# fails the build loudly at `prove` under the script's `set -eu` rather than
+# passing silently. A duplicated entry merely runs one test twice. Both are
+# acceptable because the array contains nothing but filenames. Do not extend
+# union to files where keeping both sides could be silently wrong.
+ci/scripts/perl_tests.sh merge=union
