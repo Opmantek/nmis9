@@ -1965,9 +1965,16 @@ sub pingable
 					$self->nmisng->log->debug2(sub {"$uuid ($nodename = $newestping->{data}->{ip}) PINGability at $lastping min/avg/max = $ping_min/$ping_avg/$ping_max ms loss=$ping_loss%"});
 
 					# ...and use the backup host data if the primary is unreachable
+					# and the backup has actually been measured yet (a just-added
+					# host_backup, or a sibling not yet pinged this cycle, has no
+					# backup_loss - undef < 100 is true, which would wrongly read
+					# as "backup responded" instead of "backup status unknown".
+					# Leaving $ping_loss at the primary's own (already-100) value
+					# in that case correctly reports down rather than guessing up.
 					if (defined($self->configuration->{host_backup})
 							&& $self->configuration->{host_backup}
-							&& $ping_loss == 100)
+							&& $ping_loss == 100
+							&& defined($newestping->{data}->{ping}->{backup_loss}))
 					{
 						$ping_min = $newestping->{data}->{ping}->{backup_min_rtt};
 						$ping_avg = $newestping->{data}->{ping}->{backup_avg_rtt};

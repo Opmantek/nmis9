@@ -968,6 +968,28 @@ my ( undef, $tndoc ) = opdoc("Node Down");
 is( $tndoc->{status}, "error",
 	"Fix 2b: Node Down also reports error in the same call (both addresses dead)" );
 
+# --- Fix 2c: backup ping data not yet available must not read as "up" ---
+# A just-added host_backup, or a sibling not yet pinged this cycle, has no
+# backup_loss at all (not even a failing one) - undef < 100 is true, which
+# would wrongly read as "backup responded" instead of "we don't know yet".
+# Leaving $ping_loss at the primary's own (already-100) value when the
+# backup hasn't been measured must report down, not guess up.
+delete $catchall_data->{backupdown};
+delete $catchall_data->{backupdownlevel};
+delete $catchall_data->{backupdowndetails};
+$catchall_data->{nodedown} = "true";
+$catchall_inv->save( node => $node, update => 1 );
+seed_fresh_ping( loss => 100 );    # primary dead, no backup_loss key at all
+my $unmeasured_pingable = $node->pingable( sys => $S, catchall_inventory => $catchall_inv );
+ok( !$unmeasured_pingable,
+	"Fix 2c: pingable() false when primary is dead and backup has no data yet" );
+
+my ( undef, $unmeasured_ndoc ) = opdoc("Node Down");
+isnt( $unmeasured_ndoc->{status}, "ok",
+	"Fix 2c: Node Down is NOT falsely ok when backup data is simply missing" );
+is( $unmeasured_ndoc->{status}, "error",
+	"Fix 2c: Node Down reports error rather than guessing up from missing backup data" );
+
 # --- Fix 1a: Config.nmis status_summary_exclude_events ---
 # Events.nmis is never auto-merged on upgrade, so its per-event Status flags
 # cannot reach an existing install. This site-wide list is consulted in
