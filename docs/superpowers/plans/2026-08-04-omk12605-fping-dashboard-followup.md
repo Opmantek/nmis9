@@ -71,6 +71,8 @@
 
 ### Task 2: Per-cycle Backup Host Down status refresh
 
+**Superseded:** the design below (reading `bin/nmisd`'s state derivation directly and tracking a new `$used_backup` variable off the primary/backup ping-result selection) was replaced during implementation — the actual implementation instead reuses Task 1's catchall-flag mechanism, extending `handle_down`'s flag-writing regex to include `backup` so a `backupdown` flag gets piggybacked the same way `nodedown` already is. See the design spec's "Proposed solution" section and commits `6f85fd23`/`c47c6915` for what actually shipped. The original text below is left in place, unedited, so a future reader can see both what was originally planned and what actually happened.
+
 **Files:**
 - Modify: `lib/NMISNG/Node.pm` (`sub pingable`, the primary/backup data-selection logic at ~lines 1966-1977, plus the same `else` branch added in Task 1)
 - Modify: the same test file as Task 1

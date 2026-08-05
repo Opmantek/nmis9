@@ -748,7 +748,15 @@ $C->{enable_dashnode_file} = 'true';
 my $dashfile = $C->{'<nmis_var>'} . "/" . $node->name . "-node.json";
 
 # --- Node Down: down case -> error entry, in-memory and on disk ---
-$nmisng->{dashnode_context} = { op => 'collect', data => { status => {} } };
+# Use the real setup function collect()/update() actually call, instead of
+# hand-seeding dashnode_context, so this test pins the real production
+# contract: load_dashnode_data() -> pingable() -> save_dashnode_data(), in
+# that order, inside collect() (lib/NMISNG/Node.pm:9643/9668/9924) and
+# update() (lib/NMISNG/Node.pm:7355/7425/7617). force => 1 mirrors collect()
+# on a forced run and skips reading any pre-existing dashboard file, giving
+# the same fresh { status => {} } shape the hand-seed used to construct
+# directly, but produced by the function under test rather than assumed.
+$node->load_dashnode_data( op => 'collect', force => 1 );
 delete $catchall_data->{nodedownlevel};
 delete $catchall_data->{nodedowndetails};
 $catchall_data->{nodedown} = "true";

@@ -2161,7 +2161,7 @@ sub pingable
 					element      => "",
 					status       => $backupisdown ? "error" : "ok",
 					level        => $backupisdown ? $backup_down_level   : "Normal",
-					details      => $backupisdown ? $backup_down_details : "Backup ping ok",
+					details      => $backupisdown ? $backup_down_details : "No backup host event active",
 					inventory_id => $catchall_inventory->id,
 				);
 			}
