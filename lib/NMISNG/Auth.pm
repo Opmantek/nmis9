@@ -1922,6 +1922,61 @@ sub group_allowed
 					and exists $group_table->{$group}) ? 1 : 0;
 }
 
+# visible_groups: the groups this user may see, as a table keyed by name.
+# args: list of group names, normally from NMISNG::get_group_names, which has
+#  already stripped hide_groups
+# returns: hashref suitable as the group_table argument of group_allowed
+sub visible_groups
+{
+	my ($self, @groupnames) = @_;
+	return { map { $_ => $_ } grep { $self->InGroup($_) } @groupnames };
+}
+
+# graph_refusal: may this user view the graph identified by node and/or group?
+# Every identifier present is checked, not just the first one. rrdfunc::draw
+# sets $item = $mygroup for graphtype=metrics and the rrd template is
+# '/metrics/$item.rrd', so a metrics graph resolves by group alone. Checking
+# only the node would let a permitted node launder a foreign group (OMK-12706).
+# args: node_group (the group $node belongs to, resolved by the caller),
+#  grouptable (as visible_groups), node, group, allow_global
+# $node is only the "a node was named" signal, the group decision uses
+# node_group. an undef node_group is refused, so an unknown node fails closed.
+# allow_global suppresses only the 'none' refusal, for a global graphtype the
+# caller has already authorised by other means. Identifiers that are supplied
+# are still checked.
+# returns: undef if allowed, else 'node', 'group' or 'none' naming the refusal
+sub graph_refusal
+{
+	my ($self, %args) = @_;
+	my ($node_group, $grouptable, $node, $group, $allow_global)
+			= @args{qw(node_group grouptable node group allow_global)};
+	my $checked = 0;
+
+	if (defined($group) and $group ne "")
+	{
+		# 'network' is the metrics pseudo-group: it exists no matter what the
+		# group_list configuration or group table says, so it is gated on
+		# InGroup alone
+		my $ok = ($group eq "network")? $self->InGroup($group)
+				: $self->group_allowed($group, $grouptable);
+		return 'group' if (!$ok);
+		$checked++;
+	}
+
+	if (defined($node) and $node ne "")
+	{
+		# group_allowed rejects undef, so a node the caller could not resolve
+		# is refused rather than allowed
+		return 'node' if (!$self->group_allowed($node_group, $grouptable));
+		$checked++;
+	}
+
+	# nothing to authorise against. refused unless the caller declared this a
+	# global graph it has already authorised itself
+	return 'none' if (!$checked and !$allow_global);
+	return undef;
+}
+
 #----------------------------------
 
 #	Check Access identifier agains priv of user
