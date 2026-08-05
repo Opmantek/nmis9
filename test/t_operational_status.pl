@@ -646,16 +646,19 @@ $pcfg->{host_backup} = "10.10.99.99";
 $node->configuration($pcfg);
 ok( $node->configuration->{host_backup}, "test node now has host_backup configured" );
 
-# (a) backupdown true -> error doc, level/details read from the catchall,
-# same piggyback mechanism as nodedown/nodedownlevel/nodedowndetails.
+# (a) backup genuinely measured and failing (live data, not just the flag -
+# round 3 blind review found the flag alone is no longer read at all) ->
+# error doc, level/details read from the catchall, same piggyback mechanism
+# as nodedown/nodedownlevel/nodedowndetails. backupdown is also set here to
+# prove it's along for the ride, not the thing driving the decision.
 #
-# (a1) fallback sub-case: backupdown true but the catchall doesn't have the
-# backupdownlevel/backupdowndetails keys yet.
+# (a1) fallback sub-case: backup measured failing but the catchall doesn't
+# have the backupdownlevel/backupdowndetails keys yet.
 delete $catchall_data->{backupdownlevel};
 delete $catchall_data->{backupdowndetails};
 $catchall_data->{backupdown} = "true";
 $catchall_inv->save( node => $node, update => 1 );
-seed_fresh_ping( loss => 0 );
+seed_fresh_ping( loss => 0, backup_loss => 100 );
 $node->pingable( sys => $S, catchall_inventory => $catchall_inv );
 
 my $expected_backup_fallback_level = $C->{default_event_level} // "Major";
@@ -675,7 +678,7 @@ ok( !$node->eventExist("Backup Host Down"),
 $catchall_data->{backupdownlevel}   = "Critical";
 $catchall_data->{backupdowndetails} = "seeded backup catchall detail, not the fallback string";
 $catchall_inv->save( node => $node, update => 1 );
-seed_fresh_ping( loss => 0 );
+seed_fresh_ping( loss => 0, backup_loss => 100 );
 $node->pingable( sys => $S, catchall_inventory => $catchall_inv );
 
 my ( $backupdowncnt2, $backupdowndoc2 ) = opdoc("Backup Host Down");
@@ -831,12 +834,14 @@ is( $dashdata3->{status}{"Node Down--"}{status}, "ok",
 
 # --- Backup Host Down: down case -> error entry, in-memory and on disk ---
 # (host_backup is still configured on the test node at this point in the file)
+# backup_loss is what drives the decision (round 3 blind review); backupdown
+# is set alongside it only to prove it's not what's being read.
 $nmisng->{dashnode_context} = { op => 'collect', data => { status => {} } };
 delete $catchall_data->{backupdownlevel};
 delete $catchall_data->{backupdowndetails};
 $catchall_data->{backupdown} = "true";
 $catchall_inv->save( node => $node, update => 1 );
-seed_fresh_ping( loss => 0 );
+seed_fresh_ping( loss => 0, backup_loss => 100 );
 $node->pingable( sys => $S, catchall_inventory => $catchall_inv );
 
 my $dnstatus4 = $nmisng->{dashnode_context}{data}{status};
@@ -1019,6 +1024,50 @@ isnt( $stuckdoc->{status}, "error",
 	"Fix 2d: Backup Host Down is NOT stuck at error because of the stale flag" );
 is( $stuckdoc->{status}, "ok",
 	"Fix 2d: Backup Host Down correctly reports ok once the backup is genuinely reachable again" );
+
+# --- Fix 2e (round 3): an unmeasured backup must not overwrite an existing
+# doc with a false error, or a false ok ---
+# Two independent reviews found that treating "no backup_loss in this cycle's
+# ping record" the same as "backup confirmed down" produces a PERMANENT false
+# error whenever the record simply wasn't written with backup data - not just
+# for a brand-new node. This happens routinely: nmisd_fping_worker => false is
+# a supported setting, the fping worker can fall behind or be unavailable, and
+# pingable()'s OWN internal-ping ($mustping true) fallback never populates
+# backup_loss at all. None of those describe the backup actually failing.
+# The fix: skip the write entirely when backup_loss is undefined, leaving
+# whatever the doc already correctly said, rather than asserting either
+# state about a condition nothing measured this cycle.
+$stuckdoc = ( opdoc("Backup Host Down") )[1];
+is( $stuckdoc->{status}, "ok", "Fix 2e: precondition - Backup Host Down doc exists and is ok (from Fix 2d)" );
+my $preexisting_backup_id = "$stuckdoc->{_id}";
+
+seed_fresh_ping( loss => 0 );    # primary fine, no backup_loss key at all this cycle
+my $unmeasured_backup_pingable = $node->pingable( sys => $S, catchall_inventory => $catchall_inv );
+ok( $unmeasured_backup_pingable, "Fix 2e: pingable() still reports the node reachable" );
+
+my ( $unmeasuredcnt, $unmeasureddoc ) = opdoc("Backup Host Down");
+is( $unmeasuredcnt, 1, "Fix 2e: still exactly one Backup Host Down doc - no write happened, none was duplicated either" );
+is( "$unmeasureddoc->{_id}", $preexisting_backup_id, "Fix 2e: same doc, untouched" );
+is( $unmeasureddoc->{status}, "ok",
+	"Fix 2e: Backup Host Down was NOT flipped to error just because this cycle had no backup measurement" );
+
+# and the reverse: an existing ERROR doc must also survive an unmeasured
+# cycle unchanged, not get silently cleared to ok either.
+$catchall_data->{nodedown} = "true";    # unrelated to backup_loss; just makes the scenario realistic
+$catchall_inv->save( node => $node, update => 1 );
+seed_fresh_ping( loss => 100, backup_loss => 100 );    # genuinely down first
+$node->pingable( sys => $S, catchall_inventory => $catchall_inv );
+my ( undef, $confirmeddowndoc ) = opdoc("Backup Host Down");
+is( $confirmeddowndoc->{status}, "error", "Fix 2e: precondition - a genuinely-down doc exists" );
+
+seed_fresh_ping( loss => 100 );    # still primary-dead, but backup_loss unmeasured this cycle
+$node->pingable( sys => $S, catchall_inventory => $catchall_inv );
+my ( $stillerrcnt, $stillerrdoc ) = opdoc("Backup Host Down");
+is( $stillerrcnt, 1, "Fix 2e: still exactly one doc after the unmeasured cycle" );
+is( $stillerrdoc->{status}, "error",
+	"Fix 2e: an existing error doc also survives an unmeasured cycle unchanged, not silently cleared" );
+$catchall_data->{nodedown} = "false";
+$catchall_inv->save( node => $node, update => 1 );
 
 # --- Fix 1a: Config.nmis status_summary_exclude_events ---
 # Events.nmis is never auto-merged on upgrade, so its per-event Status flags

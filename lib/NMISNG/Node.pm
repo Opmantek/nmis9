@@ -2179,12 +2179,29 @@ sub pingable
 			# resets, so the doc kept reporting error indefinitely even after
 			# the backup genuinely recovered - fighting the Event->delete
 			# close hook every subsequent cycle. Live data can't go stale
-			# that way. "Not yet measured" is treated the same conservative
-			# way as Node Down's equivalent case (Fix 2c): report down, don't
-			# guess ok, until there's an actual reading.
-			if (defined($self->configuration->{host_backup}) && $self->configuration->{host_backup})
+			# that way.
+			#
+			# OMK-12605 blind-review round 3 fix: do NOT treat "not measured"
+			# as "down" here the way Node Down's own analogous case does.
+			# That reasoning only holds when the primary has already failed
+			# (Fix 2c) - it does not generalise to Backup Host Down's own
+			# determination, because a ping timed-data record can be missing
+			# backup_loss for reasons that have nothing to do with the
+			# backup's real state: the fping worker disabled or off
+			# (nmisd_fping_worker => false is a supported setting), fallen
+			# behind, or unavailable, in which case pingable()'s own internal
+			# ping fallback writes the record instead, and that fallback
+			# never populates backup_loss at all. Reporting error in that
+			# case would be permanently wrong for a perfectly healthy backup,
+			# on every site without a healthy fping worker - not a narrow
+			# startup case. Skip the write entirely when nothing was
+			# actually measured, per the base spec's own principle: never
+			# assert a state about a condition nothing assessed.
+			if (defined($self->configuration->{host_backup})
+					&& $self->configuration->{host_backup}
+					&& defined($backup_loss))
 			{
-				my $backupisdown = !defined($backup_loss) || $backup_loss == 100;
+				my $backupisdown = ( $backup_loss == 100 );
 				my ( $backup_down_level, $backup_down_details );
 				if ($backupisdown)
 				{
