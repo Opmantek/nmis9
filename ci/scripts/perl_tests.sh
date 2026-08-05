@@ -49,6 +49,7 @@ working_tests=(
     t_collect_services_injection.t
     t_compare_models_injection.t
     t_tests_snmp_injection.t
+    t_http_security_headers.t
 )
 
 for i in "${working_tests[@]}"; do
