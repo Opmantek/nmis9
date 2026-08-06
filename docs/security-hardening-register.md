@@ -139,6 +139,128 @@ enforced in `NMISNG::Auth::_lock_sensitive_tables`.
 - *Access matrix / PrivMap:* keep admin-only. Per-tenant role customization
   would be a larger redesign (per-tenant matrices), out of scope here.
 
+### H12 / OMK-12708 — MongoDB no longer published on every interface
+
+**Files:** `compose.yaml`, `conf-default/docker/compose.yaml`,
+`docker-dev/compose-dev.yaml`, `conf-default/docker/mongo/mongod.conf`, `.env`,
+`conf-default/docker/.env`, `docker-dev/.env-dev`
+
+**What changed**
+
+| Setting | Before | After |
+|---------|--------|-------|
+| Compose port publish (all three files) | `"27017:27017"` (every interface) | `"${MONGODB_BIND_ADDR:-127.0.0.1}:${MONGODB_HOST_PORT:-27017}:${MONGODB_PORT:-27017}"` |
+| `mongod.conf` `net.bindIp` | `0.0.0.0` | `localhost,mongo` |
+| `mongod` command line | no `--port` | `--port ${MONGODB_PORT:-27017}`, overriding `mongod.conf` |
+| `NMIS_DB_SERVER` (all three files) | hardcoded `mongo` | `${MONGODB_SERVER:-mongo}` |
+| `NMIS_DB_PORT` | passed by `compose.yaml` only, from a variable only `.env` defined | `${MONGODB_PORT:-27017}` in all three files |
+| `MONGODB_BIND_ADDR` (new) | did not exist | `127.0.0.1` in all three env files |
+| `MONGODB_HOST_PORT` (new) | did not exist | `27017` in all three env files |
+| `MONGODB_SERVER` (new) | did not exist | `mongo` in all three env files |
+| `MONGODB_PORT` (new) | did not exist | `27017` in all three env files |
+| `NMIS_DB_PORT` in `.env` | `27017` | removed, superseded by `MONGODB_PORT` |
+
+**Host side and container side are deliberately separate variables.**
+`MONGODB_BIND_ADDR` and `MONGODB_HOST_PORT` control only where the port is
+published on the host. `MONGODB_SERVER` and `MONGODB_PORT` control how the app
+reaches Mongo across `nmis_net`, and are fed to it as `NMIS_DB_SERVER` and
+`NMIS_DB_PORT`, since NMIS overrides any config key from `NMIS_<KEY>` in the
+environment (`NMISNG::Util::_apply_env_overrides`). Wiring `NMIS_DB_PORT` to `MONGODB_HOST_PORT` would
+be a defect: a non-default host port would leave the app dialling a port mongod
+is not listening on inside the network. The test asserts that mistake is not
+made, in both directions.
+
+`MONGODB_PORT` is the single source of truth for the container port and moves
+four things at once: `mongod --port`, the container side of the published
+mapping, the mongo healthcheck, and `NMIS_DB_PORT`. Before this, nothing tied the
+app's `db_port` to the port mongod actually used.
+
+**Not a hardening change, recorded only so this entry's variable list is not
+misleading.** The same pass made the remaining host-visible settings
+configurable, so more than one stack can run on a host:
+`NMIS_CONTAINER_NAME`, `MONGO_CONTAINER_NAME`, `NMIS_BIND_ADDR`,
+`NMIS_HTTP_PORT`, `NMIS_SNMP_PORT`, `NMIS_IMAGE` and `MONGO_IMAGE`, plus
+`COMPOSE_PROJECT_NAME` for volume and network isolation. Each env file ships
+only the variables its own compose reads: `conf-default/docker/.env` omits the
+container-name and SNMP variables, because the compose beside it pins no
+container names and publishes no SNMP port. **Every default is today's value,
+so no shipped default changed and nothing here tightens anything.** In particular the web UI and SNMP listener still publish on
+`0.0.0.0`, deliberately: narrowing the web tier belongs with H14 and H15
+(OMK-12710, OMK-12711), and doing it here would have buried a second
+behavioural change inside a database-exposure fix.
+
+**Why:** Docker publishes ports by writing its own NAT rules, which are
+evaluated *before* the host firewall. A port published on every interface is
+therefore reachable even on a host whose iptables or ufw policy denies it, so
+the shipped default put the database holding device data and stored credentials
+directly on the network. Auth was enabled (`--auth`), so the exposure was gated
+on credentials, which is exactly why this pairs with H13 (OMK-12709) and the
+shipped default database password.
+
+**Deliberate deviation from the ticket.** The ticket asked for mongod `bindIp`
+`127.0.0.1`. That would break every Docker deployment. Only one `mongod.conf`
+ships and it is the *container's*; the nmis container reaches the database at
+`mongo:27017` across the compose network, so a loopback-only mongod is
+unreachable to it. `localhost,mongo` instead binds loopback plus the container's
+own address on `nmis_net` — Docker's embedded DNS resolves the service name to
+that address, and mongod re-resolves at every start, so a changed container
+address is picked up automatically. Verified in an isolated stack: listeners are
+`127.0.0.1` and the bridge address with no `0.0.0.0`, the app container
+connects, and it survives restart and recreate.
+
+**Known sharp edge, already covered.** If the name fails to resolve at startup
+(a plausible race with embedded DNS on a cold boot) mongod starts anyway bound
+to loopback only, and logs nothing that names the problem. The shipped mongo
+healthcheck connects to `mongo:27017`, so it exercises the network listener
+rather than loopback: a loopback-only mongod fails it with `ECONNREFUSED` and
+exit 1, verified. So the failure surfaces as an unhealthy container rather than
+a silent outage. Do not "simplify" that healthcheck to `localhost`.
+
+**Functionality lost**
+
+- **Remote hosts can no longer reach the database.** Anything that connected to
+  `<host>:27017` from another machine stops working: an external backup job, a
+  BI or reporting tool, `mongosh` from an admin's laptop, or a remote poller in
+  a multi-server layout. This is the intended loss, and it is the one most
+  likely to surface as an upgrade complaint.
+- **Host-local access is retained**, so backups, `mongosh` on the box, and
+  host-side single-test runs that connect to `127.0.0.1:27017` all keep working.
+  Publishing was narrowed rather than removed for exactly this reason.
+- **Nothing is lost inside the compose stack.** The app has always reached Mongo
+  over `nmis_net` by service name, not via the published port.
+
+**Do not read the above as "unreachable" on Docker Engine older than 28.0.0.**
+Publishing to `127.0.0.1` is not a complete boundary on those engines. Docker's
+port-publishing documentation states, twice, that "In releases older than
+28.0.0, hosts within the same L2 segment (for example, hosts connected to the
+same network switch) can reach ports published to localhost" (moby/moby#45610,
+<https://docs.docker.com/engine/network/port-publishing/>). This repository sets
+no engine version floor, so on an older engine a residual same-segment exposure
+survives this change while the rest of this entry reads as though H12 were fully
+closed. A site on an engine below 28.0.0 should upgrade the engine, or firewall
+27017 at the network, and should not treat the loopback publish as sufficient on
+its own. Worth revisiting if a minimum engine version is ever declared.
+
+**Recovery for a site that genuinely needs remote access:** set
+`MONGODB_BIND_ADDR` to a specific address in the env file, and firewall that
+address at the network rather than trusting the host firewall, because Docker's
+NAT rules will still bypass it. `0.0.0.0` restores the old exposed behaviour and
+is documented in `.env` as something not to use. `MONGODB_HOST_PORT` also allows
+moving Mongo off the well-known port, or running two stacks on one host.
+
+**Mitigations to investigate (not implemented)**
+
+- *Remote access done properly:* TLS on the Mongo listener plus certificate
+  auth, so a multi-server deployment does not depend on an unencrypted port
+  being open. Related to the transport work in H14 (OMK-12710).
+- *Defence in depth on the app port:* the nmis container still publishes `8080`
+  on every interface. Deliberately out of scope here, since it is the web tier
+  and belongs with H14/H15 (OMK-12710, OMK-12711), but it is the same class of
+  mistake and should not be forgotten.
+- *Credential strength:* this change reduces the exposure but the shipped
+  default database password is what makes it dangerous. Tracked as H13
+  (OMK-12709).
+
 ---
 
 ## Open threads to investigate (epic-wide, not tied to one change)
