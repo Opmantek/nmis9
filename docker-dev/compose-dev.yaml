@@ -20,9 +20,10 @@ services:
       - ../conf-default/docker/mongo/mongod.conf:/etc/mongod.conf
     ports:
       # OMK-12708. Loopback by default. Dev deliberately still publishes the
-      # port, because host-side test runs connect to 127.0.0.1:27017 (see the
-      # test notes in CLAUDE.md); what changes is that it is no longer reachable
-      # from anywhere else on the network. Override MONGODB_BIND_ADDR and
+      # port, because host-side single-test runs connect to 127.0.0.1:27017;
+      # what changes is that it is no longer reachable from anywhere else on the
+      # network, with the pre-28.0.0 Docker Engine caveat noted in .env-dev.
+      # Override MONGODB_BIND_ADDR and
       # MONGODB_HOST_PORT in .env-dev to shift the address or port, for example
       # to run two dev stacks side by side.
       - "${MONGODB_BIND_ADDR:-127.0.0.1}:${MONGODB_HOST_PORT:-27017}:27017"

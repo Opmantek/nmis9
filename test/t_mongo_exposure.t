@@ -49,6 +49,47 @@ sub slurp
     return $c;
 }
 
+# Return the mongo service's published port entries as a listref, each still in
+# its original spelling (quotes and all), or undef if the service or its ports
+# key cannot be found. undef is reported by the caller as a failure, so a
+# restructured compose file fails loudly rather than passing vacuously.
+#
+# Deliberately hand-parsed. YAML::XS is used elsewhere in the tree but is not a
+# dependency of any other test, and this reads four short files with stable
+# two-space indentation. If the compose files ever grow anchors, merge keys or
+# flow-style sequences, replace this with a real parser rather than extending it.
+sub mongo_ports
+{
+    my ($content) = @_;
+    my @lines = grep { !/^\s*#/ } split(/\n/, $content);
+    my ($in_mongo, $in_ports, $saw_ports_key, @ports) = (0, 0, 0);
+
+    for my $line (@lines)
+    {
+        next if ($line =~ /^\s*$/);
+
+        # a service key at two-space indent starts (or ends) the mongo block
+        if ($line =~ /^  (\S[^:]*):\s*$/)
+        {
+            $in_mongo = ($1 eq 'mongo') ? 1 : 0;
+            $in_ports = 0;
+            next;
+        }
+        next if (!$in_mongo);
+
+        if ($line =~ /^    ports:\s*$/) { $in_ports = 1; $saw_ports_key = 1; next }
+        next if (!$in_ports);
+
+        if ($line =~ /^\s*-\s*(.+?)\s*$/) { push(@ports, $1); next }
+        $in_ports = 0;    # any non-list line ends the ports block
+    }
+
+    # No ports key under a mongo service means the file is not shaped the way
+    # this test assumes, which must fail rather than silently report "no
+    # exposure". A ports key with an empty list is a legitimate zero.
+    return $saw_ports_key ? \@ports : undef;
+}
+
 # ---------------------------------------------------------------- compose files
 
 for my $name (sort keys %composes)
@@ -60,19 +101,33 @@ for my $name (sort keys %composes)
     # comment cannot satisfy or break these assertions
     my $code = join("\n", grep { !/^\s*#/ } split(/\n/, $content));
 
-    # the bare mapping publishes on all interfaces: this is the actual defect
-    unlike($code, qr/-\s*"27017:27017"/,
-           "$name: does not publish 27017 on every interface");
-    unlike($code, qr/-\s*"0\.0\.0\.0:\d+:27017"/,
-           "$name: does not publish 27017 on an explicit 0.0.0.0");
+    # Inspect the mongo service's actual ports list rather than pattern-matching
+    # the file. Matching a quoted "27017:27017" anywhere was not enough: an
+    # unquoted `- 27017:27017`, a single-quoted one, the short form `- "27017"`
+    # (all interfaces, random host port), or a second mapping added beside the
+    # parameterised one all left the port exposed while every assertion passed.
+    # Verified before this was rewritten. Asserting on the parsed list closes all
+    # of those at once, because anything extra or differently spelled shows up.
+    my $ports = mongo_ports($content);
+    ok(defined($ports), "$name: the mongo service's ports list could be parsed") or next;
 
-    # and what it should be instead: host address parameterised, loopback default
-    like($code, qr/\$\{MONGODB_BIND_ADDR:-127\.0\.0\.1\}/,
-         "$name: host address comes from MONGODB_BIND_ADDR, defaulting to loopback");
-    like($code, qr/\$\{MONGODB_HOST_PORT:-27017\}/,
-         "$name: host port comes from MONGODB_HOST_PORT, defaulting to 27017");
-    like($code, qr/-\s*"\$\{MONGODB_BIND_ADDR:-127\.0\.0\.1\}:\$\{MONGODB_HOST_PORT:-27017\}:27017"/,
-         "$name: the published mapping is well formed");
+    is(scalar(@$ports), 1,
+       "$name: the mongo service publishes exactly one port mapping")
+        or diag("  published mappings found: " . join(", ", @$ports));
+
+    # Every entry, however it is written, must take its host address from the
+    # variable. This is what fails if someone adds a hardcoded mapping alongside
+    # the parameterised one rather than replacing it.
+    for my $p (@$ports)
+    {
+        like($p, qr/\$\{MONGODB_BIND_ADDR:-127\.0\.0\.1\}/,
+             "$name: mapping [$p] takes its host address from MONGODB_BIND_ADDR, defaulting to loopback");
+        like($p, qr/\$\{MONGODB_HOST_PORT:-27017\}/,
+             "$name: mapping [$p] takes its host port from MONGODB_HOST_PORT");
+    }
+
+    is($ports->[0], '"${MONGODB_BIND_ADDR:-127.0.0.1}:${MONGODB_HOST_PORT:-27017}:27017"',
+       "$name: the published mapping is exactly the parameterised loopback-default form");
 
     # the healthcheck is what turns a loopback-only mongod into an unhealthy
     # container rather than a silent outage, so it must keep using the service

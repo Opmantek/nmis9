@@ -188,11 +188,23 @@ a silent outage. Do not "simplify" that healthcheck to `localhost`.
   BI or reporting tool, `mongosh` from an admin's laptop, or a remote poller in
   a multi-server layout. This is the intended loss, and it is the one most
   likely to surface as an upgrade complaint.
-- **Host-local access is retained**, so backups, `mongosh` on the box, and the
-  host-side test runs documented in `CLAUDE.md` all keep working. Publishing was
-  narrowed rather than removed for exactly this reason.
+- **Host-local access is retained**, so backups, `mongosh` on the box, and
+  host-side single-test runs that connect to `127.0.0.1:27017` all keep working.
+  Publishing was narrowed rather than removed for exactly this reason.
 - **Nothing is lost inside the compose stack.** The app has always reached Mongo
   over `nmis_net` by service name, not via the published port.
+
+**Do not read the above as "unreachable" on Docker Engine older than 28.0.0.**
+Publishing to `127.0.0.1` is not a complete boundary on those engines. Docker's
+port-publishing documentation states, twice, that "In releases older than
+28.0.0, hosts within the same L2 segment (for example, hosts connected to the
+same network switch) can reach ports published to localhost" (moby/moby#45610,
+<https://docs.docker.com/engine/network/port-publishing/>). This repository sets
+no engine version floor, so on an older engine a residual same-segment exposure
+survives this change while the rest of this entry reads as though H12 were fully
+closed. A site on an engine below 28.0.0 should upgrade the engine, or firewall
+27017 at the network, and should not treat the loopback publish as sufficient on
+its own. Worth revisiting if a minimum engine version is ever declared.
 
 **Recovery for a site that genuinely needs remote access:** set
 `MONGODB_BIND_ADDR` to a specific address in the env file, and firewall that
