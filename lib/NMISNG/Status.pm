@@ -140,6 +140,17 @@ sub _query
 			and_part => {
 				cluster_id => $self->{data}{cluster_id},
 				node_uuid => $self->{data}{node_uuid},
+				# OMK-12605 blind-review round 5: method was missing from this
+				# identity. get_query_part() drops empty-string fields (like
+				# the property/index/class/section/source below, which the
+				# Operational writer intentionally leaves blank) entirely, so
+				# without method this query could collapse to just
+				# cluster_id/node_uuid/event(/element) and match a Threshold
+				# or Alert document that happens to share an event name -
+				# every writer (Threshold, Alert, Operational) always sets a
+				# real, non-empty method, so adding it here only ever
+				# tightens matching, never loosens it.
+				method => $self->{data}{method},
 				event => $self->{data}{event},
 				element => $self->{data}{element},
 				property => $self->{data}{property},

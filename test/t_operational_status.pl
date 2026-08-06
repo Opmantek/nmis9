@@ -758,6 +758,78 @@ $node->handle_down(
 );
 
 # ---------------------------------------------------------------------------
+# Fix 10 (round 5): Node Polling Failover must also refresh every cycle for a
+# ping-only multihomed node (SNMP disabled - the test node/$S here, snmp=>0
+# from setup). Previously this event only ever got written by the SNMP-
+# session-fallback code inside collect()/update(), which never runs at all
+# without SNMP, and by the fping worker's own state machine on a transition
+# only (bin/nmisd ~3041-3056) - so it went stale and never reached the
+# dashnode file for exactly this node subset. host_backup is still
+# configured on the test node at this point in the file.
+# ---------------------------------------------------------------------------
+ok( !$S->status->{snmp_enabled}, "Fix 10: test Sys has snmp disabled - the gap this fix closes" );
+
+# clean slate: earlier blocks in this section already exercised pingable()
+# with host_backup configured, so this event doc may already have been
+# created as a side effect (correctly - that's this fix working). Remove it
+# so every assertion below proves this path itself, not leftover state.
+NMISNG::DB::remove(
+	collection => $nmisng->status_collection(),
+	query      => NMISNG::DB::get_query( and_part => {
+		node_uuid => $node->uuid, method => "Operational", event => "Node Polling Failover" } ),
+	just_one   => 0,
+);
+( my $precnt_failover ) = opdoc("Node Polling Failover");
+is( $precnt_failover, 0, "Fix 10: no Node Polling Failover doc exists yet (clean slate)" );
+
+# (a) primary down, backup up -> failed over, error doc
+seed_fresh_ping( loss => 100, backup_loss => 0 );
+$node->pingable( sys => $S, catchall_inventory => $catchall_inv );
+my ( $foverdowncnt, $foverdowndoc ) = opdoc("Node Polling Failover");
+is( $foverdowncnt, 1, "Fix 10: a Node Polling Failover doc was created (primary down, backup up)" );
+is( $foverdowndoc->{status}, "error", "Fix 10: ...status is error while failed over" );
+ok( !$node->eventExist("Node Polling Failover"),
+	"Fix 10: pingable()'s new branch never created a real event on its own" );
+
+# (b) primary up -> back on the primary address, ok doc, same identity
+seed_fresh_ping( loss => 0, backup_loss => 0 );
+$node->pingable( sys => $S, catchall_inventory => $catchall_inv );
+my ( $foverokcnt, $foverokdoc ) = opdoc("Node Polling Failover");
+is( $foverokcnt, 1, "Fix 10: still exactly one doc after recovery (upsert identity)" );
+is( $foverokdoc->{status}, "ok", "Fix 10: ...flipped back to ok once the primary answers" );
+is( "$foverokdoc->{_id}", "$foverdowndoc->{_id}", "Fix 10: same doc used throughout" );
+
+# (c) total outage (both primary and backup down) -> NOT a "failover" state,
+# that's Node Down's territory (bin/nmisd maps this to the plain node event,
+# never raises Node Polling Failover for it) - the doc must be left alone,
+# not asserted into either state.
+seed_fresh_ping( loss => 100, backup_loss => 100 );
+$node->pingable( sys => $S, catchall_inventory => $catchall_inv );
+my ( $fovertotalcnt, $fovertotaldoc ) = opdoc("Node Polling Failover");
+is( $fovertotalcnt, 1, "Fix 10: still exactly one doc after a total outage (no new write happened)" );
+is( $fovertotaldoc->{status}, "ok",
+	"Fix 10: doc is untouched by the total-outage cycle - still the last genuine reading (ok)" );
+is( "$fovertotaldoc->{_id}", "$foverokdoc->{_id}", "Fix 10: same doc, not recreated or removed" );
+
+# (d) an SNMP-enabled node must get NO write from pingable() here at all -
+# that path is already covered every cycle by the existing SNMP-session
+# code in collect()/update(), and writing from both places would race.
+# Fresh doc identity (new element-less node's-worth of state isn't needed -
+# reusing $S but flipping its cached snmp_enabled flag is enough to prove
+# the guard).
+$S->{snmp} = 1;
+seed_fresh_ping( loss => 100, backup_loss => 0 );
+$node->pingable( sys => $S, catchall_inventory => $catchall_inv );
+my ( $foversnmpcnt, $foversnmpdoc ) = opdoc("Node Polling Failover");
+is( $foversnmpcnt, 1, "Fix 10: still exactly one doc (no new write) once snmp_enabled is true" );
+is( $foversnmpdoc->{status}, "ok",
+	"Fix 10: doc still shows the last ping-only reading, untouched by this snmp-enabled cycle" );
+$S->{snmp} = 0;    # restore for the rest of this file
+
+# host_backup stays configured - Follow-up Task 3 just below still needs it
+# (Fix 2a's own setup later in this file is what goes single-homed again).
+
+# ---------------------------------------------------------------------------
 # Follow-up Task 3 (2026-08-04 fping/dashboard follow-up): prove that
 # pingable()'s Node Down / Backup Host Down writes (Follow-up Tasks 1-2
 # above) actually reach the per-node dashboard JSON file. This is the same
@@ -1145,6 +1217,67 @@ $catchall_inv->save( node => $node, update => 1 );
 	);
 }
 
+# --- Fix 10b (round 5): Node Polling Failover must also refresh on the
+# internal-ping ($mustping==true) fallback path, same reasoning as Fix 2f
+# did for Backup Host Down - a site with fping disabled/behind/unavailable
+# must not lose this refresh just because it's on the fallback path.
+{
+	my $saved_timeout = $C->{ping_timeout};
+	my $saved_retries = $C->{ping_retries};
+	$C->{ping_timeout} = 200;
+	$C->{ping_retries} = 1;
+
+	my $pcfg3 = $node->configuration;
+	my $saved_host        = $pcfg3->{host};
+	my $saved_host_backup = $pcfg3->{host_backup};
+	$pcfg3->{host}        = "192.0.2.1";     # reserved, guaranteed never to answer - primary down
+	$pcfg3->{host_backup} = "127.0.0.1";     # always answers - backup up
+	$node->configuration($pcfg3);
+
+	NMISNG::DB::remove(
+		collection => $nmisng->inventory_collection(),
+		query      => NMISNG::DB::get_query( and_part => { node_uuid => $node->uuid, concept => "ping" } ),
+		just_one   => 0,
+	);
+	NMISNG::DB::remove(
+		collection => $nmisng->status_collection(),
+		query      => NMISNG::DB::get_query( and_part => {
+			node_uuid => $node->uuid, method => "Operational", event => "Node Polling Failover" } ),
+		just_one   => 0,
+	);
+
+	$node->pingable( sys => $S, catchall_inventory => $catchall_inv );
+	my ( $mustpingfovercnt, $mustpingfoverdoc ) = opdoc("Node Polling Failover");
+	is( $mustpingfovercnt, 1, "Fix 10b: a Node Polling Failover doc was created on the internal-ping path too" );
+	is( $mustpingfoverdoc->{status}, "error",
+		"Fix 10b: correctly reports error - primary down, backup up, on the fallback path" );
+
+	# and the reverse: primary answers too -> ok, still on this same path.
+	$pcfg3->{host} = "127.0.0.1";    # both now answer
+	$node->configuration($pcfg3);
+	NMISNG::DB::remove(
+		collection => $nmisng->inventory_collection(),
+		query      => NMISNG::DB::get_query( and_part => { node_uuid => $node->uuid, concept => "ping" } ),
+		just_one   => 0,
+	);
+	$node->pingable( sys => $S, catchall_inventory => $catchall_inv );
+	my ( undef, $mustpingfoverokdoc ) = opdoc("Node Polling Failover");
+	is( $mustpingfoverokdoc->{status}, "ok",
+		"Fix 10b: correctly reports ok once the primary answers, on the fallback path" );
+
+	# restore
+	$pcfg3->{host}        = $saved_host;
+	$pcfg3->{host_backup} = $saved_host_backup;
+	$node->configuration($pcfg3);
+	$C->{ping_timeout} = $saved_timeout;
+	$C->{ping_retries} = $saved_retries;
+	NMISNG::DB::remove(
+		collection => $nmisng->inventory_collection(),
+		query      => NMISNG::DB::get_query( and_part => { node_uuid => $node->uuid, concept => "ping" } ),
+		just_one   => 0,
+	);
+}
+
 # --- Fix 1a: Config.nmis status_summary_exclude_events ---
 # Events.nmis is never auto-merged on upgrade, so its per-event Status flags
 # cannot reach an existing install. This site-wide list is consulted in
@@ -1395,6 +1528,122 @@ is( $obcnt, 1, "Fix 6 contrast: still exactly one doc" );
 is( $obdoc->{status}, "ok", "Fix 6 contrast: a still-error doc IS flipped to ok" );
 is( $obdoc->{details}, "event closed",
 	"Fix 6 contrast: ...and stamped with the generic close details" );
+
+# --- Fix 8 (round 5): the operational writer must not touch a same-named,
+# same-element Threshold/Alert status doc ---
+# Status->_query() previously omitted 'method' from the identity used to
+# find-and-update a doc. get_query_part() drops empty-string fields
+# entirely, and the Operational writer intentionally leaves property/index/
+# class/section/source blank, so the query could collapse to just
+# cluster_id/node_uuid/event(/element) - matching a Threshold or Alert doc
+# that happens to share an event name on this node, and silently rewriting
+# it into method=Operational, losing its threshold-specific fields. This
+# seeds a real Threshold doc with that name/element, then writes an
+# Operational doc with the identical name/element, and proves both survive
+# as two independent documents rather than one being overwritten.
+my $collision_common = {
+	cluster_id => $node->cluster_id, node_uuid => $node->uuid,
+	element => '', property => "omk12605_collision_prop", index => "5",
+	class => "generic", section => "", source => "", value => "42",
+	level => "Minor", status => "error", lastupdate => time,
+};
+NMISNG::DB::insert(
+	collection => $nmisng->status_collection(),
+	record => { %$collision_common, method => "Threshold", event => "OMK12605 Same Name" },
+);
+NMISNG::Status::save_operational_status(
+	nmisng => $nmisng, node => $node, event => "OMK12605 Same Name",
+	element => '', status => "error", level => "Major", details => "operational raise",
+);
+
+my $thr_md = $nmisng->get_status_model(
+	filter => { method => "Threshold", event => "OMK12605 Same Name", node_uuid => $node->uuid } );
+is( $thr_md->count, 1, "Fix 8: the pre-existing Threshold doc still exists" );
+is( $thr_md->data->[0]{property}, "omk12605_collision_prop",
+	"Fix 8: ...and its threshold-specific fields are untouched" );
+
+my ( $opcnt, $opdoc2 ) = opdoc("OMK12605 Same Name");
+is( $opcnt, 1, "Fix 8: ...and a separate Operational doc was created for the same event name" );
+is( $opdoc2->{details}, "operational raise", "Fix 8: ...with its own details, not the threshold's" );
+
+# --- Fix 9 (round 5): checkEvent() must not report "ok" when the event
+# close itself didn't actually persist ---
+# Event->check() can bail out without saving (the OMK-12622 case: a stale
+# interim "Up" doc already occupies the unique (node_uuid,event,element,
+# active) index slot, so converting the Down doc in place hits a duplicate
+# key error and check() returns without persisting the close - the down
+# event stays active in the db). checkEvent() used to write the Operational
+# "ok" status doc unconditionally, before check() even ran, so this case
+# produced a false "all clear" on the dashboard while the real event was
+# still open. checkEvent() now runs check() first and only writes "ok" when
+# it reports success. This reproduces the stuck case directly (manually
+# planting the colliding interim doc, the same shape the CancelingEvent
+# pre-cleanup elsewhere in notify() is meant to retire but deliberately
+# isn't relevant here since this is a custom event name with no
+# CancelingEvent configured) rather than relying on the two-cycle race,
+# which t_event_cancelingevent_cycle.pl already proves is now avoided in
+# the ordinary flow.
+my $stuck_event  = "OMK12605 FauxKey Down";
+my $stuck_upname = "OMK12605 FauxKey Up";    # check()'s own s/down/Up/i rename
+
+# the unique (node_uuid,event,element,active) partial index that makes this
+# scenario possible is normally created by bin/nmisd/bin/nmis-cli via
+# ensure_indexes(); this ad hoc test database doesn't get it automatically
+# (t_event_cancelingevent_cycle.pl hits the same requirement for the same
+# reason) - without it, the duplicate-key collision below can't happen at all.
+my $ixerr = $nmisng->ensure_indexes();
+is( $ixerr, undef, "Fix 9: index setup for the events collection succeeded" ) or diag($ixerr);
+
+Compat::NMIS::notify(
+	sys => $S, event => $stuck_event, element => '',
+	details => "stuck-case down raise", level => "Critical",
+);
+my ( $stuckcnt, $stuckdoc ) = opdoc($stuck_event);
+is( $stuckcnt, 1, "Fix 9: stuck-case Down doc created" );
+is( $stuckdoc->{status}, "error", "Fix 9: ...status is error" );
+
+# plant the interim Up doc directly, occupying the unique index slot that
+# check()'s in-place conversion of the Down doc is about to collide with
+NMISNG::DB::insert(
+	collection => $nmisng->events_collection(),
+	record => {
+		cluster_id => $node->cluster_id, node_uuid => $node->uuid,
+		event => $stuck_upname, element => '', active => 0, historic => 0,
+		startdate => time - 100, ack => 0, escalate => -1, notify => '',
+		stateless => 0, level => "Normal", details => "planted interim doc",
+	},
+);
+
+my $stuck_result = Compat::NMIS::checkEvent(
+	sys => $S, event => $stuck_event, element => '',
+	level => "Normal", details => "stuck-case clear attempt",
+);
+ok( !$stuck_result, "Fix 9: checkEvent() reports failure when the close hit the duplicate-key case" );
+
+my $stillactive = $nmisng->events->get_events_model(
+	filter => { node_uuid => $node->uuid, event => $stuck_event, element => '', active => 1, historic => 0 } );
+is( $stillactive->count, 1, "Fix 9: the original Down event is still active - the close did not persist" );
+
+( $stuckcnt, $stuckdoc ) = opdoc($stuck_event);
+is( $stuckcnt, 1, "Fix 9: the Operational doc still exists" );
+is( $stuckdoc->{status}, "error",
+	"Fix 9: ...and it was NOT flipped to ok - no false all-clear for a still-active event" );
+
+# contrast: the same clear, without a colliding interim doc, DOES persist
+# and DOES flip the status - proving the reorder didn't break the ordinary path
+my $clean_event = "OMK12605 CleanKey Down";
+Compat::NMIS::notify(
+	sys => $S, event => $clean_event, element => '',
+	details => "clean-case down raise", level => "Critical",
+);
+my $clean_result = Compat::NMIS::checkEvent(
+	sys => $S, event => $clean_event, element => '',
+	level => "Normal", details => "clean-case clear",
+);
+ok( $clean_result, "Fix 9 contrast: checkEvent() reports success for an ordinary clear" );
+my ( $cleancnt, $cleandoc ) = opdoc($clean_event);
+is( $cleancnt, 1, "Fix 9 contrast: the Operational doc still exists" );
+is( $cleandoc->{status}, "ok", "Fix 9 contrast: ...and it WAS flipped to ok" );
 
 # leave the shared test node/catchall as we found them
 $pcfg = $node->configuration;

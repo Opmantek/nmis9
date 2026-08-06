@@ -2196,20 +2196,6 @@ sub checkEvent
 
 	$args{node_uuid} = $S->nmisng_node()->uuid;
 
-	# maintain the operational status doc: the condition was assessed healthy
-	# this cycle (OMK-12605); gates inside the helper
-	NMISNG::Status::save_operational_status(
-		nmisng       => $S->nmisng,
-		node         => $S->nmisng_node,
-		event        => $args{event},
-		element      => $args{element},
-		status       => "ok",
-		level        => "Normal",
-		details      => $args{details},
-		context      => $args{context},
-		inventory_id => $args{inventory_id},
-	);
-
 	# create event with attributes we are looking for
 	my $event = $nmisng->events->event( _id => $args{_id},
 									   node_uuid => $args{node_uuid},
@@ -2220,9 +2206,32 @@ sub checkEvent
 
 	# only take the missing data from the db, that way our new details/level will
 	# be used instead of what is in the db
-	return $event->check( sys => $S,
+	my $checkresult = $event->check( sys => $S,
 												details => $args{details}, level => $args{level},
 												upevent => $upevent );
+
+	# OMK-12605 blind-review round 5: only report "ok" once the close has
+	# actually happened (or there was nothing active to close) - check()
+	# now returns a true outcome for both of those, and false for its two
+	# early-bailout cases (Proactive dampening not satisfied yet, and the
+	# OMK-12622 duplicate-key case where a stale Up event blocks the save).
+	# Previously this write happened unconditionally, before check() ran at
+	# all, so a still-active down event could sit behind an "ok" status doc
+	# and dashnode entry - the exact false-clear this feature exists to
+	# prevent.
+	NMISNG::Status::save_operational_status(
+		nmisng       => $S->nmisng,
+		node         => $S->nmisng_node,
+		event        => $args{event},
+		element      => $args{element},
+		status       => "ok",
+		level        => "Normal",
+		details      => $args{details},
+		context      => $args{context},
+		inventory_id => $args{inventory_id},
+	) if ($checkresult);
+
+	return $checkresult;
 };
 
 # notify creates new events

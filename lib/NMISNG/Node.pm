@@ -1922,6 +1922,12 @@ sub pingable
 
 	my ( $ping_min, $ping_avg, $ping_max, $ping_loss, $pingresult, $lastping );
 	my $backup_loss;    # captured independently of $ping_loss - see below
+	# OMK-12605 blind-review round 5: the primary's own loss, captured
+	# before either branch below may overwrite $ping_loss with the backup's
+	# numbers on primary-down failover - needed so Node Polling Failover can
+	# be determined independently of that substitution, same reasoning as
+	# $backup_loss.
+	my $primary_loss;
 
 	my $nodename = $self->name;
 	my $uuid = $self->uuid;
@@ -1962,6 +1968,7 @@ sub pingable
 					$ping_avg = $newestping->{data}->{ping}->{avg_rtt};
 					$ping_max = $newestping->{data}->{ping}->{max_rtt};
 					$ping_loss = $newestping->{data}->{ping}->{loss};
+					$primary_loss = $ping_loss;    # before any backup substitution below
 
 					$self->nmisng->log->debug2(sub {"$uuid ($nodename = $newestping->{data}->{ip}) PINGability at $lastping min/avg/max = $ping_min/$ping_avg/$ping_max ms loss=$ping_loss%"});
 
@@ -2023,6 +2030,7 @@ sub pingable
 
 			$pingresult = defined $ping_min ? 100 : 0;    # ping_min is undef if unreachable.
 			$lastping = Time::HiRes::time;
+			$primary_loss = $ping_loss;    # before any backup substitution below
 
 			if (my $fallback = $self->configuration->{host_backup})
 			{
@@ -2162,6 +2170,39 @@ sub pingable
 					inventory_id => $catchall_inventory->id,
 				);
 			}
+
+			# OMK-12605 blind-review round 5: Node Polling Failover needs the
+			# same per-cycle refresh, but only for nodes that never take the
+			# SNMP-session code path that already covers it every cycle via
+			# notify()/checkEvent() in collect()/update() (if snmp_enabled,
+			# writing here too would double up / race against that path).
+			# For an SNMP-disabled, ping-only multihomed node, this event was
+			# previously only ever raised by the fping worker's own state
+			# machine on a transition - never refreshed, never reaching the
+			# dashnode file, exactly the gap already fixed for Node Down and
+			# Backup Host Down. Skipped when either side wasn't measured this
+			# cycle, and when both primary and backup are down (that's a
+			# total outage, Node Down's territory, not a "failover").
+			if (defined($self->configuration->{host_backup})
+					&& $self->configuration->{host_backup}
+					&& !$S->status->{snmp_enabled}
+					&& defined($primary_loss) && defined($backup_loss)
+					&& !($primary_loss == 100 && $backup_loss == 100))
+			{
+				my $failoverisdown = ( $primary_loss == 100 );    # backup must be up, total outage excluded above
+				NMISNG::Status::save_operational_status(
+					nmisng       => $self->nmisng,
+					node         => $self,
+					event        => "Node Polling Failover",
+					element      => "",
+					status       => $failoverisdown ? "error" : "ok",
+					level        => $failoverisdown ? ($C->{default_event_level} // "Major") : "Normal",
+					details      => $failoverisdown
+							? "Primary address unreachable, backup address reachable"
+							: "Using primary address",
+					inventory_id => $catchall_inventory->id,
+				);
+			}
 		}
 		else
 		{
@@ -2268,6 +2309,41 @@ sub pingable
 					status       => $backupisdown ? "error" : "ok",
 					level        => $backupisdown ? $backup_down_level   : "Normal",
 					details      => $backupisdown ? $backup_down_details : "No backup host event active",
+					inventory_id => $catchall_inventory->id,
+				);
+			}
+
+			# OMK-12605 blind-review round 5: Node Polling Failover, same
+			# per-cycle refresh discipline as Backup Host Down just above,
+			# but only for nodes that never take the SNMP-session code path
+			# in collect()/update() that already covers this event every
+			# cycle (if snmp_enabled, that path's own notify()/checkEvent()
+			# calls already refresh the status doc; writing here too would
+			# double up). This closes the gap for an SNMP-disabled,
+			# ping-only multihomed node: previously this event was only ever
+			# raised by the fping worker's own state machine on a
+			# transition, so it went stale and never reached the dashnode
+			# file - exactly what this follow-up already fixed for Node
+			# Down and Backup Host Down. Skipped when either side wasn't
+			# measured, or when both primary and backup are down (a total
+			# outage is Node Down's territory, not a "failover").
+			if (defined($self->configuration->{host_backup})
+					&& $self->configuration->{host_backup}
+					&& !$S->status->{snmp_enabled}
+					&& defined($primary_loss) && defined($backup_loss)
+					&& !($primary_loss == 100 && $backup_loss == 100))
+			{
+				my $failoverisdown = ( $primary_loss == 100 );    # backup must be up, total outage excluded above
+				NMISNG::Status::save_operational_status(
+					nmisng       => $self->nmisng,
+					node         => $self,
+					event        => "Node Polling Failover",
+					element      => "",
+					status       => $failoverisdown ? "error" : "ok",
+					level        => $failoverisdown ? ($C->{default_event_level} // "Major") : "Normal",
+					details      => $failoverisdown
+							? "Primary address unreachable, backup address reachable"
+							: "Using primary address",
 					inventory_id => $catchall_inventory->id,
 				);
 			}
