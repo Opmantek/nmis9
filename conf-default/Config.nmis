@@ -117,6 +117,17 @@ my %hash = (
 	'fastping_target_interval' => '1',
 	'fastping_timeout' => 5000,
 	'file_size_warning' => '100000000',
+	# OMK-12605 round 5: master on/off gate for whether code-raised
+	# ("Operational") status documents count toward status_summary /
+	# health_score at all. Defaults false so upgrading an existing install
+	# leaves its health numbers exactly as they were before this ticket -
+	# these documents still write, still appear in the status collection
+	# and the dashnode file (that's the ticket's actual goal), they simply
+	# don't move the health percentage until a site turns this on. The
+	# per-event Status flag (Events.nmis) and status_summary_exclude_events
+	# (above) still apply underneath this switch once it's true, for sites
+	# that want the new counting for most events but not all.
+	'health_score_include_operational_events' => 'false',
 	'hide_groups' => [],
 	'http_req_timeout' => '60',
 	'interface_availability_value_when_down' => 'U',

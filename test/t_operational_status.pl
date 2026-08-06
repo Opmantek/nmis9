@@ -316,10 +316,65 @@ $docless->delete();
 is( $dcnt, 0, "delete of doc-less event created nothing" );
 
 # ---------------------------------------------------------------------------
+# Fix 11 (round 5): health_score_include_operational_events master gate
+# ---------------------------------------------------------------------------
+# Requested after the round 5 review flagged that health percentages change
+# on upgrade for five events with no way to opt out. Defaults false (see
+# Config.nmis) so an existing customer's health numbers don't move with
+# nothing different in their network; a real error Operational doc must be
+# completely excluded from the count while the gate is off, and a coexisting
+# Threshold doc (unaffected by this gate) must still count normally.
+ok( !NMISNG::Util::getbool( $C->{health_score_include_operational_events} ),
+	"Fix 11: health_score_include_operational_events defaults false" );
+
+NMISNG::DB::insert(
+	collection => $nmisng->status_collection(),
+	record => {
+		cluster_id => $node->cluster_id, node_uuid => $node->uuid,
+		element => '', property => '', index => '', class => '',
+		section => '', source => '', value => '', method => "Threshold",
+		event => "OMK12605 Gate Thr", property => "omk12605_gate_thr",
+		# healthy (status ok): compute_thresholds only sets status_summary at
+		# all when at least one counted doc is ok (count && countOk below,
+		# NMISNG.pm ~819) - an all-error set never produces a percentage, so
+		# this needs a healthy doc to exercise "was it counted" at all.
+		level => "Normal", status => "ok", lastupdate => time,
+	},
+);
+NMISNG::DB::insert(
+	collection => $nmisng->status_collection(),
+	record => {
+		cluster_id => $node->cluster_id, node_uuid => $node->uuid,
+		element => '', property => '', index => '', class => '',
+		section => '', source => '', value => '', method => "Operational",
+		event => "OMK12605 Gate Op",
+		level => "Major", status => "error", lastupdate => time,
+	},
+);
+$nmisng->compute_thresholds( sys => $S, running_independently => 0 );
+my $gate_off_catchall = $S->inventory( concept => 'catchall' )->data;
+ok( defined $gate_off_catchall->{status_summary},
+	"Fix 11: status_summary still computed with the gate off (Threshold doc still counts)" );
+cmp_ok( $gate_off_catchall->{status_summary}, '==', 100,
+	"Fix 11: an error Operational doc does NOT drag status_summary down while the gate is off" );
+
+# now turn it on: the same error doc, unchanged, must now count
+$C->{health_score_include_operational_events} = 'true';
+$nmisng->compute_thresholds( sys => $S, running_independently => 0 );
+my $gate_on_catchall = $S->inventory( concept => 'catchall' )->data;
+cmp_ok( $gate_on_catchall->{status_summary}, '<', 100,
+	"Fix 11: the same error Operational doc DOES drag status_summary down once the gate is on" );
+$C->{health_score_include_operational_events} = 'false';    # restore default for the rest of this file
+
+# ---------------------------------------------------------------------------
 # Task 5: compute_thresholds summary loop
 # ---------------------------------------------------------------------------
 # seed: a stale Threshold doc (must be swept) and a stale Operational doc
-# (must survive), inserted directly so lastupdate can be in the past.
+# (must survive), inserted directly so lastupdate can be in the past. The
+# gate above is off by default, so this block turns it on to exercise the
+# finer-grained per-event Status flag / exclude-list logic underneath it,
+# same as before the gate existed.
+$C->{health_score_include_operational_events} = 'true';
 my $common = {
 	cluster_id => $node->cluster_id, node_uuid => $node->uuid,
 	element => '', property => '', index => '', class => '',
@@ -363,6 +418,7 @@ my $catchall = $S->inventory( concept => 'catchall' )->data;
 ok( defined $catchall->{status_summary}, "status_summary was computed" );
 cmp_ok( $catchall->{status_summary}, '<', 100,
 	"error Operational doc dragged status_summary below 100" );
+$C->{health_score_include_operational_events} = 'false';    # restore default
 
 # ---------------------------------------------------------------------------
 # Task 6: shipped conf-default/Events.nmis flags
@@ -1285,6 +1341,9 @@ $catchall_inv->save( node => $node, update => 1 );
 # health calculation, never stamp "ignored".
 my $saved_exclude = $C->{status_summary_exclude_events};
 delete $C->{status_summary_exclude_events};
+# the Fix 11 master gate defaults false (round 5) - this block tests the
+# finer-grained exclude-list logic underneath it, so turn it on here.
+$C->{health_score_include_operational_events} = 'true';
 
 # compute_thresholds returns early for a down node (NMISNG.pm, "skip if node
 # down"), and the Fix 2b block above deliberately left nodedown=true. Clear it
@@ -1320,6 +1379,7 @@ is( $md_excl->data->[0]{status}, "error",
 
 if   ( defined $saved_exclude ) { $C->{status_summary_exclude_events} = $saved_exclude }
 else                            { delete $C->{status_summary_exclude_events} }
+$C->{health_score_include_operational_events} = 'false';    # restore default
 
 # --- Fix 1b: Config.nmis operational_status_untracked_events ---
 my $saved_untracked = $C->{operational_status_untracked_events};

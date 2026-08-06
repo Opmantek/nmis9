@@ -774,6 +774,14 @@ sub compute_thresholds
 		# upgrade and Events.nmis is not.
 		if ( ( $status_obj->method // '' ) eq "Operational" )
 		{
+			# OMK-12605 round 5: master on/off gate, requested so existing
+			# customers upgrading don't see their health numbers change with
+			# nothing different in their network. Defaults false (see
+			# Config.nmis) - when off, no Operational doc counts here at all,
+			# same as before this ticket shipped. When on, the finer-grained
+			# per-event Status flag and status_summary_exclude_events list
+			# below still apply exactly as already shipped.
+			next if ( not NMISNG::Util::getbool( $self->config->{health_score_include_operational_events} ) );
 			next if ( not NMISNG::Util::getbool( $thisevent_control->{Status} )
 				or _in_event_list( $self->config->{status_summary_exclude_events}, $eventKey ) );
 			++$count;
