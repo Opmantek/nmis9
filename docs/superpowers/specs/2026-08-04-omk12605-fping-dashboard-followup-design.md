@@ -2,7 +2,7 @@
 
 Date: 2026-08-04
 Ticket: OMK-12605 (follow-up to the operational event status documents work)
-Status: implemented and reviewed (three independent review rounds, all findings fixed except the accepted limitations recorded below). This document's original "proposed, pending team review" framing below describes the design as it was pitched before implementation — see the code and the "Known limitations" section near the end for what actually shipped and what remains open.
+Status: implemented and reviewed (four independent review rounds, all findings fixed except the accepted limitations recorded below). This document's original "proposed, pending team review" framing below describes the design as it was pitched before implementation — see the code and the "Known limitations" section near the end for what actually shipped and what remains open.
 
 ## Summary
 
