@@ -175,6 +175,18 @@ four things at once: `mongod --port`, the container side of the published
 mapping, the mongo healthcheck, and `NMIS_DB_PORT`. Before this, nothing tied the
 app's `db_port` to the port mongod actually used.
 
+**Not a hardening change, recorded only so this entry's variable list is not
+misleading.** The same pass made the remaining host-visible settings
+configurable, so more than one stack can run on a host:
+`NMIS_CONTAINER_NAME`, `MONGO_CONTAINER_NAME`, `NMIS_BIND_ADDR`,
+`NMIS_HTTP_PORT`, `NMIS_SNMP_PORT`, `NMIS_IMAGE` and `MONGO_IMAGE`, plus
+`COMPOSE_PROJECT_NAME` for volume and network isolation. **Every default is
+today's value, so no shipped default changed and nothing here tightens
+anything.** In particular the web UI and SNMP listener still publish on
+`0.0.0.0`, deliberately: narrowing the web tier belongs with H14 and H15
+(OMK-12710, OMK-12711), and doing it here would have buried a second
+behavioural change inside a database-exposure fix.
+
 **Why:** Docker publishes ports by writing its own NAT rules, which are
 evaluated *before* the host firewall. A port published on every interface is
 therefore reachable even on a host whose iptables or ufw policy denies it, so

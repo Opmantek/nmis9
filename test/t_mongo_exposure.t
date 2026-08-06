@@ -158,6 +158,38 @@ for my $name (sort keys %composes)
            "$name: NMIS_DB_PORT is NOT wired to the host-side MONGODB_HOST_PORT");
     unlike($code, qr/NMIS_DB_SERVER:\s*\$\{MONGODB_BIND_ADDR/,
            "$name: NMIS_DB_SERVER is NOT wired to the host-side MONGODB_BIND_ADDR");
+
+    # ---- multi-stack: nothing host-visible may be a bare literal (OMK-12708)
+    #
+    # A fixed container_name or a fixed published port stops a second stack
+    # starting on the same host, which was the documented reason the dev stack
+    # could not be brought up alongside an existing one. Volumes and the network
+    # need no assertion: compose already prefixes them with the project name.
+
+    # container_name is optional (conf-default/docker/compose.yaml sets none),
+    # but any that IS set must come from a variable.
+    for my $cn ($code =~ /^\s+container_name:\s*(\S+)\s*$/mg)
+    {
+        like($cn, qr/^\$\{[A-Z_]+:-\S+\}$/,
+             "$name: container_name [$cn] is parameterised, not a fixed literal");
+    }
+
+    # the app's own published ports, which clash exactly like Mongo's did
+    unlike($code, qr/-\s*["']?8080:8080["']?\s*$/m,
+           "$name: does not publish 8080 as a fixed mapping");
+    unlike($code, qr/-\s*["']?10001:161\/udp["']?\s*$/m,
+           "$name: does not publish the SNMP port as a fixed mapping");
+    like($code, qr/\$\{NMIS_HTTP_PORT:-8080\}/,
+         "$name: the web port comes from NMIS_HTTP_PORT");
+    like($code, qr/\$\{NMIS_BIND_ADDR:-0\.0\.0\.0\}/,
+         "$name: the app's publish address comes from NMIS_BIND_ADDR");
+
+    # images too, so two versions can run side by side
+    for my $img ($code =~ /^\s+image:\s*(\S+)\s*$/mg)
+    {
+        like($img, qr/^\$\{[A-Z_]+:-\S+\}$/,
+             "$name: image [$img] is parameterised");
+    }
 }
 
 # ------------------------------------------------------------------ mongod.conf
@@ -216,6 +248,23 @@ for my $name (sort keys %envs)
     # second source of truth for the same value
     unlike($content, qr/^NMIS_DB_PORT=/m,
            "$name: no leftover NMIS_DB_PORT competing with MONGODB_PORT");
+
+    # multi-stack knobs, so a second stack needs only a different env file
+    # (OMK-12708). Every one of these must ship with today's value as the
+    # default, or the change is not backwards compatible.
+    like($content, qr/^NMIS_CONTAINER_NAME=nmis\s*$/m,
+         "$name: ships NMIS_CONTAINER_NAME defaulting to the current name");
+    like($content, qr/^MONGO_CONTAINER_NAME=mongo\s*$/m,
+         "$name: ships MONGO_CONTAINER_NAME defaulting to the current name");
+    like($content, qr/^NMIS_BIND_ADDR=0\.0\.0\.0\s*$/m,
+         "$name: ships NMIS_BIND_ADDR preserving today's all-interfaces web publish");
+    like($content, qr/^NMIS_HTTP_PORT=8080\s*$/m,
+         "$name: ships NMIS_HTTP_PORT defaulting to 8080");
+
+    # the operator has to be told about COMPOSE_PROJECT_NAME: without it, two
+    # stacks started from one directory share volumes and corrupt each other
+    like($content, qr/COMPOSE_PROJECT_NAME/,
+         "$name: documents COMPOSE_PROJECT_NAME for volume and network isolation");
     unlike($content, qr/^MONGODB_BIND_ADDR=0\.0\.0\.0\s*$/m,
            "$name: does not ship MONGODB_BIND_ADDR on every interface");
 }

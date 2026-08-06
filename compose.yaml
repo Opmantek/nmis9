@@ -1,7 +1,18 @@
 services:
   nmis:
-    image: public.ecr.aws/n2x4v8j4/firstwave/nmis:9.6.5
-    container_name: nmis
+    image: ${NMIS_IMAGE:-public.ecr.aws/n2x4v8j4/firstwave/nmis:9.6.5}
+    # OMK-12708. Every host-visible name and port is a variable with today's
+    # value as the default, so a second stack on the same host only needs a
+    # different env file. Volumes and the network are already isolated, because
+    # compose prefixes them with the project name: set COMPOSE_PROJECT_NAME to
+    # separate two stacks started from the same directory.
+    #
+    # container_name is kept rather than dropped, unlike the nmisent dev stack,
+    # because CI addresses this container by that literal name
+    # (bitbucket-pipelines.yml uses `docker cp`/`docker exec nmis`). It is only a
+    # host-level label: internal DNS uses the SERVICE name, so renaming this does
+    # not affect how the app reaches Mongo or what mongod's bindIp resolves.
+    container_name: ${NMIS_CONTAINER_NAME:-nmis}
     platform: linux/amd64
     restart: unless-stopped
     environment:
@@ -30,14 +41,19 @@ services:
       - nmis_database_data:/usr/local/nmis9/database
       - nmis_models_custom:/usr/local/nmis9/models-custom
     ports:
-      - "8080:8080" 
-      - "10001:161/udp"
+      # The 0.0.0.0 default is today's behaviour, deliberately unchanged here.
+      # Narrowing the web tier belongs with the TLS work in H14/H15
+      # (OMK-12710, OMK-12711), not with the database exposure.
+      - "${NMIS_BIND_ADDR:-0.0.0.0}:${NMIS_HTTP_PORT:-8080}:8080"
+      - "${NMIS_BIND_ADDR:-0.0.0.0}:${NMIS_SNMP_PORT:-10001}:161/udp"
     entrypoint: ["tini", "--", "/usr/local/nmis9/docker-entrypoint.sh"]
     networks:
       - nmis_net
   mongo:
-    image: mongo:7.0
-    container_name: mongo
+    image: ${MONGO_IMAGE:-mongo:7.0}
+    # host-level label only; the service name "mongo" is what internal DNS,
+    # NMIS_DB_SERVER and mongod's bindIp all resolve
+    container_name: ${MONGO_CONTAINER_NAME:-mongo}
     platform: linux/amd64
     restart: always
     healthcheck:

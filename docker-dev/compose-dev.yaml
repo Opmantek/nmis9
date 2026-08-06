@@ -1,8 +1,20 @@
  # compose.yaml file for NMIS
+#
+# OMK-12708. Every host-visible name and port is a variable with today's value
+# as the default, so a second dev stack on the same host only needs a different
+# env file. Volumes and the network are already isolated, because compose
+# prefixes them with the project name: set COMPOSE_PROJECT_NAME to separate two
+# stacks started from the same directory.
+#
+# container_name is kept rather than dropped, unlike the nmisent dev stack,
+# because CI addresses these containers by their literal names
+# (bitbucket-pipelines.yml uses `docker cp`/`docker exec nmis`). They are only
+# host-level labels: internal DNS uses the SERVICE name, so renaming them does
+# not affect how the app reaches Mongo or what mongod's bindIp resolves.
 services:
   mongo:
-    image: mongo:7.0
-    container_name: mongo
+    image: ${MONGO_IMAGE:-mongo:7.0}
+    container_name: ${MONGO_CONTAINER_NAME:-mongo}
     platform: linux/amd64
     restart: always
     healthcheck:
@@ -37,8 +49,8 @@ services:
     networks:
       - nmis_net
   nmis:
-    image: crg.apkg.io/firstwavecloud/nmis-dev:latest
-    container_name: nmis
+    image: ${NMIS_IMAGE:-crg.apkg.io/firstwavecloud/nmis-dev:latest}
+    container_name: ${NMIS_CONTAINER_NAME:-nmis}
     platform: linux/amd64
     restart: always
     environment:
@@ -64,8 +76,11 @@ services:
     volumes:
       - ../:/usr/local/nmis9
     ports:
-      - "8080:8080"
-      - "10001:161/udp"
+      # The 0.0.0.0 default is today's behaviour, deliberately unchanged here.
+      # Narrowing the web tier belongs with H14/H15 (OMK-12710, OMK-12711).
+      # Bump NMIS_HTTP_PORT and NMIS_SNMP_PORT to run a second dev stack.
+      - "${NMIS_BIND_ADDR:-0.0.0.0}:${NMIS_HTTP_PORT:-8080}:8080"
+      - "${NMIS_BIND_ADDR:-0.0.0.0}:${NMIS_SNMP_PORT:-10001}:161/udp"
     networks:
       - nmis_net
 networks:

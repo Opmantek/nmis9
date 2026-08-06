@@ -1,7 +1,14 @@
 # compose.yaml file for NMIS Suite
+#
+# OMK-12708. Every host-visible name and port is a variable with today's value
+# as the default, so a second stack on the same host only needs a different env
+# file. Volumes and the network are already isolated, because compose prefixes
+# them with the project name: set COMPOSE_PROJECT_NAME to separate two stacks
+# started from the same directory. This file sets no container_name, so the
+# containers are named <project>-<service>-<n> and never collide.
 services:
   nmis:
-    image: public.ecr.aws/n2x4v8j4/firstwave/nmis9:9.6.5
+    image: ${NMIS_IMAGE:-public.ecr.aws/n2x4v8j4/firstwave/nmis9:9.6.5}
     restart: always
     environment:
       NMIS_DB_USERNAME: ${MONGODB_USERNAME}
@@ -26,11 +33,13 @@ services:
       - nmis_database_data:/usr/local/nmis9/database
       - nmis_models_custom:/usr/local/nmis9/models-custom
     ports:
-      - "8080:8080"
+      # The 0.0.0.0 default is today's behaviour, deliberately unchanged here.
+      # Narrowing the web tier belongs with H14/H15 (OMK-12710, OMK-12711).
+      - "${NMIS_BIND_ADDR:-0.0.0.0}:${NMIS_HTTP_PORT:-8080}:8080"
     networks:
       - nmis_net
   mongo:
-    image: mongo:7.0
+    image: ${MONGO_IMAGE:-mongo:7.0}
     restart: always
     healthcheck:
       # probes the service name, not localhost, so a mongod bound only to
