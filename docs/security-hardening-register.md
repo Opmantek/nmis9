@@ -149,10 +149,31 @@ enforced in `NMISNG::Auth::_lock_sensitive_tables`.
 
 | Setting | Before | After |
 |---------|--------|-------|
-| Compose port publish (all three files) | `"27017:27017"` (every interface) | `"${MONGODB_BIND_ADDR:-127.0.0.1}:${MONGODB_HOST_PORT:-27017}:27017"` |
+| Compose port publish (all three files) | `"27017:27017"` (every interface) | `"${MONGODB_BIND_ADDR:-127.0.0.1}:${MONGODB_HOST_PORT:-27017}:${MONGODB_PORT:-27017}"` |
 | `mongod.conf` `net.bindIp` | `0.0.0.0` | `localhost,mongo` |
+| `mongod` command line | no `--port` | `--port ${MONGODB_PORT:-27017}`, overriding `mongod.conf` |
+| `NMIS_DB_SERVER` (all three files) | hardcoded `mongo` | `${MONGODB_SERVER:-mongo}` |
+| `NMIS_DB_PORT` | passed by `compose.yaml` only, from a variable only `.env` defined | `${MONGODB_PORT:-27017}` in all three files |
 | `MONGODB_BIND_ADDR` (new) | did not exist | `127.0.0.1` in all three env files |
 | `MONGODB_HOST_PORT` (new) | did not exist | `27017` in all three env files |
+| `MONGODB_SERVER` (new) | did not exist | `mongo` in all three env files |
+| `MONGODB_PORT` (new) | did not exist | `27017` in all three env files |
+| `NMIS_DB_PORT` in `.env` | `27017` | removed, superseded by `MONGODB_PORT` |
+
+**Host side and container side are deliberately separate variables.**
+`MONGODB_BIND_ADDR` and `MONGODB_HOST_PORT` control only where the port is
+published on the host. `MONGODB_SERVER` and `MONGODB_PORT` control how the app
+reaches Mongo across `nmis_net`, and are fed to it as `NMIS_DB_SERVER` and
+`NMIS_DB_PORT`, since NMIS overrides any config key from `NMIS_<KEY>` in the
+environment (`Util.pm:1140`). Wiring `NMIS_DB_PORT` to `MONGODB_HOST_PORT` would
+be a defect: a non-default host port would leave the app dialling a port mongod
+is not listening on inside the network. The test asserts that mistake is not
+made, in both directions.
+
+`MONGODB_PORT` is the single source of truth for the container port and moves
+four things at once: `mongod --port`, the container side of the published
+mapping, the mongo healthcheck, and `NMIS_DB_PORT`. Before this, nothing tied the
+app's `db_port` to the port mongod actually used.
 
 **Why:** Docker publishes ports by writing its own NAT rules, which are
 evaluated *before* the host firewall. A port published on every interface is
