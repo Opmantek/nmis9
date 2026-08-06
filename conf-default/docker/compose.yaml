@@ -6,7 +6,16 @@ services:
     environment:
       NMIS_DB_USERNAME: ${MONGODB_USERNAME}
       NMIS_DB_PASSWORD: ${MONGODB_PASSWORD}
-      NMIS_DB_SERVER: mongo
+      # OMK-12708. NMIS overrides any config key from NMIS_<KEY> in the
+      # environment (Util.pm:1140 matches /^NMIS_(.+)$/ and lowercases the
+      # suffix), so these set db_server and db_port without editing Config.nmis.
+      #
+      # Both are the CONTAINER-side values, which is how the app reaches Mongo
+      # across nmis_net. Do NOT wire NMIS_DB_PORT to MONGODB_HOST_PORT: that is
+      # the host side of the published mapping, and the app would dial a port
+      # mongod is not listening on inside the network.
+      NMIS_DB_SERVER: ${MONGODB_SERVER:-mongo}
+      NMIS_DB_PORT: ${MONGODB_PORT:-27017}
       NMIS_SERVER_NAME: ${NMIS_SERVER_NAME}
     depends_on:
       - mongo
@@ -24,7 +33,9 @@ services:
     image: mongo:7.0
     restart: always
     healthcheck:
-      test: echo 'db.runCommand("ping").ok' | mongosh mongo:27017/test --quiet
+      # probes the service name, not localhost, so a mongod bound only to
+      # loopback shows up as an unhealthy container (OMK-12708)
+      test: echo 'db.runCommand("ping").ok' | mongosh mongo:${MONGODB_PORT:-27017}/test --quiet
       interval: 60s
       timeout: 60s
       retries: 5
@@ -42,8 +53,12 @@ services:
       # "27017:27017" exposed Mongo regardless of any iptables or ufw rules.
       # Override MONGODB_BIND_ADDR and MONGODB_HOST_PORT in .env to change the
       # address or port; .env carries the warning that goes with opening it up.
-      - "${MONGODB_BIND_ADDR:-127.0.0.1}:${MONGODB_HOST_PORT:-27017}:27017"
-    command: ["mongod", "--auth", "--config", "/etc/mongod.conf"]
+      - "${MONGODB_BIND_ADDR:-127.0.0.1}:${MONGODB_HOST_PORT:-27017}:${MONGODB_PORT:-27017}"
+    # --port comes last deliberately: it overrides the port in mongod.conf, so
+    # MONGODB_PORT is the single source of truth for the container-side port and
+    # cannot drift from what the mapping targets or what NMIS_DB_PORT tells the
+    # app (OMK-12708).
+    command: ["mongod", "--auth", "--config", "/etc/mongod.conf", "--port", "${MONGODB_PORT:-27017}"]
     networks:
       - nmis_net
 networks:

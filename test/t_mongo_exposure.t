@@ -126,14 +126,38 @@ for my $name (sort keys %composes)
              "$name: mapping [$p] takes its host port from MONGODB_HOST_PORT");
     }
 
-    is($ports->[0], '"${MONGODB_BIND_ADDR:-127.0.0.1}:${MONGODB_HOST_PORT:-27017}:27017"',
+    is($ports->[0], '"${MONGODB_BIND_ADDR:-127.0.0.1}:${MONGODB_HOST_PORT:-27017}:${MONGODB_PORT:-27017}"',
        "$name: the published mapping is exactly the parameterised loopback-default form");
 
     # the healthcheck is what turns a loopback-only mongod into an unhealthy
     # container rather than a silent outage, so it must keep using the service
     # name and not be "fixed" to localhost
-    like($code, qr/mongosh\s+mongo:27017/,
+    like($code, qr/mongosh\s+mongo:\$\{MONGODB_PORT:-27017\}/,
          "$name: mongo healthcheck still probes the network listener, not loopback");
+
+    # MONGODB_PORT is the single source of truth for the container-side port, so
+    # mongod must actually be told to use it. Without the --port flag mongod
+    # would take 27017 from mongod.conf while the mapping and NMIS_DB_PORT
+    # followed MONGODB_PORT, and changing it would break the stack silently.
+    like($code, qr/"--port",\s*"\$\{MONGODB_PORT:-27017\}"/,
+         "$name: mongod is started with --port from MONGODB_PORT");
+
+    # The app learns where Mongo is from NMIS_<KEY> environment overrides
+    # (Util.pm:1140). Both must be present and must come from the variables,
+    # not be hardcoded, or a changed port leaves the app dialling the old one.
+    like($code, qr/NMIS_DB_SERVER:\s*\$\{MONGODB_SERVER:-mongo\}/,
+         "$name: app gets NMIS_DB_SERVER from MONGODB_SERVER");
+    like($code, qr/NMIS_DB_PORT:\s*\$\{MONGODB_PORT:-27017\}/,
+         "$name: app gets NMIS_DB_PORT from MONGODB_PORT");
+
+    # The trap this wiring exists to avoid: MONGODB_HOST_PORT is the host side of
+    # the published mapping. If the app were pointed at it, a non-default host
+    # port would make NMIS dial a port mongod is not listening on inside the
+    # compose network.
+    unlike($code, qr/NMIS_DB_PORT:\s*\$\{MONGODB_HOST_PORT/,
+           "$name: NMIS_DB_PORT is NOT wired to the host-side MONGODB_HOST_PORT");
+    unlike($code, qr/NMIS_DB_SERVER:\s*\$\{MONGODB_BIND_ADDR/,
+           "$name: NMIS_DB_SERVER is NOT wired to the host-side MONGODB_BIND_ADDR");
 }
 
 # ------------------------------------------------------------------ mongod.conf
@@ -179,6 +203,19 @@ for my $name (sort keys %envs)
          "$name: ships MONGODB_BIND_ADDR defaulting to loopback");
     like($content, qr/^MONGODB_HOST_PORT=27017\s*$/m,
          "$name: ships MONGODB_HOST_PORT");
+
+    # the container-side pair, fed to the app as NMIS_DB_SERVER / NMIS_DB_PORT.
+    # All three env files must carry them: before this, only .env defined a port
+    # variable at all, so the other two stacks silently used the config default.
+    like($content, qr/^MONGODB_SERVER=mongo\s*$/m,
+         "$name: ships MONGODB_SERVER for the app's db_server");
+    like($content, qr/^MONGODB_PORT=27017\s*$/m,
+         "$name: ships MONGODB_PORT for the app's db_port and mongod's own port");
+
+    # the superseded variable: only compose.yaml ever read it, and it is now a
+    # second source of truth for the same value
+    unlike($content, qr/^NMIS_DB_PORT=/m,
+           "$name: no leftover NMIS_DB_PORT competing with MONGODB_PORT");
     unlike($content, qr/^MONGODB_BIND_ADDR=0\.0\.0\.0\s*$/m,
            "$name: does not ship MONGODB_BIND_ADDR on every interface");
 }
