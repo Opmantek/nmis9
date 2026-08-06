@@ -54,6 +54,7 @@ working_tests=(
     t_http_security_headers.t
     t_config_load_perms.pl
     t_access_policy.pl
+    t_cgi_tables_secret_passthrough.t
 )
 
 for i in "${working_tests[@]}"; do

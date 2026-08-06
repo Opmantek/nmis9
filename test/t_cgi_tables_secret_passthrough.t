@@ -1,0 +1,336 @@
+#!/usr/bin/perl
+#
+#  Copyright (C) Opmantek Limited (www.opmantek.com)
+#
+#  ALL CODE MODIFICATIONS MUST BE SENT TO CODE@OPMANTEK.COM
+#
+#  This file is part of Network Management Information System (“NMIS”).
+#
+#  NMIS is free software: you can redistribute it and/or modify
+#  it under the terms of the GNU General Public License as published by
+#  the Free Software Foundation, either version 3 of the License, or
+#  (at your option) any later version.
+#
+#  NMIS is distributed in the hope that it will be useful,
+#  but WITHOUT ANY WARRANTY; without even the implied warranty of
+#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#  GNU General Public License for more details.
+#
+#  You should have received a copy of the GNU General Public License
+#  along with NMIS (most likely in a file named LICENSE).
+#  If not, see <http://www.gnu.org/licenses/>
+#
+#  For further information on NMIS or for a license other than GPL please see
+#  www.opmantek.com or email contact@opmantek.com
+#
+#  User group details:
+#  http://support.opmantek.com/users/
+#
+# *****************************************************************************
+#
+# OMK-12827 item 5: the table editor must not decrypt stored secrets.
+#
+# cgi-bin/tables.pl used to decrypt any password-flagged field whose submitted
+# value still carried the "!!" ciphertext prefix, validate the plaintext, then
+# re-encrypt it. A "!!" value arriving means the edit form round-tripped the
+# stored value and the user never touched it, so that decrypt validated a value
+# nobody typed - and it was the only reason the web tier had to be able to READ
+# every secret in the tree, all six device SNMP/WMI credentials included.
+#
+# The observable property, and what this test asserts: after a no-op edit, every
+# stored secret is byte-identical to what was stored before. NMISNG::Util::encrypt
+# is randomised (Crypt::CBC picks a fresh IV per call), so a decrypt/re-encrypt
+# round trip cannot reproduce the original ciphertext. Byte-identity is therefore
+# a direct behavioural witness that no decrypt happened. Against the unfixed code
+# this file fails on those assertions, with a different ciphertext stored.
+#
+# Driven through the real CGI in-process via the NMISx Mojolicious app on a real
+# authenticated session, per docs/CGI_TESTING.md; source inspection is the
+# documented anti-pattern. The form is not hand-built - it is fetched, parsed and
+# posted back the way a browser would, which is what makes it a genuine round trip.
+#
+# Needs a reachable MongoDB, the NMISx app, and the encryption modules; skips
+# loudly otherwise. Seeds and removes one node, and changes nothing on disk.
+
+use strict;
+use warnings;
+use FindBin;
+use lib "$FindBin::Bin/../lib";
+
+# The path under test is reachable ONLY with password encryption enabled. With it
+# disabled, NMISNG::Node::new (lib/NMISNG/Node.pm, the "else" migration branch)
+# decrypts every stored secret and writes it back as plaintext, so no node ever
+# holds a "!!" value for the form to round-trip. Enable it through the NMIS_*
+# config env override (loadConfTable layer 4) rather than by editing conf/: nothing
+# on disk changes, so a hard kill cannot leave the install reconfigured, and the
+# CGI that Plugin::CGI forks inherits the setting. Must run before any config load.
+BEGIN { $ENV{NMIS_GLOBAL_ENABLE_PASSWORD_ENCRYPTION} = 'true'; }
+
+use Test::More;
+use Test::Mojo;
+
+use NMISNG;
+use NMISNG::Log;
+use NMISNG::Node;
+use NMISNG::Util;
+
+my $NODENAME = "t_12827_secret_node";
+
+# One distinct plaintext per secret field, so a field mix-up cannot pass unnoticed.
+# These are the six fields Table-Nodes.nmis marks display => 'password'.
+my %SECRET = (
+	community    => "Commun1ty-OMK12827",
+	wmipassword  => "WmiPass-OMK12827",
+	authpassword => "AuthPass-OMK12827",
+	authkey      => "AuthKey-OMK12827",
+	privpassword => "PrivPass-OMK12827",
+	privkey      => "PrivKey-OMK12827",
+);
+my @SECRET_FIELDS = sort keys %SECRET;
+
+# ---- guards: skip cleanly off the dev container, but never silently ----------
+
+my $C = NMISNG::Util::loadConfTable();
+plan skip_all => "no MongoDB configured" unless ($C && $C->{db_name});
+
+# Without the encryption modules NMISNG::Util::encrypt silently returns its input
+# unchanged, so the fixture would be plaintext and every assertion below would pass
+# vacuously. The stock dev/CI image (Debian 11) ships none of them, so say so
+# loudly rather than letting a green run imply this path is covered.
+my @missing = grep { !eval "require $_; 1" }
+		qw(Crypt::CBC Crypt::Cipher::AES Math::Random::Secure);
+if (@missing)
+{
+	diag("*" x 72);
+	diag("*** OMK-12827 SECRET PASS-THROUGH COVERAGE IS NOT RUNNING ***");
+	diag("*** missing encryption modules: " . join(", ", @missing));
+	diag("*** install: apt-get install -y libcrypt-cbc-perl libcryptx-perl libmath-random-secure-perl");
+	diag("*** without these, NMISNG::Util::encrypt returns plaintext unchanged and");
+	diag("*** this test could only ever pass vacuously, so it refuses to run.");
+	diag("*" x 72);
+	plan skip_all => "encryption modules absent (" . join(",", @missing) . "): coverage DISABLED, see diagnostics above";
+}
+
+# A failure here is not a missing dependency, it is the test's own premise breaking,
+# so fail rather than skip - a skip would hide it.
+if (!NMISNG::Util::getbool($C->{global_enable_password_encryption}))
+{
+	fail("NMIS_GLOBAL_ENABLE_PASSWORD_ENCRYPTION env override did not enable encryption");
+	diag("global_enable_password_encryption resolved to '"
+			 . ($C->{global_enable_password_encryption} // 'undef')
+			 . "'; without it no node can hold a '!!' value and this test is meaningless");
+	done_testing();
+	exit;
+}
+
+my $logger = NMISNG::Log->new(level => 'error');
+my $nmisng = NMISNG->new(config => $C, log => $logger);
+plan skip_all => "NMISNG object required" unless $nmisng;
+
+my $t = eval { Test::Mojo->new('NMISx') };
+plan skip_all => "NMISx Mojo app not available (run in the dev container): $@" unless $t;
+
+# ---- helpers ----------------------------------------------------------------
+
+# Read the node straight out of the database. Deliberately NOT via
+# NMISNG::Node->configuration: constructing a Node runs the encrypt/decrypt
+# migration in Node::new, which would rewrite the very values under test.
+sub stored_config
+{
+	my $md = $nmisng->get_nodes_model(filter => { name => $NODENAME });
+	my $d  = $md->data();
+	return undef if (!$d or !@$d);
+	return $d->[0]->{configuration};
+}
+
+# Parse a rendered CGI form into the parameters a browser would post back.
+sub harvest_form
+{
+	my ($dom) = @_;
+	my %form;
+
+	for my $i ($dom->find('input[name]')->each)
+	{
+		# buttons are only submitted when clicked, and these are onclick-driven
+		next if (lc($i->attr('type') // 'text') =~ /^(button|submit|reset|image)$/);
+		my $n = $i->attr('name');
+		my $v = $i->attr('value') // '';
+		$form{$n} = exists $form{$n}
+				? [ (ref($form{$n}) eq 'ARRAY' ? @{$form{$n}} : $form{$n}), $v ]
+				: $v;
+	}
+	for my $s ($dom->find('select[name]')->each)
+	{
+		my $n = $s->attr('name');
+		my @sel = map { $_->attr('value') // $_->text } $s->find('option[selected]')->each;
+		if (defined $s->attr('multiple'))
+		{
+			$form{$n} = (@sel > 1) ? [@sel] : (@sel ? $sel[0] : '');
+		}
+		else
+		{
+			# a browser submits the first option when the stored value is not in the
+			# list and nothing is marked selected; several Table-Nodes popups validate
+			# as onefromlist and would abort the save on an empty submission
+			if (!@sel)
+			{
+				my $first = $s->find('option')->first;
+				@sel = ($first ? ($first->attr('value') // $first->text) : '');
+			}
+			$form{$n} = $sel[0];
+		}
+	}
+	for my $ta ($dom->find('textarea[name]')->each)
+	{
+		$form{$ta->attr('name')} = $ta->text // '';
+	}
+	return \%form;
+}
+
+# note: Test::Mojo's *_ok request helpers hand every extra argument to build_tx,
+# so they take no description of their own - the assertions below carry it.
+sub fetch_edit_form
+{
+	my ($desc) = @_;
+	$t->get_ok("/cgi-nmis9/tables.pl?conf=Config&act=config_table_edit"
+						 . "&table=Nodes&key=$NODENAME&widget=false");
+	is($t->tx->res->code, 200, "$desc: edit form HTTP 200");
+	return harvest_form($t->tx->res->dom);
+}
+
+sub submit_edit
+{
+	my ($form, $desc) = @_;
+	$t->post_ok('/cgi-nmis9/tables.pl' => form => $form);
+	is($t->tx->res->code, 200, "$desc: save HTTP 200");
+	my $body = $t->tx->res->body // '';
+	unlike($body, qr/class="error"/, "$desc: save reported no error")
+			or diag("response was: " . substr($body, 0, 500));
+}
+
+# ---- seed a node holding real ciphertext in all six secret fields -----------
+
+{
+	my $old = $nmisng->node(name => $NODENAME);
+	$old->delete(keep_rrd => 1) if ($old);
+}
+
+my %CIPHER = map { $_ => NMISNG::Util::encrypt($SECRET{$_}) } @SECRET_FIELDS;
+for my $f (@SECRET_FIELDS)
+{
+	# fixture sanity: a real ciphertext that really decrypts back. If encrypt were
+	# a no-op the pass-through assertions later would prove nothing.
+	like($CIPHER{$f}, qr/^!!/, "fixture: $f seeded as ciphertext");
+	isnt($CIPHER{$f}, $SECRET{$f}, "fixture: $f ciphertext differs from plaintext");
+	is(NMISNG::Util::decrypt($CIPHER{$f}), $SECRET{$f}, "fixture: $f decrypts back to its plaintext");
+}
+
+my $node = NMISNG::Node->new(uuid => NMISNG::Util::getUUID(), nmisng => $nmisng);
+$node->cluster_id($C->{cluster_id});
+$node->name($NODENAME);
+$node->configuration({
+	host      => "127.0.0.1",
+	group     => "NMIS8",
+	netType   => "lan",
+	roleType  => "access",
+	model     => "automatic",
+	# inactive on purpose: an active node gets an update job scheduled the moment it
+	# appears, and that worker constructs an NMISNG::Node, whose migration branch
+	# rewrites the stored secrets out from under this test
+	active    => "false",
+	collect   => "false",
+	ping      => "false",
+	threshold => "false",
+	version   => "snmpv2c",
+	notes     => "seeded",
+	services  => [],
+	depend    => [],
+	%CIPHER,
+});
+my (undef, $saveerr) = $node->save();
+BAIL_OUT("could not save seed node: $saveerr") if ($saveerr);
+
+{
+	my $seeded = stored_config();
+	BAIL_OUT("seed node not readable from the database") if (!$seeded);
+	is($seeded->{$_}, $CIPHER{$_}, "fixture: $_ stored as the seeded ciphertext")
+			for (@SECRET_FIELDS);
+}
+
+# ---- authenticate through the real app --------------------------------------
+
+$t->post_ok('/cgi-nmis9/nmiscgi.pl' => form =>
+	{ conf => 'Config', auth_username => 'nmis', auth_password => 'nm1888' });
+my $logged_in = grep { $_->name =~ /CGISESSID|nmis|omk/ } @{$t->ua->cookie_jar->all};
+ok($logged_in, "authenticated session established");
+
+# ---- 1. the edit form really does hand the ciphertext back ------------------
+# This is the precondition the fix relies on. If the form ever started rendering
+# the plaintext instead, the pass-through assertions below would still pass while
+# the secret leaked into the page, so assert it explicitly.
+
+my $form = fetch_edit_form("round trip");
+for my $f (@SECRET_FIELDS)
+{
+	is($form->{$f}, $CIPHER{$f}, "form: $f rendered as the stored ciphertext");
+	isnt($form->{$f}, $SECRET{$f}, "form: $f not rendered as plaintext");
+}
+
+# ---- 2. a no-op edit stores every secret byte for byte ----------------------
+# The only field changed is notes, which doubles as the positive control: if it
+# comes back stored, the save really ran and an unchanged secret is not just the
+# artefact of an aborted or no-op request.
+
+$form->{act}   = 'config_table_doedit';
+$form->{notes} = "edited-by-t12827";
+submit_edit($form, "no-op secret edit");
+
+my $after = stored_config();
+BAIL_OUT("node vanished after the edit") if (!$after);
+
+is($after->{notes}, "edited-by-t12827", "positive control: the edit was saved");
+
+for my $f (@SECRET_FIELDS)
+{
+	# the assertion that fails against the unfixed code: it decrypts, re-encrypts,
+	# and stores a different ciphertext for the same secret
+	is($after->{$f}, $CIPHER{$f}, "$f survived a no-op edit byte for byte");
+	isnt($after->{$f}, $SECRET{$f}, "$f was not written back as plaintext");
+	like($after->{$f}, qr/^!!/, "$f is still ciphertext");
+}
+
+# ---- 3. a genuinely new secret is still encrypted on the way in -------------
+# Guards against "fixing" the leak by making the field write-only or inert.
+
+my $NEWPLAIN = "BrandNewCommunity-OMK12827";
+my $form2 = fetch_edit_form("new secret");
+$form2->{act}       = 'config_table_doedit';
+$form2->{community} = $NEWPLAIN;
+submit_edit($form2, "new secret edit");
+
+my $after2 = stored_config();
+BAIL_OUT("node vanished after the second edit") if (!$after2);
+
+like($after2->{community}, qr/^!!/, "a newly typed community is stored encrypted");
+isnt($after2->{community}, $NEWPLAIN, "a newly typed community is not stored as plaintext");
+is(NMISNG::Util::decrypt($after2->{community}), $NEWPLAIN,
+	 "the newly typed community decrypts back to what was typed");
+
+# the untouched secrets must still be byte-identical after an edit that did change
+# one of their siblings
+for my $f (grep { $_ ne 'community' } @SECRET_FIELDS)
+{
+	is($after2->{$f}, $CIPHER{$f}, "$f untouched while a sibling secret was changed");
+}
+
+# ---- cleanup ----------------------------------------------------------------
+
+END {
+	if ($node)
+	{
+		my $ok = eval { $node->delete(keep_rrd => 1); 1 };
+		diag($ok ? "removed seed node" : "WARNING: could not remove seed node '$NODENAME'");
+	}
+}
+
+done_testing();
