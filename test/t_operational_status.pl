@@ -1285,6 +1285,33 @@ my ( $mcnt2, $mdoc2 ) = opdoc($meta_name2);
 is( $mcnt2, 1, "Fix 3b: ...and its Operational doc was written like any other event" );
 is( $mdoc2->{status}, "error", "Fix 3b: metacharacter-named doc carries the right status" );
 
+# --- Fix 3c (round 4): notify()'s node_configuration_events check, escaped too ---
+# Round 3 fixed the stateless check above but missed a second, separate
+# interpolation a few lines later in the same function: the config-logging
+# gate that decides whether to write a node-configuration-change log entry.
+# It's dormant on a stock install (log_node_configuration_events defaults
+# off), but it's a supported flag, and once on, the same unbalanced-paren
+# event name dies here too unless escaped.
+my $saved_log_nce = $C->{log_node_configuration_events};
+my $saved_nce     = $C->{node_configuration_events};
+$C->{log_node_configuration_events} = "true";
+$C->{node_configuration_events} = "Node Configuration Change";
+
+my $meta_name3 = "OMK12605 Unbalanced3 ( Paren";
+eval {
+	Compat::NMIS::notify(
+		sys => $S, event => $meta_name3, element => '',
+		level => "Major", details => "notify metachar raise, config-log gate",
+	);
+	1;
+};
+ok( !$@, "Fix 3c: notify() with log_node_configuration_events on did not die on a metacharacter event name" )
+	or diag($@);
+ok( $node->eventExist($meta_name3), "Fix 3c: ...and it created the event normally" );
+
+$C->{log_node_configuration_events} = $saved_log_nce;
+$C->{node_configuration_events}     = $saved_nce;
+
 # --- Fix 4: the eval wrap turns an unexpected die into a returned error ---
 # Reachable from a real caller now that checkEvent forwards $args{inventory_id}:
 # NMISNG::DB::make_oid dies on anything that is not 12 packed bytes or 24 hex.

@@ -2339,8 +2339,10 @@ sub notify
 			$event_obj->details( $details );
 		}
 
+		# OMK-12605 blind-review round 4: same die risk as the stateless
+		# check above, missed in the round 3 pass over this function.
 		if (NMISNG::Util::getbool($C->{log_node_configuration_events})
-				and $C->{node_configuration_events} =~ /$event/
+				and $C->{node_configuration_events} =~ /\Q$event\E/
 				and NMISNG::Util::getbool($thisevent_control->{Log}))
 		{
 			my $error = logConfigEvent(dir => $C->{config_logs}, node_name=>$nodename, node_uuid=>$nodeuuid, event=>$event, level=>$level,
