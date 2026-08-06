@@ -30,11 +30,19 @@ my %composes = (
     'docker-dev/compose-dev.yaml'   => "$root/docker-dev/compose-dev.yaml",
 );
 
-# every env file those composes read
+# every env file those composes read, paired with the compose file that reads
+# it. The pairing matters: what an env file must ship is derived from what its
+# own compose actually interpolates, rather than assumed identical across all
+# three. conf-default/docker/compose.yaml sets no container_name and publishes
+# no SNMP port, so requiring those variables there would ship dead settings an
+# operator could change with no effect.
 my %envs = (
-    '.env'                     => "$root/.env",
-    'conf-default/docker/.env' => "$root/conf-default/docker/.env",
-    'docker-dev/.env-dev'      => "$root/docker-dev/.env-dev",
+    '.env'                     => { path    => "$root/.env",
+                                    compose => "$root/compose.yaml" },
+    'conf-default/docker/.env' => { path    => "$root/conf-default/docker/.env",
+                                    compose => "$root/conf-default/docker/compose.yaml" },
+    'docker-dev/.env-dev'      => { path    => "$root/docker-dev/.env-dev",
+                                    compose => "$root/docker-dev/compose-dev.yaml" },
 );
 
 my $mongod_conf = "$root/conf-default/docker/mongo/mongod.conf";
@@ -184,6 +192,15 @@ for my $name (sort keys %composes)
     like($code, qr/\$\{NMIS_BIND_ADDR:-0\.0\.0\.0\}/,
          "$name: the app's publish address comes from NMIS_BIND_ADDR");
 
+    # Positive check for the SNMP publish where it exists, so a hardcoded
+    # mapping on some other port cannot pass on the negative assertion alone.
+    # conf-default/docker/compose.yaml publishes no SNMP port at all.
+    if ($code =~ m{161/udp})
+    {
+        like($code, qr/\$\{NMIS_SNMP_PORT:-10001\}/,
+             "$name: the SNMP port comes from NMIS_SNMP_PORT");
+    }
+
     # images too, so two versions can run side by side
     for my $img ($code =~ /^\s+image:\s*(\S+)\s*$/mg)
     {
@@ -228,8 +245,10 @@ for my $name (sort keys %composes)
 
 for my $name (sort keys %envs)
 {
-    my $content = slurp($envs{$name});
+    my $content = slurp($envs{$name}->{path});
     ok(defined($content), "$name: readable") or next;
+
+    my $compose = slurp($envs{$name}->{compose}) // '';
 
     like($content, qr/^MONGODB_BIND_ADDR=127\.0\.0\.1\s*$/m,
          "$name: ships MONGODB_BIND_ADDR defaulting to loopback");
@@ -249,17 +268,42 @@ for my $name (sort keys %envs)
     unlike($content, qr/^NMIS_DB_PORT=/m,
            "$name: no leftover NMIS_DB_PORT competing with MONGODB_PORT");
 
-    # multi-stack knobs, so a second stack needs only a different env file
-    # (OMK-12708). Every one of these must ship with today's value as the
-    # default, or the change is not backwards compatible.
-    like($content, qr/^NMIS_CONTAINER_NAME=nmis\s*$/m,
-         "$name: ships NMIS_CONTAINER_NAME defaulting to the current name");
-    like($content, qr/^MONGO_CONTAINER_NAME=mongo\s*$/m,
-         "$name: ships MONGO_CONTAINER_NAME defaulting to the current name");
+    # Multi-stack knobs. Each must ship with today's value as the default, or
+    # the change is not backwards compatible. But only where its own compose
+    # actually reads it: shipping a variable a stack ignores tells an operator
+    # they can change something they cannot.
+    if ($compose =~ /container_name:/)
+    {
+        like($content, qr/^NMIS_CONTAINER_NAME=nmis\s*$/m,
+             "$name: ships NMIS_CONTAINER_NAME, since its compose pins container names");
+        like($content, qr/^MONGO_CONTAINER_NAME=mongo\s*$/m,
+             "$name: ships MONGO_CONTAINER_NAME, since its compose pins container names");
+    }
+    else
+    {
+        unlike($content, qr/^NMIS_CONTAINER_NAME=/m,
+               "$name: does not ship NMIS_CONTAINER_NAME, which its compose would ignore");
+        unlike($content, qr/^MONGO_CONTAINER_NAME=/m,
+               "$name: does not ship MONGO_CONTAINER_NAME, which its compose would ignore");
+    }
+
     like($content, qr/^NMIS_BIND_ADDR=0\.0\.0\.0\s*$/m,
          "$name: ships NMIS_BIND_ADDR preserving today's all-interfaces web publish");
     like($content, qr/^NMIS_HTTP_PORT=8080\s*$/m,
          "$name: ships NMIS_HTTP_PORT defaulting to 8080");
+
+    # same rule for the SNMP listener, which conf-default's compose never
+    # publishes
+    if ($compose =~ /161\/udp/)
+    {
+        like($content, qr/^NMIS_SNMP_PORT=10001\s*$/m,
+             "$name: ships NMIS_SNMP_PORT, since its compose publishes the SNMP port");
+    }
+    else
+    {
+        unlike($content, qr/^NMIS_SNMP_PORT=/m,
+               "$name: does not ship NMIS_SNMP_PORT, which its compose would ignore");
+    }
 
     # the operator has to be told about COMPOSE_PROJECT_NAME: without it, two
     # stacks started from one directory share volumes and corrupt each other

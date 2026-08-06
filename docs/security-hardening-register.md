@@ -165,7 +165,7 @@ enforced in `NMISNG::Auth::_lock_sensitive_tables`.
 published on the host. `MONGODB_SERVER` and `MONGODB_PORT` control how the app
 reaches Mongo across `nmis_net`, and are fed to it as `NMIS_DB_SERVER` and
 `NMIS_DB_PORT`, since NMIS overrides any config key from `NMIS_<KEY>` in the
-environment (`Util.pm:1140`). Wiring `NMIS_DB_PORT` to `MONGODB_HOST_PORT` would
+environment (`NMISNG::Util::_apply_env_overrides`). Wiring `NMIS_DB_PORT` to `MONGODB_HOST_PORT` would
 be a defect: a non-default host port would leave the app dialling a port mongod
 is not listening on inside the network. The test asserts that mistake is not
 made, in both directions.
@@ -180,9 +180,11 @@ misleading.** The same pass made the remaining host-visible settings
 configurable, so more than one stack can run on a host:
 `NMIS_CONTAINER_NAME`, `MONGO_CONTAINER_NAME`, `NMIS_BIND_ADDR`,
 `NMIS_HTTP_PORT`, `NMIS_SNMP_PORT`, `NMIS_IMAGE` and `MONGO_IMAGE`, plus
-`COMPOSE_PROJECT_NAME` for volume and network isolation. **Every default is
-today's value, so no shipped default changed and nothing here tightens
-anything.** In particular the web UI and SNMP listener still publish on
+`COMPOSE_PROJECT_NAME` for volume and network isolation. Each env file ships
+only the variables its own compose reads: `conf-default/docker/.env` omits the
+container-name and SNMP variables, because the compose beside it pins no
+container names and publishes no SNMP port. **Every default is today's value,
+so no shipped default changed and nothing here tightens anything.** In particular the web UI and SNMP listener still publish on
 `0.0.0.0`, deliberately: narrowing the web tier belongs with H14 and H15
 (OMK-12710, OMK-12711), and doing it here would have buried a second
 behavioural change inside a database-exposure fix.

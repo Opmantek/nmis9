@@ -1,16 +1,8 @@
  # compose.yaml file for NMIS
 #
-# OMK-12708. Every host-visible name and port is a variable with today's value
-# as the default, so a second dev stack on the same host only needs a different
-# env file. Volumes and the network are already isolated, because compose
-# prefixes them with the project name: set COMPOSE_PROJECT_NAME to separate two
-# stacks started from the same directory.
-#
-# container_name is kept rather than dropped, unlike the nmisent dev stack,
-# because CI addresses these containers by their literal names
-# (bitbucket-pipelines.yml uses `docker cp`/`docker exec nmis`). They are only
-# host-level labels: internal DNS uses the SERVICE name, so renaming them does
-# not affect how the app reaches Mongo or what mongod's bindIp resolves.
+# Names and ports are variables defaulting to today's values, so a second dev
+# stack needs only a different env file; see .env-dev. The container_name
+# values are host-level labels only, kept because CI addresses them literally.
 services:
   mongo:
     image: ${MONGO_IMAGE:-mongo:7.0}
@@ -18,8 +10,7 @@ services:
     platform: linux/amd64
     restart: always
     healthcheck:
-      # probes the service name, not localhost, so a mongod bound only to
-      # loopback shows up as an unhealthy container (OMK-12708)
+      # probes the service name, so a loopback-only mongod shows as unhealthy
       test: echo 'db.runCommand("ping").ok' | mongosh mongo:${MONGODB_PORT:-27017}/test --quiet
       interval: 60s
       timeout: 60s
@@ -33,18 +24,11 @@ services:
       - mongo_log:/var/log/mongodb
       - ../conf-default/docker/mongo/mongod.conf:/etc/mongod.conf
     ports:
-      # OMK-12708. Loopback by default. Dev deliberately still publishes the
-      # port, because host-side single-test runs connect to 127.0.0.1:27017;
-      # what changes is that it is no longer reachable from anywhere else on the
-      # network, with the pre-28.0.0 Docker Engine caveat noted in .env-dev.
-      # Override MONGODB_BIND_ADDR and
-      # MONGODB_HOST_PORT in .env-dev to shift the address or port, for example
-      # to run two dev stacks side by side.
+      # Loopback by default: host-side test runs still reach 127.0.0.1:27017,
+      # but nothing else on the network can. See .env-dev.
       - "${MONGODB_BIND_ADDR:-127.0.0.1}:${MONGODB_HOST_PORT:-27017}:${MONGODB_PORT:-27017}"
-    # --port comes last deliberately: it overrides the port in mongod.conf, so
-    # MONGODB_PORT is the single source of truth for the container-side port and
-    # cannot drift from what the mapping targets or what NMIS_DB_PORT tells the
-    # app (OMK-12708).
+    # --port overrides mongod.conf, making MONGODB_PORT the single source of
+    # truth for the container port.
     command: ["mongod", "--auth", "--config", "/etc/mongod.conf", "--port", "${MONGODB_PORT:-27017}"]
     networks:
       - nmis_net
@@ -56,14 +40,9 @@ services:
     environment:
       NMIS_DB_USERNAME: ${MONGODB_USERNAME}
       NMIS_DB_PASSWORD: ${MONGODB_PASSWORD}
-      # OMK-12708. NMIS overrides any config key from NMIS_<KEY> in the
-      # environment (Util.pm:1140 matches /^NMIS_(.+)$/ and lowercases the
-      # suffix), so these set db_server and db_port without editing Config.nmis.
-      #
-      # Both are the CONTAINER-side values, which is how the app reaches Mongo
-      # across nmis_net. Do NOT wire NMIS_DB_PORT to MONGODB_HOST_PORT: that is
-      # the host side of the published mapping, and the app would dial a port
-      # mongod is not listening on inside the network.
+      # NMIS overrides any config key from NMIS_<KEY> in the environment
+      # (NMISNG::Util::_apply_env_overrides). These are the container-side
+      # values: do NOT point them at MONGODB_HOST_PORT, which is the host side.
       NMIS_DB_SERVER: ${MONGODB_SERVER:-mongo}
       NMIS_DB_PORT: ${MONGODB_PORT:-27017}
       NMIS_SERVER_NAME: ${NMIS_SERVER_NAME}
@@ -76,9 +55,7 @@ services:
     volumes:
       - ../:/usr/local/nmis9
     ports:
-      # The 0.0.0.0 default is today's behaviour, deliberately unchanged here.
-      # Narrowing the web tier belongs with H14/H15 (OMK-12710, OMK-12711).
-      # Bump NMIS_HTTP_PORT and NMIS_SNMP_PORT to run a second dev stack.
+      # 0.0.0.0 is today's behaviour; narrowing the web tier is H14/H15 work.
       - "${NMIS_BIND_ADDR:-0.0.0.0}:${NMIS_HTTP_PORT:-8080}:8080"
       - "${NMIS_BIND_ADDR:-0.0.0.0}:${NMIS_SNMP_PORT:-10001}:161/udp"
     networks:
