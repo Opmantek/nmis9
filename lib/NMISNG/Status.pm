@@ -351,13 +351,12 @@ sub save_operational_status
 		or NMISNG::Util::getbool( $thisevent_control->{Stateful} ) ) ? 0 : 1;
 	return if ($is_stateless);
 
-	# per-event write gate, on unless configured off (per-event Events.nmis
-	# flag, or the site-wide Config.nmis untracked-events list, which exists
-	# so safe defaults reach sites whose own Events.nmis predates them -
-	# Events.nmis is not auto-merged on upgrade, Config.nmis is)
-	return if ( ( defined( $thisevent_control->{TrackStatus} )
-			and !NMISNG::Util::getbool( $thisevent_control->{TrackStatus} ) )
-		or _event_untracked_by_config( $C->{operational_status_untracked_events}, $event ) );
+	# per-event write gate: off only if this event's Events.nmis entry says
+	# so. Events.nmis is now installer-merged (installer_hooks/10-postcopy-
+	# confmerges), so this one flag reliably reaches existing sites too -
+	# no separate Config.nmis list needed.
+	return if ( defined( $thisevent_control->{TrackStatus} )
+		and !NMISNG::Util::getbool( $thisevent_control->{TrackStatus} ) );
 
 	# defensive wrap: this runs on the busiest path in the product (every
 	# notify/checkEvent, every node, every cycle), so an unexpected die from
@@ -391,27 +390,6 @@ sub save_operational_status
 	$nmisng->log->error("save_operational_status failed for $event: $error")
 		if ($error);
 	return $error;
-}
-
-# OMK-12605: true if $event appears as one of the comma-separated entries in
-# $list (the Config.nmis operational_status_untracked_events list). Plain
-# equality on trimmed entries, deliberately not a regex, so event names
-# containing metacharacters need no escaping. Duplicated from NMISNG.pm's
-# equivalent on purpose: these are separate modules and one shared four-line
-# helper is not worth a cross-module dependency.
-# args: list (comma-separated string, may be undef), event (string)
-# returns: 1 if listed, 0 otherwise
-sub _event_untracked_by_config
-{
-	my ($list, $event) = @_;
-	return 0 if ( !defined($list) or !length($list) or !defined($event) );
-	for my $entry ( split( /,/, $list ) )
-	{
-		$entry =~ s/^\s+//;
-		$entry =~ s/\s+$//;
-		return 1 if ( $entry eq $event );
-	}
-	return 0;
 }
 
 # flips an existing Operational status doc to ok when its event is closed

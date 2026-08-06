@@ -166,13 +166,6 @@ my %hash = (
 	# To have additional fields in the node summary data.
 	'node_summary_field_list' => 'host,uuid,customer,businessService,serviceStatus,snmpdown,wmidown',
 	'non_stateful_events' => 'Node Configuration Change, Node Configuration Change Detected, Node Reset, NMIS runtime exceeded',
-	# OMK-12605: site-wide safe default kept here rather than only in
-	# Events.nmis because upgrades auto-merge missing Config.nmis keys
-	# (admin/updateconfig.pl) but only ever diff Events.nmis for manual
-	# review, so per-event flags never reach an existing install. Consulted
-	# in addition to the per-event Events.nmis TrackStatus flag: no doc at
-	# all is written for these events.
-	'operational_status_untracked_events' => 'Planned Outage Open',
 	'opstatus_save_logs' => 1,
 	'os_cmd_file_decompress' => 'gzip -d -c',
 	'os_cmd_read_file_reverse' => 'tac',

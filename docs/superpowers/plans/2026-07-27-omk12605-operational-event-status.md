@@ -1026,7 +1026,7 @@ In `lib/NMISNG/Node.pm`, `sub save_dashnode_data`, change:
 
 ```perl
 		# clear context after save so it doesn't get reused incorrectly
-		delete $self->nmisng->config->{dashnode_context};		
+		delete $self->nmisng->config->{dashnode_context};
 ```
 
 to:

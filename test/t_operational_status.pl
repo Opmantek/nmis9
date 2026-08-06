@@ -1381,43 +1381,34 @@ if   ( defined $saved_exclude ) { $C->{status_summary_exclude_events} = $saved_e
 else                            { delete $C->{status_summary_exclude_events} }
 $C->{health_score_include_operational_events} = 'false';    # restore default
 
-# --- Fix 1b: Config.nmis operational_status_untracked_events ---
-my $saved_untracked = $C->{operational_status_untracked_events};
-$C->{operational_status_untracked_events} = " OMK12605 CfgUntracked , OMK12605 CfgUntracked2 ";
+# --- Fix 1b (round 6): TrackStatus is the sole write gate now ---
+# operational_status_untracked_events (a Config.nmis site-wide list) was
+# removed once Events.nmis itself became installer-mergeable
+# (installer_hooks/10-postcopy-confmerges) - TrackStatus now reliably
+# reaches every site on its own, so there's no longer a separate list to
+# duplicate its job. This proves the per-event Events.nmis flag alone
+# gates the write correctly, in both directions.
+my $events_config = NMISNG::Util::loadTable( dir => 'conf', name => 'Events', conf => $C );
+$events_config->{"OMK12605 EventsUntracked"} = { Log => "true", Notify => "true", Status => "true", TrackStatus => "false" };
 
 NMISNG::Status::save_operational_status(
-	nmisng => $nmisng, node => $node, event => "OMK12605 CfgUntracked",
+	nmisng => $nmisng, node => $node, event => "OMK12605 EventsUntracked",
 	status => "error", level => "Major", details => "must not be written",
+	events_config => $events_config,
 );
-( $cnt ) = opdoc("OMK12605 CfgUntracked");
-is( $cnt, 0, "Fix 1b: config untracked-events list gated the write, same as TrackStatus=false" );
+( $cnt ) = opdoc("OMK12605 EventsUntracked");
+is( $cnt, 0, "Fix 1b: Events.nmis TrackStatus=false gates the write" );
 
+# flip it to true: the same event now writes, proving the flag (not
+# something else) was what gated it
+$events_config->{"OMK12605 EventsUntracked"}{TrackStatus} = "true";
 NMISNG::Status::save_operational_status(
-	nmisng => $nmisng, node => $node, event => "OMK12605 CfgUntracked2",
-	status => "error", level => "Major", details => "must not be written either",
+	nmisng => $nmisng, node => $node, event => "OMK12605 EventsUntracked",
+	status => "error", level => "Major", details => "written once TrackStatus is true",
+	events_config => $events_config,
 );
-( $cnt ) = opdoc("OMK12605 CfgUntracked2");
-is( $cnt, 0, "Fix 1b: surrounding whitespace on list entries is trimmed before matching" );
-
-# an event NOT on the list is unaffected
-NMISNG::Status::save_operational_status(
-	nmisng => $nmisng, node => $node, event => "OMK12605 CfgTracked",
-	status => "error", level => "Major", details => "written normally",
-);
-( $cnt ) = opdoc("OMK12605 CfgTracked");
-is( $cnt, 1, "Fix 1b: an event absent from the list writes normally" );
-
-# ...and the same event writes once taken off the list, proving the list gated it
-delete $C->{operational_status_untracked_events};
-NMISNG::Status::save_operational_status(
-	nmisng => $nmisng, node => $node, event => "OMK12605 CfgUntracked",
-	status => "error", level => "Major", details => "written once off the list",
-);
-( $cnt ) = opdoc("OMK12605 CfgUntracked");
-is( $cnt, 1, "Fix 1b: the very same event writes once removed from the list" );
-
-if   ( defined $saved_untracked ) { $C->{operational_status_untracked_events} = $saved_untracked }
-else                              { delete $C->{operational_status_untracked_events} }
+( $cnt ) = opdoc("OMK12605 EventsUntracked");
+is( $cnt, 1, "Fix 1b: the very same event writes once TrackStatus is true" );
 
 # --- Fix 3: the event name is escaped before it reaches a regex ---
 # save_operational_status interpolates the event name into the

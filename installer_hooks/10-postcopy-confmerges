@@ -15,6 +15,10 @@ printBanner "Config file updates"
 # main config first...
 execPrint $TARGETDIR/admin/updateconfig.pl $TARGETDIR/conf-default/Config.nmis $TARGETDIR/conf/Config.nmis
 
+# ...then Events.nmis: same additive-only merge, adds new/missing per-event
+# keys (e.g. TrackStatus) without touching anything the site already has.
+execPrint $TARGETDIR/admin/updateconfig.pl $TARGETDIR/conf-default/Events.nmis $TARGETDIR/conf/Events.nmis
+
 # ...then the crucial auth-related files (if changed ones exist)
 for i in POSSIBLE in Users.nmis Access.nmis PrivMap.nmis; do
 		if [ -f "$TARGETDIR/conf/$POSSIBLE" ]; then
