@@ -2024,14 +2024,35 @@ sub pingable
 			$pingresult = defined $ping_min ? 100 : 0;    # ping_min is undef if unreachable.
 			$lastping = Time::HiRes::time;
 
-			if (!$pingresult && (my $fallback = $self->configuration->{host_backup}))
+			if (my $fallback = $self->configuration->{host_backup})
 			{
-				$self->nmisng->log->info("Starting internal ping of ($nodename = backup address $fallback) with timeout=$timeout retries=$retries packet=$packet");
-				( $ping_min, $ping_avg, $ping_max, $ping_loss) = $self->ext_ping(host => $fallback,
-																																				 packet => $packet, retries => $retries,
-																																				 timeout => $timeout );
-				$pingresult = defined $ping_min ? 100 : 0;              # ping_min is undef if unreachable.
-				$lastping = Time::HiRes::time;
+				if (!$pingresult)
+				{
+					# primary is down - fail over to the backup's own numbers
+					# for node-level reachability, as before.
+					$self->nmisng->log->info("Starting internal ping of ($nodename = backup address $fallback) with timeout=$timeout retries=$retries packet=$packet");
+					( $ping_min, $ping_avg, $ping_max, $ping_loss) = $self->ext_ping(host => $fallback,
+																																					 packet => $packet, retries => $retries,
+																																					 timeout => $timeout );
+					$pingresult = defined $ping_min ? 100 : 0;              # ping_min is undef if unreachable.
+					$lastping = Time::HiRes::time;
+					$backup_loss = $ping_loss;    # same ping just done - primary is down, this is what we measured
+				}
+				else
+				{
+					# OMK-12605 blind-review round 3: primary is fine, but
+					# Backup Host Down still needs an independent, live read
+					# on the backup itself here - this fallback mode (fping
+					# unavailable or stale) previously left it completely
+					# uncovered below, unlike Node Down. One extra
+					# synchronous ping per cycle, accepted as the cost of
+					# this already-degraded mode; the normal fping-cached-
+					# data path captures this for free from data already in
+					# memory.
+					$self->nmisng->log->debug2(sub {"Starting internal ping of ($nodename = backup address $fallback) to check its own status"});
+					(undef, undef, undef, $backup_loss)
+							= $self->ext_ping(host => $fallback, packet => $packet, retries => $retries, timeout => $timeout);
+				}
 			}
 		}
 		# at this point ping_{min,avg,max,loss}, lastping and pingresult are all set
@@ -2111,6 +2132,35 @@ sub pingable
 				$self->nmisng->log->error("($nodename) ping failed")
 						if ( !NMISNG::Util::getbool( $catchall_data->{nodedown} ) );
 				$self->handle_down( sys => $S, type => "node", details => "Ping failed", catchall_inventory => $catchall_inventory );
+			}
+
+			# OMK-12605 blind-review round 3: Backup Host Down needs the same
+			# coverage in this fallback path that Node Down already has just
+			# above. Unlike Node Down, no real event is raised for it here -
+			# only the fping worker's own state machine (bin/nmisd) creates
+			# or clears an actual "Backup Host Down" event; this only keeps
+			# the status document refreshed from what was independently
+			# measured a few lines up, using the same direct-helper-only
+			# rule as the fping-owned branch below (never notify/checkEvent,
+			# so event ownership stays where it already is). Skipped
+			# entirely when the backup wasn't measured this cycle, same
+			# reasoning as the fping-owned branch: never assert a state
+			# about a condition nothing assessed.
+			if (defined($self->configuration->{host_backup})
+					&& $self->configuration->{host_backup}
+					&& defined($backup_loss))
+			{
+				my $backupisdown = ( $backup_loss == 100 );
+				NMISNG::Status::save_operational_status(
+					nmisng       => $self->nmisng,
+					node         => $self,
+					event        => "Backup Host Down",
+					element      => "",
+					status       => $backupisdown ? "error" : "ok",
+					level        => $backupisdown ? ($C->{default_event_level} // "Major") : "Normal",
+					details      => $backupisdown ? "Backup ping failed" : "Backup ping ok",
+					inventory_id => $catchall_inventory->id,
+				);
 			}
 		}
 		else

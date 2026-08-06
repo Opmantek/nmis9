@@ -1069,6 +1069,82 @@ is( $stillerrdoc->{status}, "error",
 $catchall_data->{nodedown} = "false";
 $catchall_inv->save( node => $node, update => 1 );
 
+# --- Fix 2f (round 3): Backup Host Down must also refresh on the internal-
+# ping ($mustping==true) fallback path, not just the fping-owned path ---
+# A first blind-review round found Node Down was covered on both paths but
+# Backup Host Down only on the fping-owned one - on a site where fping data
+# is missing or stale (the code's own long-standing comment names "the case
+# of a faulty fping worker"), an existing Backup Host Down entry would just
+# stop refreshing and expire, and a node that never had one would never get
+# one, on this path specifically. This exercises real synchronous pings
+# (ext_ping), so it needs a real reachable and a real unreachable address,
+# and a deliberately short timeout/retry count to keep it fast.
+{
+	my $saved_timeout = $C->{ping_timeout};
+	my $saved_retries = $C->{ping_retries};
+	$C->{ping_timeout} = 200;
+	$C->{ping_retries} = 1;
+
+	my $pcfg2 = $node->configuration;
+	my $saved_host        = $pcfg2->{host};
+	my $saved_host_backup = $pcfg2->{host_backup};
+	$pcfg2->{host}        = "127.0.0.1";     # always answers
+	$pcfg2->{host_backup} = "192.0.2.1";     # reserved, guaranteed never to answer
+	$node->configuration($pcfg2);
+
+	# force the internal-ping fallback: remove the node's cached "ping"
+	# inventory entirely, so pingable() finds nothing fresh to trust and
+	# falls back to ext_ping(), exactly like a missing/stale fping worker.
+	NMISNG::DB::remove(
+		collection => $nmisng->inventory_collection(),
+		query      => NMISNG::DB::get_query( and_part => { node_uuid => $node->uuid, concept => "ping" } ),
+		just_one   => 0,
+	);
+	# clean slate: remove any pre-existing Backup Host Down doc (from
+	# earlier blocks above) so every assertion below genuinely proves this
+	# path wrote/updated it, rather than passing by coincidence against
+	# leftover state.
+	NMISNG::DB::remove(
+		collection => $nmisng->status_collection(),
+		query      => NMISNG::DB::get_query( and_part => {
+			node_uuid => $node->uuid, method => "Operational", event => "Backup Host Down" } ),
+		just_one   => 0,
+	);
+
+	my $mustping_pingable = $node->pingable( sys => $S, catchall_inventory => $catchall_inv );
+	ok( $mustping_pingable, "Fix 2f: pingable() reachable via the internal-ping fallback (primary answers)" );
+
+	my ( $mustpingcnt, $mustpingdoc ) = opdoc("Backup Host Down");
+	is( $mustpingcnt, 1, "Fix 2f: a Backup Host Down doc was created on the internal-ping path too" );
+	is( $mustpingdoc->{status}, "error",
+		"Fix 2f: Backup Host Down correctly reports error - primary answers, backup does not, on the fallback path" );
+
+	# and the reverse: backup answers too -> ok, still on this same path.
+	$pcfg2->{host_backup} = "127.0.0.1";     # both now answer
+	$node->configuration($pcfg2);
+	NMISNG::DB::remove(
+		collection => $nmisng->inventory_collection(),
+		query      => NMISNG::DB::get_query( and_part => { node_uuid => $node->uuid, concept => "ping" } ),
+		just_one   => 0,
+	);
+	$node->pingable( sys => $S, catchall_inventory => $catchall_inv );
+	my ( undef, $mustpingokdoc ) = opdoc("Backup Host Down");
+	is( $mustpingokdoc->{status}, "ok",
+		"Fix 2f: Backup Host Down correctly reports ok when both addresses answer, on the fallback path" );
+
+	# restore
+	$pcfg2->{host}        = $saved_host;
+	$pcfg2->{host_backup} = $saved_host_backup;
+	$node->configuration($pcfg2);
+	$C->{ping_timeout} = $saved_timeout;
+	$C->{ping_retries} = $saved_retries;
+	NMISNG::DB::remove(
+		collection => $nmisng->inventory_collection(),
+		query      => NMISNG::DB::get_query( and_part => { node_uuid => $node->uuid, concept => "ping" } ),
+		just_one   => 0,
+	);
+}
+
 # --- Fix 1a: Config.nmis status_summary_exclude_events ---
 # Events.nmis is never auto-merged on upgrade, so its per-event Status flags
 # cannot reach an existing install. This site-wide list is consulted in
@@ -1187,6 +1263,27 @@ NMISNG::Status::save_operational_status(
 );
 ( $cnt ) = opdoc("OMK12605 (Meta) Event");
 is( $cnt, 1, "Fix 3: ...and it writes normally once off the stateless list" );
+
+# --- Fix 3b (round 3): notify()'s own copy of this same check, escaped too ---
+# save_operational_status's copy was fixed above, but notify() has its own,
+# separate stateless-check line with the same interpolation - the original
+# both notify() and the helper's check are modelled on. If the die risk was
+# real enough to fix in the helper, it's real in notify() too, since notify()
+# is what raises an event in the first place, before the helper ever runs.
+my $meta_name2 = "OMK12605 Unbalanced2 ( Paren";
+eval {
+	Compat::NMIS::notify(
+		sys => $S, event => $meta_name2, element => '',
+		level => "Major", details => "notify metachar raise",
+	);
+	1;
+};
+ok( !$@, "Fix 3b: notify() with an unbalanced regex metacharacter event name did not die" )
+	or diag($@);
+ok( $node->eventExist($meta_name2), "Fix 3b: ...and it created the event normally" );
+my ( $mcnt2, $mdoc2 ) = opdoc($meta_name2);
+is( $mcnt2, 1, "Fix 3b: ...and its Operational doc was written like any other event" );
+is( $mdoc2->{status}, "error", "Fix 3b: metacharacter-named doc carries the right status" );
 
 # --- Fix 4: the eval wrap turns an unexpected die into a returned error ---
 # Reachable from a real caller now that checkEvent forwards $args{inventory_id}:

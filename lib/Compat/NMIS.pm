@@ -2325,7 +2325,11 @@ sub notify
 		($level,$log,$syslog) = $event_obj->getLogLevel(sys=>$S);
 		$event_obj->level($level);
 
-		my $is_stateless = ($C->{non_stateful_events} !~ /$event/
+		# OMK-12605 blind-review: escape the event name before it hits this
+		# regex - the same die risk fixed in save_operational_status's copy
+		# of this check applies here too, and this is the original source
+		# both notify() and the helper's stateless test are modelled on.
+		my $is_stateless = ($C->{non_stateful_events} !~ /\Q$event\E/
 												or NMISNG::Util::getbool($thisevent_control->{Stateful}))? 0: 1;
 		$event_obj->stateless($is_stateless);
 
