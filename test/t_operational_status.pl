@@ -1006,6 +1006,45 @@ is( $dashdata5->{status}{"Backup Host Down--"}{status}, "ok",
 $C->{enable_dashnode_file} = 'false';
 
 # ---------------------------------------------------------------------------
+# Fix 12 (round 6): update_dashnode_data must not grow dashnode_context in a
+# process that never called load_dashnode_data in the first place.
+# ---------------------------------------------------------------------------
+# The fping worker and standalone services/thresholds jobs never call
+# load_dashnode_data/save_dashnode_data at all, but they DO call notify()/
+# checkEvent() (or, per Fix 10 above, save_operational_status() directly),
+# which calls Status->save() -> update_dashnode_data() unconditionally
+# whenever enable_dashnode_file is on. Without this guard, that mirrors a
+# growing, never-flushed entry into $nmisng->{dashnode_context} for the
+# entire lifetime of such a process. The guard: only mirror if some earlier
+# code in THIS process already called load_dashnode_data to set up the
+# structure in the first place.
+ok( !defined $nmisng->{dashnode_context},
+	"Fix 12: precondition - no dashnode_context exists yet (clean slate after the previous section's save)" );
+
+$C->{enable_dashnode_file} = 'true';
+NMISNG::Status::save_operational_status(
+	nmisng => $nmisng, node => $node, event => "OMK12605 NoLoadCalled",
+	status => "error", level => "Major", details => "written from a process that never loaded dashnode data",
+);
+ok( !defined $nmisng->{dashnode_context},
+	"Fix 12: dashnode_context was NOT created - the write happened, but nothing to mirror into existed" );
+( my $noloadcnt ) = opdoc("OMK12605 NoLoadCalled");
+is( $noloadcnt, 1, "Fix 12: the status document itself was still written normally" );
+
+# contrast: once something in this process HAS called load_dashnode_data,
+# the mirror resumes working exactly as before
+$node->load_dashnode_data( op => 'collect', force => 1 );
+NMISNG::Status::save_operational_status(
+	nmisng => $nmisng, node => $node, event => "OMK12605 LoadWasCalled",
+	status => "error", level => "Major", details => "written after dashnode data was loaded",
+);
+ok( defined $nmisng->{dashnode_context}{data}{status}{"OMK12605 LoadWasCalled--"},
+	"Fix 12 contrast: once dashnode_context exists, the mirror populates it as before" );
+
+$node->save_dashnode_data();    # flush and clear, leaving a clean slate
+$C->{enable_dashnode_file} = 'false';
+
+# ---------------------------------------------------------------------------
 # Blind-review fix wave (2026-08-05): seven fixes found by two independent
 # full-branch reviews. Each block below is named for the fix it pins.
 # ---------------------------------------------------------------------------

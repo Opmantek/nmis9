@@ -259,10 +259,15 @@ sub save
 # update dashnode data structure if enabled
 # args: record - the record being saved
 # modifies: $self->nmisng->{dashnode_context}{data}
+# no-ops in a process that never called load_dashnode_data (the fping
+# worker, standalone services/thresholds jobs) - otherwise this would grow
+# an in-memory hash forever in a long-lived process that never flushes it.
 sub update_dashnode_data {
 	my ($self, %args) = @_;
 	my $record = $args{record};
-	if( NMISNG::Util::getbool($self->nmisng->config->{enable_dashnode_file}) ) {
+	if( NMISNG::Util::getbool($self->nmisng->config->{enable_dashnode_file})
+			&& defined($self->nmisng->{dashnode_context})
+			&& defined($self->nmisng->{dashnode_context}{data}) ) {
 		my $data = { %$record }; # take a copy because we're modifying the data		
 		if( $data->{index} == ""){
 			$data->{index} = 0;
