@@ -1,0 +1,12 @@
+#
+# Configuration for the NMIS MCP (Model Context Protocol) server.
+#
+# Install this file to: /usr/local/nmis9/conf/nmis-mcp.nmis
+# CGI endpoint:         /cgi-nmis9/nmis-mcp.pl
+#
+%hash = (
+	# API token for Bearer authentication.
+	# MCP clients should send: Authorization: Bearer <api_token>
+	# Change this to a secure random string.
+	'api_token' => 'change-me-to-a-secure-token',
+);

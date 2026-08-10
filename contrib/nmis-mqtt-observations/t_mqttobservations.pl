@@ -17,7 +17,12 @@ use warnings;
 #use lib "$FindBin::Bin/../../conf/plugins";
 
 use lib "/usr/local/nmis9/lib";
-use lib "/usr/local/nmis9/conf/plugins";
+
+# Load the plugin from this directory — the repo source being tested, not
+# whatever copy happens to be installed in conf/plugins (which is empty until
+# install.sh has been run). Same approach as contrib/nmis-mcp/t_nmis-mcp.pl.
+use FindBin;
+use lib $FindBin::Bin;
 
 use Test::More;
 
@@ -32,8 +37,14 @@ use_ok('mqttobservations') or BAIL_OUT("Plugin failed to load — check NMIS lib
 
 can_ok('mqttobservations', 'collect_plugin');
 
+# The OTel rename maps and helpers are no longer copied into this plugin; they
+# come from NMISNG::OTel. Assert the import actually landed in our namespace —
+# the helpers' own behaviour is covered by contrib/nmis-mcp/t_nmis-mcp.pl.
+can_ok('mqttobservations', qw(apply_field_rename filter_derived
+	filter_derived_flat get_description unweight_health));
+
 # ---------------------------------------------------------------------------
-# 2. _get_description — concept-specific field mapping
+# 2. get_description — concept-specific field mapping (via NMISNG::OTel)
 # ---------------------------------------------------------------------------
 
 my $desc_tests = [
@@ -107,8 +118,8 @@ my $desc_tests = [
 for my $t (@$desc_tests)
 {
 	my ($concept, $data, $expected, $label) = @$t;
-	my $got = mqttobservations::_get_description($concept, $data);
-	is($got, $expected, "_get_description: $label");
+	my $got = mqttobservations::get_description($concept, $data);
+	is($got, $expected, "get_description: $label");
 }
 
 # ---------------------------------------------------------------------------
