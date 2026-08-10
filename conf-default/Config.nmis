@@ -214,8 +214,14 @@ my %hash = (
 	# (admin/updateconfig.pl) but only ever diff Events.nmis for manual
 	# review, so per-event flags never reach an existing install. Consulted
 	# in addition to the per-event Events.nmis Status flag: docs exist but
-	# never count toward the node health percentage.
-	'status_summary_exclude_events' => 'Interface Down,Service Down,Service Degraded,Service Configuration Error,Model File Invalid',
+	# never count toward the node health percentage. Interface Down/Service
+	# Down/Service Degraded are here deliberately - these do not affect node
+	# state and counting them would mark nodes degraded on upgrade. Sites
+	# can add any other event name here too (e.g. Service Configuration
+	# Error, Model File Invalid - both already say Status => 'true' in
+	# Events.nmis, so they're not excluded by default) if they don't want
+	# it counted once health_score_include_operational_events is on.
+	'status_summary_exclude_events' => 'Interface Down,Service Down,Service Degraded',
 	'threshold_period-default' => '-15 minutes',
 	'threshold_period-health' => '-4 hours',
 	'threshold_period-interface' => '-15 minutes',
