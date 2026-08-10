@@ -1497,7 +1497,10 @@ $C->{health_score_include_operational_events} = 'false';    # restore default
 # reaches every site on its own, so there's no longer a separate list to
 # duplicate its job. This proves the per-event Events.nmis flag alone
 # gates the write correctly, in both directions.
-my $events_config = NMISNG::Util::loadTable( dir => 'conf', name => 'Events', conf => $C );
+# loadTable caches and returns a LIVE reference - copy the top level before
+# adding our synthetic entry, or it leaks into every later Events load in
+# this process for the rest of the test file.
+my $events_config = { %{ NMISNG::Util::loadTable( dir => 'conf', name => 'Events', conf => $C ) } };
 $events_config->{"OMK12605 EventsUntracked"} = { Log => "true", Notify => "true", Status => "true", TrackStatus => "false" };
 
 NMISNG::Status::save_operational_status(
