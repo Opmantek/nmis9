@@ -17,7 +17,12 @@ use warnings;
 #use lib "$FindBin::Bin/../../conf/plugins";
 
 use lib "/usr/local/nmis9/lib";
-use lib "/usr/local/nmis9/conf/plugins";
+
+# Load the plugin from this directory — the repo source being tested, not
+# whatever copy happens to be installed in conf/plugins (which is empty until
+# install.sh has been run). Same approach as contrib/nmis-mcp/t_nmis-mcp.pl.
+use FindBin;
+use lib $FindBin::Bin;
 
 use Test::More;
 
@@ -114,7 +119,7 @@ for my $t (@$desc_tests)
 {
 	my ($concept, $data, $expected, $label) = @$t;
 	my $got = mqttobservations::get_description($concept, $data);
-	is($got, $expected, "_get_description: $label");
+	is($got, $expected, "get_description: $label");
 }
 
 # ---------------------------------------------------------------------------

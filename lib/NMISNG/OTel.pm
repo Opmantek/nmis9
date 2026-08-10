@@ -192,15 +192,32 @@ our %FIELD_RENAME = (
 
 # ---------------------------------------------------------------------------
 # Health "*Health" fields (reachabilityHealth, cpuHealth, memHealth, ...) are
-# NOT percentages. compute_reachability() in NMISNG::Node stores each one as
-# that metric's *contribution* to the overall node health: percentage * config
-# weight. With the default weight_cpu=0.2 a CPU sitting at 85% is stored as 17,
-# which reads as an alarming "17" when published on its own even though the CPU
-# is healthy.
+# NOT 0-100 values as stored. compute_reachability() in NMISNG::Node stores each
+# one as that metric's *contribution* to the overall node health: a 0-100 health
+# score multiplied by the matching config weight. With the default weight_cpu=0.2
+# an idle CPU scores 100 and is stored as 20, which reads as an alarming "20"
+# when published on its own even though the CPU is perfectly healthy.
 #
-# unweight_health divides each *Health field by its weight, recovering the
-# 0-100 percentage the operator expects to see (17 -> 85). The map below ties
-# each field to the Config.nmis weight key that produced it.
+# unweight_health divides each *Health field by its weight, recovering the 0-100
+# score (20 -> 100). The map below ties each field to the Config.nmis weight key
+# that produced it.
+#
+# Note what the recovered score is and is not. For every field 100 is healthiest
+# and 0 is worst, but only reachabilityHealth and availabilityHealth come from
+# genuine percentages. The rest are *banded* scores that compute_reachability
+# derives from the underlying measurement, and the banding is not linear and for
+# cpu/disk runs opposite to utilisation:
+#
+#   cpuHealth   <- cpu utilisation:      <=10% -> 100, <=50% -> 60, >90% -> 1
+#   memHealth   <- percent memory FREE:  >=40% -> 100, >=20% -> 60, <5%  -> 1
+#   diskHealth  <- mean disk utilisation across filesystems, banded like cpu
+#   intHealth   <- proportion of collected interfaces that are up
+#   responseHealth <- ping round-trip time: <200ms -> 100, >=500ms -> 60,
+#                     >=1500ms -> 0 (an unmeasurable "U" time also scores 0)
+#
+# So cpuHealth=100 means the CPU is nearly idle, NOT that it is pegged at 100%.
+# Verified against a live node: 3% CPU -> score 100 -> stored 20; 23% memory free
+# -> score 60 -> stored 6.
 #
 # weight_mem is shared between mem+swap and weight_int between int+disk. When
 # the swap (resp. disk) partner is active, compute_reachability halves both

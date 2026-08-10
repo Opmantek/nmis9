@@ -28,7 +28,7 @@ use JSON::XS;
 #    helpers that the MCP server and the mqttobservations plugin both use).
 # ---------------------------------------------------------------------------
 
-use NMISNG::OTel qw(apply_field_rename filter_derived filter_derived_flat get_description unweight_health);
+use NMISNG::OTel qw(apply_field_rename filter_derived filter_derived_flat get_description unweight_health %HEALTH_WEIGHT);
 
 # ---------------------------------------------------------------------------
 # 2. get_description tests
@@ -222,6 +222,108 @@ for my $t (@desc_tests)
 	# missing weight -> value left unchanged rather than divided by zero
 	my $n = unweight_health({ cpuHealth => 17 }, {});
 	is($n->{cpuHealth}, 17, 'unweight: no weight configured leaves value as-is');
+
+	# A real record, captured from a live SNMP-polled node (sol.packsin.com)
+	# with the default weights above and disk collection active, so weight_int
+	# is split across int+disk. Anchors the rescale to observed production data
+	# rather than only to constructed cases.
+	#
+	# The node's actual state at capture: CPU ~3% utilised (scores 100),
+	# 23% memory free (scores 60), mean disk utilisation ~25% (scores 80).
+	# Note these are health scores, not utilisation -- 100 is healthiest.
+	my $live = unweight_health({
+		reachabilityHealth => 10,
+		availabilityHealth => 3.158,
+		responseHealth     => 20,
+		cpuHealth          => 20,
+		memHealth          => 6,
+		swapHealth         => 0,
+		intHealth          => 15,
+		diskHealth         => 12,
+	}, \%weights);
+	is($live->{reachabilityHealth}, 100,   'live record: reachability 10 -> 100');
+	is($live->{availabilityHealth}, 31.58, 'live record: availability 3.158 -> 31.58');
+	is($live->{responseHealth},     100,   'live record: response 20 -> 100');
+	is($live->{cpuHealth},          100,   'live record: idle cpu 20 -> 100');
+	is($live->{memHealth},          60,    'live record: mem 6 -> 60 (swap inactive, full weight_mem)');
+	is($live->{swapHealth},         0,     'live record: inactive swap stays 0');
+	is($live->{intHealth},          100,   'live record: int 15 -> 100 (disk active, halved weight_int)');
+	is($live->{diskHealth},         80,    'live record: disk 12 -> 80 (halved weight_int)');
+	ok(!grep { ($live->{$_} // 0) < 0 || ($live->{$_} // 0) > 100 } keys %HEALTH_WEIGHT,
+		'live record: every rescaled value lands within 0-100');
+
+	# Invariant worth pinning: compute_reachability derives reachabilityHealth
+	# and availabilityHealth straight from the reachability/availability
+	# percentages (value * weight), so after rescaling each must equal the
+	# plain field sitting next to it in the same record. If the weight map or
+	# the division ever drifts, these two diverge before anything else does.
+	{
+		my $rec = { reachability => 100, availability => 31.58,
+		            reachabilityHealth => 100 * $weights{weight_reachability},
+		            availabilityHealth => 31.58 * $weights{weight_availability} };
+		my $inv = unweight_health($rec, \%weights);
+		is($inv->{reachabilityHealth}, $inv->{reachability},
+			'invariant: rescaled reachabilityHealth == reachability');
+		is($inv->{availabilityHealth}, $inv->{availability},
+			'invariant: rescaled availabilityHealth == availability');
+	}
+
+	# Round-trip against the real formula: reproduce what compute_reachability()
+	# in NMISNG::Node stores, then assert unweight_health inverts it exactly.
+	# This is what pins the rescale to the upstream maths rather than to
+	# hand-computed constants.
+	for my $pct (0.5, 37, 85, 99.5, 100)
+	{
+		# plain case: stored = pct * weight
+		my $plain = unweight_health({
+			cpuHealth  => $pct * $weights{weight_cpu},
+			intHealth  => $pct * $weights{weight_int},
+			swapHealth => 0,
+			diskHealth => 0,
+		}, \%weights);
+		is($plain->{cpuHealth}, $pct, "round-trip: cpu $pct% survives weighting");
+		is($plain->{intHealth}, $pct, "round-trip: int $pct% survives weighting");
+
+		# shared-weight case: when the partner metric is active NMIS halves both
+		# shares (weight/2), so the inverse must use the halved weight too.
+		my $split = unweight_health({
+			memHealth  => $pct * ($weights{weight_mem} / 2),
+			swapHealth => $pct * ($weights{weight_mem} / 2),
+			intHealth  => $pct * ($weights{weight_int} / 2),
+			diskHealth => $pct * ($weights{weight_int} / 2),
+		}, \%weights);
+		is($split->{memHealth},  $pct, "round-trip: mem $pct% survives halved weight_mem");
+		is($split->{swapHealth}, $pct, "round-trip: swap $pct% survives halved weight_mem");
+		is($split->{intHealth},  $pct, "round-trip: int $pct% survives halved weight_int");
+		is($split->{diskHealth}, $pct, "round-trip: disk $pct% survives halved weight_int");
+	}
+}
+
+# ---------------------------------------------------------------------------
+# 3b. %HEALTH_WEIGHT must name weights that actually exist in the shipped
+#     config. unweight_health skips any field whose weight key is missing
+#     (`next if !$weight`), so a typo'd or renamed key would silently stop the
+#     rescale and republish the weighted numbers with no error anywhere.
+# ---------------------------------------------------------------------------
+{
+	my $default_config = "$FindBin::Bin/../../conf-default/Config.nmis";
+
+	SKIP: {
+		skip "conf-default/Config.nmis not found", 1 if (!-r $default_config);
+
+		open(my $fh, '<', $default_config) or skip "cannot read $default_config", 1;
+		my %shipped;
+		while (my $line = <$fh>)
+		{
+			$shipped{$1} = 1 while $line =~ /'(weight_\w+)'\s*=>/g;
+		}
+		close($fh);
+
+		my @missing = sort grep { !$shipped{$_} } keys %{{ map { $_ => 1 } values %HEALTH_WEIGHT }};
+		is_deeply(\@missing, [],
+			'every %HEALTH_WEIGHT key exists in conf-default/Config.nmis')
+			or diag("weight keys not present in shipped config: @missing");
+	}
 }
 
 # ---------------------------------------------------------------------------

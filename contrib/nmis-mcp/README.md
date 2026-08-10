@@ -231,6 +231,61 @@ Metrics are renamed from NMIS-native names to OpenTelemetry-inspired semantic co
 | `health` | `nmis.node.health` |
 | `responsetime` | `nmis.node.response_time_ms` |
 | `loss` | `nmis.node.packet_loss` |
+| `intfCollect` | `nmis.node.intf_collect` |
+| `intfColUp` | `nmis.node.intf_collect_up` |
+| `reachabilityHealth` | `nmis.node.reachability_health` |
+| `availabilityHealth` | `nmis.node.availability_health` |
+| `responseHealth` | `nmis.node.response_health` |
+| `cpuHealth` | `nmis.node.cpu_health` |
+| `memHealth` | `nmis.node.mem_health` |
+| `intHealth` | `nmis.node.int_health` |
+| `diskHealth` | `nmis.node.disk_health` |
+| `swapHealth` | `nmis.node.swap_health` |
+
+#### The `*Health` fields are rescaled to 0-100
+
+The eight `*Health` fields above are **not** stored by NMIS as 0-100 values.
+`compute_reachability()` in `NMISNG::Node` stores each one as that metric's
+*weighted contribution* to the overall node health — a 0-100 health score
+multiplied by the corresponding `weight_*` setting in `Config.nmis`. With the
+default `weight_cpu = 0.2`, an idle CPU scores 100 and is stored as `20`, which
+reads as an alarming "20" if returned as-is.
+
+`nmis_get_node_status` and `nmis_get_latest_metrics` divide each field back out
+by the weight that produced it, so the value returned to the model is the 0-100
+score (`20` → `100`). The overall `health` field is already a 0-100 figure and
+is passed through unchanged.
+
+##### These are health scores, not utilisation
+
+For every field **100 is healthiest and 0 is worst**, but only
+`reachabilityHealth` and `availabilityHealth` are derived from genuine
+percentages. The others are *banded* scores that `compute_reachability` derives
+from the underlying measurement. The banding is not linear, and for cpu and disk
+it runs **opposite** to utilisation:
+
+| Field | Derived from | Sample bands |
+|-------|--------------|--------------|
+| `cpuHealth` | CPU utilisation | ≤10% → 100, ≤50% → 60, >90% → 1 |
+| `memHealth` | percent memory **free** | ≥40% → 100, ≥20% → 60, <5% → 1 |
+| `diskHealth` | mean utilisation across filesystems | banded as per cpu |
+| `intHealth` | proportion of collected interfaces up | 100 when all up |
+| `responseHealth` | ping round-trip time | <200ms → 100, ≥500ms → 60, ≥1500ms → 0 |
+
+So `cpu_health = 100` means the CPU is nearly idle — **not** that it is pegged
+at 100%. Confirmed against a live node: 3% CPU utilisation scores 100 and is
+stored as 20; 23% memory free scores 60 and is stored as 6.
+
+Two weights are shared by a pair of metrics: `weight_mem` covers mem+swap and
+`weight_int` covers int+disk. When the partner metric is active, NMIS halves
+both shares; the rescale detects that and uses the halved weight so the
+percentage still recovers correctly. Fields with no configured weight, and
+non-numeric values such as `U`, are passed through untouched.
+
+One limitation is inherited from NMIS: `compute_reachability()` floors these
+fields at a minimum of 1 before storing them, so a metric genuinely at 0% is
+stored as `1` and rescales to a small non-zero percentage instead of 0 (with
+`weight_cpu = 0.2`, to 5%). The original value cannot be recovered.
 
 ### System Stats
 
