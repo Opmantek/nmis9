@@ -53,12 +53,26 @@ working_tests=(
     t_tests_snmp_injection.t
     t_http_security_headers.t
     t_config_load_perms.pl
+    t_htpasswd_store.t
+    t_auth_password_rehash.t
+    t_nmis_cli_htpasswd.t
     t_access_policy.pl
     t_mongo_exposure.t
 )
 
+# run every file even when one fails, so a failure early in the list does not
+# hide the state of everything after it. set -e would abort the loop otherwise.
+status=0
+failed=()
 for i in "${working_tests[@]}"; do
-    /usr/bin/yes n | /usr/bin/prove "$nmis_tests/$i"
+    if ! /usr/bin/yes n | /usr/bin/prove "$nmis_tests/$i"; then
+        status=1
+        failed+=("$i")
+    fi
 done
 
-exit 0
+if [ "$status" -ne 0 ]; then
+    echo "FAILED: ${failed[*]}" >&2
+fi
+
+exit $status

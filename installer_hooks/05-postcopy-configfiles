@@ -26,6 +26,22 @@ else
 		# -n/--noclobber vital here, and no recursion
 		execPrint "cp -van $TARGETDIR/conf-default/users.dat $TARGETDIR/conf-default/Config.nmis $TARGETDIR/conf-default/performance.nmis $TARGETDIR/conf/"
 
+		# OMK-12705: plaintext password storage no longer authenticates, and
+		# stored plaintext cannot be migrated (a 13-char plaintext password is
+		# indistinguishable from a DES hash). Warn rather than silently break.
+		if [ -f "$TARGETDIR/conf/Config.nmis" ] \
+			&& grep -q "^[^#]*auth_htpasswd_encrypt.*plaintext" "$TARGETDIR/conf/Config.nmis"; then
+			cat <<EOF
+
+WARNING: this installation has auth_htpasswd_encrypt set to plaintext.
+Plaintext password storage is no longer supported and those passwords will
+no longer work. Reset each one after the upgrade with:
+
+    $TARGETDIR/bin/nmis-cli act=set-htpasswd-password user=<name>
+
+EOF
+			input_yn "Continue with the upgrade?" "0376" || exit 1
+		fi
 
 		# jQuery upgrade
 		printBanner "Upgrading jquery configuration"

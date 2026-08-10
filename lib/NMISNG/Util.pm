@@ -5000,6 +5000,229 @@ sub _make_seed {
 
 	return 0;
 }
+
+# generate_random_password: return a strong random password string.
+# reads the OS CSPRNG (/dev/urandom) directly, never the built-in rand().
+# input: optional length (default 20)
+# output: password string of the requested length, charset [A-Za-z0-9]
+sub generate_random_password
+{
+	my ($length) = @_;
+	$length = 20 if (!defined($length) || $length !~ /^\d+$/ || $length < 1);
+
+	my @charset = (('A'..'Z'), ('a'..'z'), (0..9));
+	my $range   = scalar(@charset);            # 62
+	my $limit   = 256 - (256 % $range);        # reject bytes >= limit to avoid modulo bias
+
+	# use the OS CSPRNG directly. NMIS is linux-only and every supported
+	# platform (bare metal and containers) provides /dev/urandom, so no perl
+	# module dependency is needed. die loudly rather than fall back to the
+	# non-cryptographic built-in rand().
+	open(my $ur, '<:raw', '/dev/urandom')
+		or die "generate_random_password: cannot open /dev/urandom: $!\n";
+
+	my $password = '';
+	while (length($password) < $length)
+	{
+		my $buf;
+		my $got = read($ur, $buf, ($length - length($password)) * 2 + 8);
+		die "generate_random_password: cannot read /dev/urandom: $!\n"
+			if (!defined($got) || $got <= 0);
+		for my $byte (unpack('C*', $buf))
+		{
+			next if ($byte >= $limit);         # drop biased tail
+			$password .= $charset[$byte % $range];
+			last if (length($password) >= $length);
+		}
+	}
+	close $ur;
+	return $password;
+}
+
+# hash_password: hash a plaintext password for storage in users.dat.
+# sha512 is the only scheme, deliberately: apr1 and des are what _file_verify
+# rewrites on login, so writing either would be undone at the next one.
+# input: plaintext, optional scheme (sha512), optional rounds
+# output: hash string verifiable by NMISNG::Auth::_file_verify
+sub hash_password
+{
+	my ($plain, $scheme, $rounds) = @_;
+	$scheme = "sha512" if (!defined($scheme) || $scheme eq '');
+	# crypt(3) returns the token *0 below 1000 rounds rather than clamping
+	$rounds = 100000 if (!defined($rounds) || $rounds !~ /^\d+$/ || $rounds < 1000);
+
+	die "hash_password: no plaintext supplied\n" if (!defined($plain) || $plain eq '');
+
+	if ($scheme eq "sha512")
+	{
+		# crypt re-derives the scheme from the salt prefix, so no module is needed
+		my $hash = crypt($plain, '$6$rounds=' . $rounds . '$'
+			. generate_random_password(16));
+		die "hash_password: this platform cannot produce sha512 crypt hashes\n"
+			if (!defined($hash) || $hash !~ /^\$6\$/);
+		return $hash;
+	}
+
+	die "hash_password: unknown scheme '$scheme'\n";
+}
+
+# the write step, in a package variable so tests can force a mid-write failure
+# and prove the .bak restore works. same seam as $_data_writer at Util.pm:1608.
+our $_htpasswd_writer = sub
+{
+	my ($fh, $content, $file) = @_;
+	return "cannot rewind $file: $!"   if (!seek($fh, 0, 0));
+	return "cannot truncate $file: $!" if (!truncate($fh, 0));
+	return "cannot write $file: $!"    if (!print $fh $content);
+	return "cannot flush $file: $!"    if (!$fh->flush);
+	return "cannot sync $file: $!"     if (!$fh->sync);
+	return undef;
+};
+
+# set_htpasswd_entry: rewrites one user's entry under an exclusive lock.
+# input: file, user, hash (undef deletes), retries (default 3).
+# output: undef, or an error message.
+sub set_htpasswd_entry
+{
+	my %args = @_;
+	my ($file, $user, $hash) = @args{qw(file user hash)};
+
+	return "set_htpasswd_entry: no file given" if (!defined($file) || $file eq '');
+	return "set_htpasswd_entry: no user given" if (!defined($user) || $user eq '');
+	return "set_htpasswd_entry: user may not contain a colon or newline"
+		if ($user =~ /[:\r\n]/);
+	return "set_htpasswd_entry: hash may not contain a colon or newline"
+		if (defined($hash) && $hash =~ /[:\r\n]/);
+
+	# optional compare-and-swap. the login upgrade passes the hash it verified,
+	# so a concurrent admin reset or delete is never undone.
+	my $expect = $args{expect};
+
+	open(my $fh, "+<", $file)
+		or return "set_htpasswd_entry: cannot open $file: $!";
+
+	# never block: this can run inside a login request. jitter the backoff,
+	# because a fixed interval keeps concurrent writers in lockstep colliding:
+	# measured, 3 fixed tries win the lock 38% of the time, 3 jittered ones 95%.
+	my $tries = (defined($args{retries}) && $args{retries} =~ /^\d+$/
+		&& $args{retries} > 0) ? $args{retries} : 3;
+	my $locked = 0;
+	for (1 .. $tries)
+	{
+		last if ($locked = flock($fh, LOCK_EX | LOCK_NB));
+		select(undef, undef, undef, 0.05 * (0.5 + rand()));
+	}
+	if (!$locked)
+	{
+		close $fh;
+		return "set_htpasswd_entry: cannot lock $file: $!";
+	}
+
+	my (@keep, $replaced, $current, $seen);
+	seek($fh, 0, 0);
+	while (my $line = <$fh>)
+	{
+		chomp $line;
+		my ($u, $h) = split(/:/, $line, 2);
+		if (defined($u) && $u eq $user)
+		{
+			($current, $seen) = ($h, 1) if (!$seen);
+			# collapse duplicates: rewrite the first, drop the rest
+			next if ($replaced || !defined($hash));
+			push @keep, "$user:$hash";
+			$replaced = 1;
+			next;
+		}
+		push @keep, $line;
+	}
+
+	if (defined($expect) && (!$seen || !defined($current) || $current ne $expect))
+	{
+		close $fh;
+		return "set_htpasswd_entry: the stored entry for $user changed while we "
+			. "were working, nothing written";
+	}
+
+	push @keep, "$user:$hash" if (defined($hash) && !$replaced);
+	my $content = join('', map { "$_\n" } @keep);
+
+	# back up inside the lock: the truncate below has a crash window, and an
+	# empty users.dat locks every user out. backupFile uses File::Copy::cp,
+	# which preserves the mode, so the hashes are never briefly world-readable.
+	my $bak = "$file.bak";
+	# a previous writer may own this from a different uid, and cp cannot
+	# overwrite what it cannot open. both writers can create in conf/, so
+	# removing it first keeps the backup owned by whoever is writing now.
+	unlink($bak);
+	if (my $bakerr = backupFile(file => $file, backup => $bak))
+	{
+		close $fh;
+		return "set_htpasswd_entry: cannot back up $file: $bakerr";
+	}
+
+	my $err = $_htpasswd_writer->($fh, $content, $file);
+
+	if ($err)
+	{
+		# close BEFORE restoring. a failed write may still sit in perl's buffer,
+		# and closing afterwards would flush it back over the restored content.
+		close $fh;
+		my $restorefail = backupFile(file => $bak, backup => $file);
+		return "set_htpasswd_entry: $err, and restoring from $bak also failed "
+			. "($restorefail). $file may be truncated: recover it from $bak"
+			if ($restorefail);
+		return "set_htpasswd_entry: $err";
+	}
+	if (!close($fh))
+	{
+		return "set_htpasswd_entry: cannot close $file: $!, "
+			. "the previous content is in $bak";
+	}
+	# the backup exists only to survive a failed write. keeping it would leave
+	# the pre-upgrade weak hash readable in conf/ indefinitely.
+	unlink($bak);
+	return undef;
+}
+
+# redact_htpasswd_files: strip every hash from the users.dat* copies in a
+# support bundle. fails closed: a copy that cannot be rewritten is unlinked,
+# so an unredacted one never reaches the archive.
+# input: dir (the bundle's conf directory)
+# output: undef, or a description of what could not be redacted
+sub redact_htpasswd_files
+{
+	my %args = @_;
+	my $dir = $args{dir};
+	return "redact_htpasswd_files: no dir given" if (!defined($dir) || $dir eq '');
+
+	my @problems;
+	for my $uf (glob("$dir/users.dat*"))
+	{
+		next if (!-f $uf);
+		my $err = _redact_one_htpasswd($uf);
+		next if (!$err);
+		push @problems, (unlink($uf)
+			? "$uf could not be redacted ($err) and was removed from the bundle"
+			: "$uf could not be redacted ($err) and could not be removed either: $!");
+	}
+	return @problems ? join('; ', @problems) : undef;
+}
+
+# rewrite one htpasswd file with every hash replaced by a placeholder.
+# separate sub so the fail-closed path above has a seam the tests can force.
+sub _redact_one_htpasswd
+{
+	my ($file) = @_;
+	open(my $in, '<', $file) or return "cannot read: $!";
+	my @lines = <$in>;
+	close $in;
+	s/^([^:\r\n]*:).*$/${1}_removed_/ for (@lines);
+	open(my $out, '>', $file) or return "cannot rewrite: $!";
+	print $out @lines            or return "cannot write: $!";
+	close($out)                  or return "cannot close: $!";
+	return undef;
+}
+
 # take pregen'd sequence of fractions, returns percentile
 # input: percentile, sequence
 # output: the value

@@ -56,6 +56,7 @@ use NMISNG::Notify;											# for auth lockout emails
 
 use MIME::Base64;
 use Digest::SHA;								# for the HMAC-signed omk auth cookie
+use Fcntl qw(:flock);						# shared lock on the password file read
 use Data::Dumper;
 use CGI qw(:standard);					# needed for current url lookup, http header, plus td/tr/bla_field helpery
 use Time::ParseDate;
@@ -477,7 +478,7 @@ sub user_verify {
 			if($ENV{'REMOTE_USER'} ne "") { $exit=1; }
 			else { $exit=0; }
 		} elsif ( $auth eq "htpasswd" ) {
-			$exit = $self->_file_verify($self->{config}->{auth_htpasswd_file},$u,$p,$self->{config}->{auth_htpasswd_encrypt});
+			$exit = $self->_file_verify($self->{config}->{auth_htpasswd_file},$u,$p);
 		} elsif ( $auth eq "radius" ) {
 			$exit = $self->_radius_verify($u,$p,$auth);
 		} elsif ( $auth eq "tacacs" ) {
@@ -516,24 +517,38 @@ sub user_verify {
 
 #----------------------------------
 
-# verify against a password file:   username:password
-# both unix-std crypt and apache-specific md5 password hashing are tried.
-# encmode == plaintext means plaintext passwords are also allowed
+# _hash_scheme: name the stored hash's scheme, for the upgrade decision only.
+# only des and apr1 are ever rewritten. everything else, including $6$ and
+# whatever crypt can verify but we do not name, is left exactly as it is.
+sub _hash_scheme
+{
+	my ($h) = @_;
+	return 'sha512' if ($h =~ /^\$6\$/);
+	return 'apr1'   if ($h =~ /^\$apr1\$/);
+	return 'des'    if ($h =~ m{^[./0-9A-Za-z]{13}$});
+	return 'other';
+}
+
+# verify against a password file:   username:hash
+# the hash function is chosen from the stored prefix. a weak stored hash is
+# rewritten after a successful login. plaintext storage is not supported.
 sub _file_verify {
 	my $self = shift;
-	my($pwfile,$u,$p,$encmode) = @_;
+	my($pwfile,$u,$p) = @_;
 
-	NMISNG::Util::logAuth("DEBUG: _file_verify($pwfile,$u,$encmode)") if $self->{debug};
-
-	my $allowplaintext = ($encmode eq "plaintext");
-	# the other encmode parameters are ignored.
+	NMISNG::Util::logAuth("DEBUG: _file_verify($pwfile,$u)") if $self->{debug};
 
 	my $havematch=-1;
+	# an empty submitted password can never be correct
+	return 0 if (!defined($p) || $p eq '');
 	if (!open(PW,"<$pwfile"))
 	{
 		NMISNG::Util::logAuth("ERROR: Cannot open password file $pwfile: $!");
 		return 0;
 	}
+	# set_htpasswd_entry rewrites in place, so an unlocked read can see a
+	# truncated file. blocking is safe: writers hold LOCK_EX for microseconds.
+	flock(PW, LOCK_SH);
 
 	while(<PW>)
 	{
@@ -541,11 +556,50 @@ sub _file_verify {
 		my ($user,$crypted) = split(/:/,$_,2);
 		next if ($user ne $u or $crypted eq '');
 
-		# try all types in sequence: crypt first, apache-md5 second
-		# plaintext if and only if explicitely enabled
-		$havematch = (crypt($p,$crypted) eq $crypted
-									or apache_md5_crypt($p,$crypted) eq $crypted
-									or ($allowplaintext && $p eq $crypted));
+		# a locked account never matches, whatever was submitted
+		if ($crypted =~ /^[*!]/)
+		{
+			NMISNG::Util::logAuth("INFO account $u is locked");
+			$havematch = 0;
+			last;
+		}
+
+		my $scheme = _hash_scheme($crypted);
+		if ($scheme eq 'apr1')
+		{
+			$havematch = (apache_md5_crypt($p, $crypted) eq $crypted) ? 1 : 0;
+		}
+		else
+		{
+			# crypt returns undef or a * token when libcrypt cannot handle the
+			# stored prefix. that is a platform problem, not a wrong password.
+			my $c = crypt($p, $crypted);
+			if (!defined($c) or $c =~ /^\*/)
+			{
+				NMISNG::Util::logAuth("ERROR cannot verify the stored password hash "
+					. "for user $u in $pwfile: scheme not supported by this platform");
+				$havematch = 0;
+				last;
+			}
+			$havematch = ($c eq $crypted) ? 1 : 0;
+		}
+
+		# upgrade a weak stored hash, but never fail the login over it. only des
+		# and apr1 are rewritten: $6$ and anything from an external htpasswd are
+		# left exactly as they are.
+		if ($havematch && ($scheme eq 'des' or $scheme eq 'apr1'))
+		{
+			# drop the read lock first: flock conflicts per open file description,
+			# so our own LOCK_SH would refuse the writer's LOCK_EX.
+			flock(PW, LOCK_UN);
+			my $err = eval {
+				NMISNG::Util::set_htpasswd_entry(file => $pwfile, user => $user,
+					expect => $crypted, hash => NMISNG::Util::hash_password($p));
+			};
+			$err = $@ if ($@);
+			NMISNG::Util::logAuth("WARNING could not upgrade the password hash "
+				. "for $u: $err") if ($err);
+		}
 		last;
 	}
 	close PW;

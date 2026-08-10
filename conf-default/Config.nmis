@@ -292,7 +292,6 @@ my %hash = (
 	'auth_default_groups' => '',
 	'auth_default_privilege' => '',
 	'auth_expire' => '+30min',
-	'auth_htpasswd_encrypt' => 'crypt',
 	'auth_htpasswd_file' => '<nmis_conf>/users.dat',
 	'auth_ldap_acc' => 'cn=administrator,ou=people,dc=corp,dc=opmantek,dc=com',
 	'auth_ldap_attr' => 'sAMAccountName cn',

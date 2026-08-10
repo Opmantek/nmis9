@@ -130,7 +130,11 @@ my $usage       = "Usage: $PROGNAME [option=value...] <act=command>
  act=get-sessions user=<username>
  act=set-last-login user=<username> last_login=<last_login>
  act=unlock-user user=<username>
- 
+
+ act=set-htpasswd-password user=<username> [password=<pass>] [file=<path>]
+ act=list-htpasswd [file=<path>]
+ act=delete-htpasswd-user user=<username> [file=<path>]
+
  act=notify event=<event> <node|uuid>=<instance> [element=<element> details=<details> level=<level>]
  
  \033[1m For additional information run '$PROGNAME -h' \033[0m
@@ -1372,6 +1376,19 @@ elsif ($Q->{act} =~ /unlock[-_]user/)
 	my $user = $Q->{user};
 	unlock_user(user => $user);
 }
+elsif ($Q->{act} =~ /^set[-_]htpasswd[-_]password$/)
+{
+	set_htpasswd_password(user => $Q->{user}, password => $Q->{password},
+		file => _resolve_htpasswd_file($Q->{file}));
+}
+elsif ($Q->{act} =~ /^list[-_]htpasswd$/)
+{
+	list_htpasswd(file => _resolve_htpasswd_file($Q->{file}));
+}
+elsif ($Q->{act} =~ /^delete[-_]htpasswd[-_]user$/)
+{
+	delete_htpasswd_user(user => $Q->{user}, file => _resolve_htpasswd_file($Q->{file}));
+}
 elsif ($Q->{act} =~ /notify/)
 {
 	my $nodeobj;
@@ -1746,9 +1763,209 @@ sub unlock_user
 		}
 		
 	} else {
-		print "unlock_user $user. Done \n"; 
+		print "unlock_user $user. Done \n";
 	}
-	
+
+}
+
+# htpasswd password administration.
+# passwords only. privileges and roles live in conf/Users.nmis and are not
+# managed here. see admin/set_admin_password.pl for the install-time seeder,
+# which never overwrites a password that is already set.
+
+sub _resolve_htpasswd_file
+{
+	my ($given) = @_;
+	my $file = (defined($given) && $given ne '') ? $given : $C->{auth_htpasswd_file};
+	if (!defined($file) || $file eq '')
+	{
+		print STDERR "ERROR: no htpasswd file given and auth_htpasswd_file is not set\n";
+		exit 2;
+	}
+	return $file;
+}
+
+sub set_htpasswd_password
+{
+	my %args = @_;
+	my ($user, $password, $file) = @args{qw(user password file)};
+	if (!defined($user) || $user eq '')
+	{
+		print STDERR "ERROR: act=set-htpasswd-password needs user=<name>\n";
+		exit 1;
+	}
+	if (!-f $file)
+	{
+		print STDERR "ERROR: $file does not exist\n";
+		exit 2;
+	}
+
+	$password = prompt_password() if (!defined($password) || $password eq '');
+	if (!defined($password) || $password eq '')
+	{
+		print STDERR "ERROR: empty password, nothing written\n";
+		exit 1;
+	}
+
+	my $hash = eval { NMISNG::Util::hash_password($password) };
+	if (!defined($hash))
+	{
+		print STDERR "ERROR: cannot hash the password: $@";
+		exit 2;
+	}
+
+	# generous retries: a human is waiting, and unlike the re-hash on login a
+	# lost write here is not self-healing.
+	my $err = NMISNG::Util::set_htpasswd_entry(file => $file, user => $user,
+		hash => $hash, retries => 40);
+	if ($err)
+	{
+		print STDERR "ERROR: $err\n";
+		exit 2;
+	}
+
+	# read back: opmojo writes this same file with the external htpasswd, which
+	# ignores our lock and renames over it, so a write can be lost silently.
+	if (!_htpasswd_entry_matches($file, $user, $hash))
+	{
+		print STDERR "ERROR: the new password for $user is not in $file after "
+			. "writing. Another process (e.g. opmojo, or htpasswd) may have "
+			. "written the file at the same time. Re-run and check.\n";
+		exit 2;
+	}
+	# audit the change. never record the password or the hash.
+	my $audit_err = NMISNG::Util::audit_log(who => $thislogin, what => "set htpasswd password",
+		where => $file, how => "nmis-cli", when => time,
+		details => "set password for user $user");
+	print STDERR "WARNING: could not write audit log: $audit_err\n" if ($audit_err);
+
+	print "Password updated for user $user in $file\n";
+	return;
+}
+
+# print user and stored scheme, never the hash itself
+sub list_htpasswd
+{
+	my %args = @_;
+	my $file = $args{file};
+	open(my $fh, '<', $file) or do {
+		print STDERR "ERROR: cannot read $file: $!\n";
+		exit 2;
+	};
+	printf("%-24s %s\n", 'USER', 'SCHEME');
+	while (my $line = <$fh>)
+	{
+		chomp $line;
+		next if ($line !~ /:/);
+		my ($u, $h) = split(/:/, $line, 2);
+		next if (!defined($u) || $u eq '');
+		printf("%-24s %s\n", $u, _htpasswd_scheme_label($h));
+	}
+	close $fh;
+	return;
+}
+
+# human-facing label: flag the weak schemes so an admin can find them.
+sub _htpasswd_scheme_label
+{
+	my ($h) = @_;
+	return 'none'   if (!defined($h) || $h eq '');
+	return 'locked' if ($h =~ /^[*!]/);
+	my $s = NMISNG::Auth::_hash_scheme($h);
+	return "$s (LEGACY)" if ($s eq 'des' or $s eq 'apr1');
+	return $s;
+}
+
+sub delete_htpasswd_user
+{
+	my %args = @_;
+	my ($user, $file) = @args{qw(user file)};
+	if (!defined($user) || $user eq '')
+	{
+		print STDERR "ERROR: act=delete-htpasswd-user needs user=<name>\n";
+		exit 1;
+	}
+	if (!-f $file)
+	{
+		print STDERR "ERROR: $file does not exist\n";
+		exit 2;
+	}
+	my $existed = _htpasswd_entry_matches($file, $user, undef) ? 0 : 1;
+	# retries => 40 for the same reason as set_htpasswd_password: a human is
+	# waiting and a lost delete is not self-healing.
+	my $err = NMISNG::Util::set_htpasswd_entry(file => $file, user => $user,
+		hash => undef, retries => 40);
+	if ($err)
+	{
+		print STDERR "ERROR: $err\n";
+		exit 2;
+	}
+
+	# read back. a lost delete is worse than a lost password change: the admin
+	# believes access is revoked while the account is still live.
+	if (!_htpasswd_entry_matches($file, $user, undef))
+	{
+		print STDERR "ERROR: $user is STILL PRESENT in $file after the delete. "
+			. "Another process (e.g. opmojo, or htpasswd) may have written the "
+			. "file at the same time. Access is NOT revoked. Re-run and check.\n";
+		exit 2;
+	}
+	my $audit_err = NMISNG::Util::audit_log(who => $thislogin, what => "deleted htpasswd user",
+		where => $file, how => "nmis-cli", when => time,
+		details => "removed user $user");
+	print STDERR "WARNING: could not write audit log: $audit_err\n" if ($audit_err);
+
+	print $existed ? "Removed user $user from $file\n"
+	               : "User $user was not present in $file, nothing to remove\n";
+	return;
+}
+
+# true when the user's first entry holds exactly this hash. with $hash undef it
+# means the opposite: true when the user has no entry, which is what a delete
+# needs to confirm.
+sub _htpasswd_entry_matches
+{
+	my ($file, $user, $hash) = @_;
+	open(my $fh, '<', $file) or return 0;
+	while (my $line = <$fh>)
+	{
+		chomp $line;
+		my ($u, $h) = split(/:/, $line, 2);
+		next if (!defined($u) || $u ne $user);
+		close $fh;
+		return 0 if (!defined($hash));            # wanted gone, still there
+		return (defined($h) && $h eq $hash) ? 1 : 0;
+	}
+	close $fh;
+	return defined($hash) ? 0 : 1;                # absent, which a delete wants
+}
+
+# read twice without echo, so the password never reaches the process list,
+# the shell history or the terminal
+sub prompt_password
+{
+	if (!-t STDIN)
+	{
+		print STDERR "ERROR: not a terminal, pass password=<pass> instead\n";
+		exit 1;
+	}
+	print "New password: ";
+	Term::ReadKey::ReadMode('noecho');
+	my $first = Term::ReadKey::ReadLine(0);
+	Term::ReadKey::ReadMode('restore');
+	print "\nConfirm password: ";
+	Term::ReadKey::ReadMode('noecho');
+	my $second = Term::ReadKey::ReadLine(0);
+	Term::ReadKey::ReadMode('restore');
+	print "\n";
+	chomp($first)  if (defined $first);
+	chomp($second) if (defined $second);
+	if (!defined($first) || !defined($second) || $first ne $second)
+	{
+		print STDERR "ERROR: passwords did not match\n";
+		exit 1;
+	}
+	return $first;
 }
 
 
@@ -2076,6 +2293,20 @@ sub help
    push(@lines, "     act=unlock-user user=<username>\n");
    push(@lines, "                      This action unlocks the specified user's account..\n");
    push(@lines, "                      The command sholuld be run as the 'root' user.\n");
+   push(@lines, "\n");
+   push(@lines, "  -- HTPASSWD ACTIONS --\n");
+   push(@lines, "     act=set-htpasswd-password user=<name> [password=<pass>] [file=<path>]\n");
+   push(@lines, "                      Sets a password, overwriting any existing one. Without\n");
+   push(@lines, "                      password= you are prompted, and the password is not echoed.\n");
+   push(@lines, "                      Prefer the prompt: password= on the command line is visible\n");
+   push(@lines, "                      in the process list. file= defaults to auth_htpasswd_file.\n");
+   push(@lines, "     act=list-htpasswd [file=<path>]\n");
+   push(@lines, "                      Lists users and the scheme each password is stored with.\n");
+   push(@lines, "                      Never prints a hash.\n");
+   push(@lines, "     act=delete-htpasswd-user user=<name> [file=<path>]\n");
+   push(@lines, "                      Removes a user's htpasswd entry.\n");
+   push(@lines, "                      Passwords only. Privileges and roles live in conf/Users.nmis\n");
+   push(@lines, "                      and are not managed by these actions.\n");
    push(@lines, "   Notes:\n");
    push(@lines, "        * Time Format: These include both absolute time and date formats like\n");
    push(@lines, "          the ISO 8601 type \"2016-05-20T14:40\", as well as very handy relative\n");

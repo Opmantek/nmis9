@@ -11,7 +11,6 @@
     'auth_default_groups' => '',
     'auth_default_privilege' => '',
     'auth_expire' => '+30min',
-    'auth_htpasswd_encrypt' => 'crypt',
     'auth_htpasswd_file' => '<nmis_conf>/users.dat',
     'auth_ldap_attr' => '',
     'auth_ldap_context' => 'ou=people,dc=opmantek,dc=com',

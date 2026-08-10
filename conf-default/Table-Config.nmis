@@ -187,7 +187,6 @@ my %hash = (
 			{ 'auth_method_1' => { display => 'popup', value => ['apache','htpasswd','radius','tacacs','ldap','ldaps','ms-ldap']}},
 			{ 'auth_method_2' => { display => 'popup', value => ['apache','htpasswd','radius','tacacs','ldap','ldaps','ms-ldap']}},
 			{ 'auth_expire' => { display => 'text', value => ['+20min']}},
-			{ 'auth_htpasswd_encrypt' => { display => 'popup', value => ['crypt','md5','plaintext']}},
 			{ 'auth_htpasswd_file' => { display => 'text', value => ['<nmis_conf>/users.dat']}},
 			{ 'auth_ldap_server' => { display => 'text', value => ['']}},
 			{ 'auth_ldaps_server' => { display => 'text', value => ['']}},
