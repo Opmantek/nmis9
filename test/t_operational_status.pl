@@ -432,35 +432,37 @@ for my $ev ( "Interface Down", "Service Down", "Service Degraded" )
 is( $shipped_events{"Planned Outage Open"}{TrackStatus}, "false",
 	"Planned Outage Open ships with TrackStatus=false (no doc)" );
 
-# --- Fix 13 (round 6): Service Configuration Error / Model File Invalid are
-# no longer on the default status_summary_exclude_events list ---
-# Both already say Status => 'true' in Events.nmis (one explicitly, one via
-# the Default fallback), so excluding them via Config.nmis was an
-# undocumented inconsistency (limitation 2), not a considered design
-# decision the way Interface Down/Service Down/Service Degraded's exclusion
-# is. Removed from the shipped default so they count based on their real
-# error/ok state, same as any other operational event, once a site turns
-# health_score_include_operational_events on. A site that wants the old
-# behavior back can still add either name to their own Config.nmis list.
-is( $shipped_events{"Service Configuration Error"}{Status}, "true",
-	"Service Configuration Error ships with Status=true in Events.nmis" );
+# --- Fix 13 (round 6, revised after final review): Model File Invalid is
+# off the default status_summary_exclude_events list; Service Configuration
+# Error is deliberately back on it ---
+# Model File Invalid has no dedicated Events.nmis entry (falls back to
+# Default, Status=true) and no reason to exclude it was ever documented, and
+# it's re-checked fresh every single cycle regardless of any list, so it was
+# removed. Service Configuration Error ships Status=true too, but the final
+# review found a real, pre-existing gap (lib/NMISNG/Node.pm ~8836-8850,
+# ~9372-9385): if the underlying misconfiguration is fixed by removing the
+# bad service reference rather than fixing the Services table, the event is
+# never revisited and stays active forever - which would now permanently
+# degrade health for a problem already believed fixed. Kept excluded for
+# that reason.
 ok( !exists $shipped_events{"Model File Invalid"},
 	"Model File Invalid has no dedicated Events.nmis entry (falls back to Default, Status=true)" );
-for my $ev ( "Service Configuration Error", "Model File Invalid" )
-{
-	ok( index( $C->{status_summary_exclude_events}, $ev ) < 0,
-		"$ev is NOT on the shipped status_summary_exclude_events default" );
-}
+is( $shipped_events{"Service Configuration Error"}{Status}, "true",
+	"Service Configuration Error ships with Status=true in Events.nmis (Config.nmis overrides it anyway)" );
+ok( index( $C->{status_summary_exclude_events}, "Model File Invalid" ) < 0,
+	"Model File Invalid is NOT on the shipped status_summary_exclude_events default" );
+ok( index( $C->{status_summary_exclude_events}, "Service Configuration Error" ) >= 0,
+	"Service Configuration Error IS still on the shipped status_summary_exclude_events default" );
 
-# end-to-end: with the master gate on, an error doc for one of these two now
-# genuinely drags status_summary down - it would have been silently skipped
-# before this fix, regardless of the master gate. Clean slate first: earlier
-# blocks (Fix 11's "OMK12605 Gate Op", Task 5's "OMK12605 Stale Op") left
-# their own error docs sitting in the collection, uncounted only because the
-# master gate was off when they ran - without removing them here, turning
-# the gate on would drag status_summary down regardless of whether THIS
-# fix's own exclude-list change did anything, and the assertion below would
-# pass by coincidence rather than genuinely proving this fix.
+# end-to-end, both directions: with the master gate on, an error doc for
+# Model File Invalid genuinely drags status_summary down, but one for
+# Service Configuration Error does not. Clean slate first: earlier blocks
+# (Fix 11's "OMK12605 Gate Op", Task 5's "OMK12605 Stale Op") left their own
+# error docs sitting in the collection, uncounted only because the master
+# gate was off when they ran - without removing them here, turning the gate
+# on would drag status_summary down regardless of what this fix does, and
+# the assertions below would pass by coincidence rather than genuinely
+# proving it.
 NMISNG::DB::remove(
 	collection => $nmisng->status_collection(),
 	query      => NMISNG::DB::get_query( and_part => {
@@ -479,7 +481,25 @@ NMISNG::Status::save_operational_status(
 $nmisng->compute_thresholds( sys => $S, running_independently => 0 );
 my $fix13_summary = $S->inventory( concept => 'catchall' )->data->{status_summary};
 cmp_ok( $fix13_summary, '<', 100,
-	"Fix 13: Model File Invalid error doc now drags status_summary down with the master gate on" );
+	"Fix 13: Model File Invalid error doc drags status_summary down with the master gate on" );
+
+# now remove it and raise Service Configuration Error instead - the summary
+# must recover to 100, proving this one is still excluded even with the
+# master gate on
+NMISNG::DB::remove(
+	collection => $nmisng->status_collection(),
+	query      => NMISNG::DB::get_query( and_part => {
+		node_uuid => $node->uuid, method => "Operational", event => "Model File Invalid" } ),
+	just_one   => 0,
+);
+NMISNG::Status::save_operational_status(
+	nmisng => $nmisng, node => $node, event => "Service Configuration Error",
+	status => "error", level => "Warning", details => "Service \"foo\" not defined in the Services table",
+);
+$nmisng->compute_thresholds( sys => $S, running_independently => 0 );
+my $fix13_summary2 = $S->inventory( concept => 'catchall' )->data->{status_summary};
+cmp_ok( $fix13_summary2, '==', 100,
+	"Fix 13: Service Configuration Error error doc does NOT drag status_summary down, still excluded" );
 $C->{health_score_include_operational_events} = 'false';
 
 # ---------------------------------------------------------------------------

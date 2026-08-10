@@ -770,8 +770,11 @@ sub compute_thresholds
 		# means skip from the calculation, never stamp "ignored".
 		# status_summary_exclude_events (Config.nmis) is a second, site-wide
 		# source of the same "don't count this one" decision, checked in
-		# addition to the per-event flag because Config.nmis is auto-merged on
-		# upgrade and Events.nmis is not.
+		# addition to the per-event flag - it catches a site whose own
+		# Events.nmis entry for one of these events predates the installer
+		# merge (installer_hooks/10-postcopy-confmerges), or an event this
+		# ticket deliberately excludes for reasons documented in Config.nmis
+		# itself (see the comment there).
 		if ( ( $status_obj->method // '' ) eq "Operational" )
 		{
 			# OMK-12605 round 5: master on/off gate, requested so existing
