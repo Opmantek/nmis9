@@ -223,6 +223,9 @@ my %hash = (
 	# Model File Invalid is deliberately NOT here - it's re-checked fresh
 	# every cycle, so it can't get stuck. Add any other event name here too
 	# if a site doesn't want it counted once the switch above is on.
+	# Note: re-enabling one of the first three also needs its Events.nmis
+	# Status flag flipped to true, they're excluded there too; Service
+	# Configuration Error only needs removing from this list.
 	'status_summary_exclude_events' => 'Interface Down,Service Down,Service Degraded,Service Configuration Error',
 	'threshold_period-default' => '-15 minutes',
 	'threshold_period-health' => '-4 hours',
