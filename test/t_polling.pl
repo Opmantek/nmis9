@@ -1071,6 +1071,51 @@ else {
 }
 
 # ============================================================
+# Phase 11b: collect=false node — nodeModel and nodegraph persisted
+# ============================================================
+diag("=== Phase 11b: collect=false nodeModel/nodegraph persistence ===");
+
+# A PingOnly node has collect=false. update_node_info takes the else branch and
+# must write nodeModel and nodegraph directly into catchall_data so opCharts can
+# read them without requiring a collect=true run.
+my $ping_node = NMISNG::Node->new(uuid => NMISNG::Util::getUUID(), nmisng => $nmisng);
+$ping_node->cluster_id($C->{cluster_id});
+$ping_node->name("test_pingonly_node");
+$ping_node->configuration({
+	host     => "127.0.0.1",
+	group    => "TestGroup",
+	netType  => "default",
+	roleType => "default",
+	model    => "PingOnly",
+	collect  => "false",
+	ping     => "true",
+});
+($op, $err) = $ping_node->save();
+ok(!$err, "PingOnly test node saved") or diag("Save error: $err");
+
+my ($ping_catchall_inv, $ping_cinv_err) = $ping_node->inventory(concept => "catchall", model_class => "system");
+ok(!$ping_cinv_err, "PingOnly catchall inventory created") or diag("Error: $ping_cinv_err");
+
+my $SP = NMISNG::Sys->new(nmisng => $nmisng);
+$SP->init(
+	node               => $ping_node,
+	snmp               => 0,
+	wmi                => 0,
+	update             => 'true',
+	force              => 1,
+	catchall_inventory => $ping_catchall_inv,
+);
+
+my $ping_result = $ping_node->update_node_info(sys => $SP, catchall_inventory => $ping_catchall_inv);
+ok($ping_result->{success}, "update_node_info succeeded for collect=false node")
+	or diag("Result: " . Dumper($ping_result));
+
+my $pcd = $ping_catchall_inv->data_live();
+is($pcd->{nodeModel}, "PingOnly", "collect=false: nodeModel persisted as PingOnly");
+is_deeply($pcd->{nodegraph}, ["health-ping", "response"],
+	"collect=false: nodegraph persisted as [health-ping, response]");
+
+# ============================================================
 # Phase 12: Cleanup
 # ============================================================
 diag("=== Phase 12: Cleanup ===");

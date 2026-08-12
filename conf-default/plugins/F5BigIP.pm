@@ -45,7 +45,7 @@ use NMISNG::rrdfunc;
 sub collect_plugin
 {
 	my (%args) = @_;
-	my ($node, $S, $C, $NG) = @args{qw(node sys config nmisng)};
+	my ($node, $S, $C, $NG, $node_obj) = @args{qw(node sys config nmisng node_obj)};
 
 
 	# is the node down or is SNMP down?
@@ -60,9 +60,9 @@ sub collect_plugin
 	
 	my $changesweremade = 0;
 
-	my $nodeobj = $NG->node(name => $node);
+	my $nodeobj = $node_obj // $S->nmisng_node;
 	my $catchall = $S->inventory( concept => 'catchall' )->data_live();
-	
+
 	return (1,undef) if ( $catchall->{nodeModel} ne "F5-BigIP" or !NMISNG::Util::getbool($catchall->{collect}));
 	$NG->log->debug("Running F5BigIP plugin for node::$node");
 

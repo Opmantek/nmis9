@@ -2425,6 +2425,19 @@ sub update_node_info
 	else
 	{
 		$self->nmisng->log->debug2(sub {"node $S->{name} is marked collect is 'false'"});
+		# Without this, collect=false nodes never persist their resolved model (PingOnly,
+		# ServiceOnly) into catchall, so opCharts reads stale or default nodeModel/nodegraph.
+		# Write directly to $catchall_data (the live ref Node.pm saves) rather than via
+		# copyModelCfgInfo, which writes to the Sys cache — a different object when force=1
+		# clears the catchall and triggers a MongoDB re-fetch through sync_catchall.
+		# Guard: Sys::init may load the bare "Model" fallback when ping=false and no services
+		# are configured; skip in that case to avoid writing nodeModel="Model" into catchall.
+		my $cfgmodel = $S->{mdl}{system}{nodeModel} // '';
+		if ($cfgmodel && $cfgmodel ne 'Model') {
+			$catchall_data->{nodeModel} = $cfgmodel;
+			my @nodegraphs = split /,/, $S->{mdl}{system}{nodegraph} // '';
+			$catchall_data->{nodegraph} = \@nodegraphs if @nodegraphs;
+		}
 		$success = 1;                # done
 	}
 
@@ -4898,6 +4911,7 @@ sub collect_systemhealth_info
 							$self->nmisng->log->logprefix("$plugin\[$$\] ");
 				
 							eval { ( $plugin_healthIndexTable, @errors ) = &$can_funcname( node => $name,
+																			node_obj => $self,
 																			sys => $S,
 																			config => $C,
 																			thissection => $thissection,
@@ -4948,6 +4962,11 @@ sub collect_systemhealth_info
 			$self->nmisng->log->error("systemhealth: section=$section cannot have both sources WMI and SNMP enabled!");
 			next;    # fixme: or is this completely terminal for this model?
 		}
+
+		# Collects (index, description, inventory) from whichever protocol runs below.
+		# After the protocol block, descriptions that appear more than once get the
+		# index appended so callers can tell items apart without breaking unique ones.
+		my @desc_dedup = ();
 
 		if ( exists( $thissection->{wmi} ) )
 		{
@@ -5086,9 +5105,16 @@ sub collect_systemhealth_info
 						my @keys = keys (%{$header_info->[0]});
 						# use first key in headers to get description
 						$description = $target->{ $keys[0] };
-						$inventory->description( $description ) if($description);
+						if ($description)
+						{
+							# sticky: once disambiguated with this index's suffix, never revert to
+							# plain, even if the duplicate that caused it isn't seen this run
+							my $sticky = ( defined($inventory->description) && $inventory->description eq "$description ($indexvalue)" );
+							$inventory->description($description) if (!$sticky);
+							push @desc_dedup, { index => $indexvalue, description => $description, inventory => $inventory, sticky => $sticky };
+						}
 					}
-	
+
 					# the above will put data into inventory, so save
 					my ( $op, $error ) = $inventory->save( node => $self , sys => $S, update => 1 );
 					$self->nmisng->log->debug2(sub { "saved ".join(',', @$path)." op: $op"});
@@ -5271,9 +5297,16 @@ sub collect_systemhealth_info
 						my @keys = keys (%{$header_info->[0]});
 						# use first key in headers to get description
 						$description = $target->{ $keys[0] };
-						$inventory->description( $description ) if($description);
+						if ($description)
+						{
+							# sticky: once disambiguated with this index's suffix, never revert to
+							# plain, even if the duplicate that caused it isn't seen this run
+							my $sticky = ( defined($inventory->description) && $inventory->description eq "$description ($index)" );
+							$inventory->description($description) if (!$sticky);
+							push @desc_dedup, { index => $index, description => $description, inventory => $inventory, sticky => $sticky };
+						}
 					}
-					
+
 					# Regenerate storage: If db name has changed, we need this
 					$self->nmisng->log->debug("collect_systemhealth_info check storage $section");
 					if ($inventory->find_subconcept_type_storage(type => "rrd",
@@ -5308,6 +5341,26 @@ sub collect_systemhealth_info
 				}
 			}
 		}
+
+			# Descriptions were already saved plain above; only duplicates need a second save with the index appended.
+			# Items already carrying their sticky suffix from a prior run are left alone.
+			{
+				my %desc_count;
+				$desc_count{$_->{description}}++ for @desc_dedup;
+				for my $item (@desc_dedup)
+				{
+					next if ($item->{sticky});
+					next unless $desc_count{$item->{description}} > 1;
+					$item->{inventory}->description("$item->{description} ($item->{index})");
+					my ($op, $error) = $item->{inventory}->save(node => $self, update => 1);
+					if ($error)
+					{
+						my $path = $item->{inventory}->path;
+						$self->nmisng->log->error(
+							"Failed to save inventory:" . (ref($path) eq "ARRAY" ? join(",", @$path) : $path) . " error:$error");
+					}
+				}
+			}
 	}
 		
 	$self->nmisng->log->debug("Finished with collect_systemhealth_info");
@@ -7429,6 +7482,7 @@ sub update
 			my $prevprefix = $self->nmisng->log->logprefix;
 			$self->nmisng->log->logprefix("$plugin\[$$\] ");
 			eval { ( $status, @errors ) = &$funcname( node => $name,
+																								node_obj => $self,
 																								sys => $S,
 																								config => $C,
 																								nmisng => $self->nmisng, ); };
@@ -9739,6 +9793,7 @@ sub collect
 		my $prevprefix = $self->nmisng->log->logprefix;
 		$self->nmisng->log->logprefix("$plugin\[$$\] ");
 		eval { ( $status, @errors ) = &$funcname( node => $name,
+																							node_obj => $self,
 																							sys => $S,
 																							config => $C,
 																							nmisng => $self->nmisng ); };

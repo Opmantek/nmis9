@@ -43,14 +43,14 @@ use Data::Dumper;
 sub update_plugin
 {
 	my (%args) = @_;
-	my ($node, $S, $C, $NG) = @args{qw(node sys config nmisng)};
+	my ($node, $S, $C, $NG, $node_obj) = @args{qw(node sys config nmisng node_obj)};
 
 	my $sub = 'update';
 	my $plugin = 'Aviat.pm';
 	my $concept = 'ifTable';
 	my $inventory_data_key = 'index';
 
-    my $nodeobj = $NG->node(name => $node);
+    my $nodeobj = $node_obj // $S->nmisng_node;
     my $inv = $S->inventory( concept => 'catchall' );
 	my $catchall_data = $inv->data;
 
@@ -129,7 +129,7 @@ sub update_plugin
                     $inventory->enabled(1);
                     # disable for now
                     $inventory->data_info( subconcept => 'interface', enabled => 0 );
-                    my ($op,$error) = $inventory->save( node => $node, update => 1 );
+                    my ($op,$error) = $inventory->save( node => $nodeobj, update => 1 );
                     $NG->log->debug2(sub { "saved ".join(',', @$path)." op: $op"});
                     $NG->log->info( "saved ".join(',', @$path)." op: $op");
                 } else {
@@ -141,7 +141,7 @@ sub update_plugin
         $catchall_data->{ifNumber} = $ids;
         $catchall_data->{active} = $active;
         $inv->data($catchall_data);
-        my ($op,$error) = $inv->save( node => $node );
+        my ($op,$error) = $inv->save( node => $nodeobj );
         $NG->log->info( "saved catchall op: $op");
         
 	}
@@ -156,8 +156,9 @@ sub update_plugin
 sub collect_plugin
 {
 	my (%args) = @_;
-	my ($node, $S, $C, $NG) = @args{qw(node sys config nmisng)};
-	
+	my ($node, $S, $C, $NG, $node_obj) = @args{qw(node sys config nmisng node_obj)};
+	my $nodeobj = $node_obj // $S->nmisng_node;
+
 	my @knownindices;
 	my $changesweremade = 0;
 	return (0,undef) if ($S->{mdl}->{system}->{nodeModel} ne "NL-Aviat");
@@ -179,7 +180,7 @@ sub collect_plugin
 			my $data = $ifTable->data();
 			$ifTable->historic(0);
 			$ifTable->data($data);
-			my ($op, $serror) = $ifTable->save( node => $node );
+			my ($op, $serror) = $ifTable->save( node => $nodeobj );
 			$NG->log->debug2(sub {"Inventory update: $op "});
 			if ($serror)
 			{

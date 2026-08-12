@@ -477,11 +477,17 @@ sub create_capped_collection
 	return {error => "could not determine current db size!"} if ( !defined $dbsize );
 
 	# meh. parsing df isn't good. access to statfs or statvfs system call would be cleaner
-	$db_location =~ s/[`"'\$]//g;    # sanitize it at least
-	                                 # note: osx does not like B for blocksize, can only do k for kb
-	my $flavour  = ( $^O eq "darwin" ? "-Pk" : "-PB1" );
-	my @dfout    = `df $flavour $db_location 2>/dev/null`;
-	my $exitcode = $?;
+	# note: osx does not like B for blocksize, can only do k for kb
+	my $flavour   = ( $^O eq "darwin" ? "-Pk" : "-PB1" );
+	my $dfout_str = '';
+	if (open(my $pipe, '-|', 'df', $flavour, $db_location))
+	{
+		local $/;
+		$dfout_str = <$pipe> // '';
+		close $pipe;
+	}
+	my $exitcode  = $?;
+	my @dfout     = split( /\n/, $dfout_str );
 
 	# filesys totalblocks usedblocks freeblocks percent mountpoint
 	my ( $totalbytes, $freebytes ) = ( split( /\s+/, $dfout[1] ) )[1, 3];

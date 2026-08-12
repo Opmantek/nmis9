@@ -174,19 +174,25 @@ sub _query
 	{
 		$q = NMISNG::DB::get_query(
 			and_part => {
-				node_uuid => $self->{data}{node_uuid},
-				element   => $self->{data}{element},
-				event => ($options{include_previous}? undef : $self->{data}->{event}),
-
-				# can't use inventory for querying until it's uniform everywhere
-				# inventory_id => $self->{data}{inventory_id},
-				active   => $self->{data}{active}   // 1,
-				historic => $self->{data}{historic} // 0
+				node_uuid    => $self->{data}{node_uuid},
+				element      => $self->{data}{element},
+				event        => ($options{include_previous}? undef : $self->{data}->{event}),
+				inventory_id => $self->{data}{inventory_id},
+				active       => $self->{data}{active}   // 1,
+				historic     => $self->{data}{historic} // 0
 			},
 			no_regex => 1
 				);
 		# optionally find both active and inactive events
 		delete $q->{active} if ($options{ignore_active});
+
+		# When element is empty/undef, get_query silently drops it from the filter.
+		# Explicitly restrict to events where element is also absent or empty,
+		# so a non-indexed threshold event (element='') cannot match an indexed event
+		# (element='cpu R0/0') that shares the same event name.
+		if ( !exists $q->{element} ) {
+			$q->{element} = { '$in' => [ undef, '' ] };
+		}
 
 		# optionally find the event name in either event or event_previous
 		# (so that Up/Down events can find each other)

@@ -5,13 +5,19 @@ our $VERSION = "9.4.8";
 use Mojo::Base -base;
 use Carp;
 use JSON::XS;
-use Mojo::UserAgent;
 use Try::Tiny;
 
+# Mojo::UserAgent is deliberately NOT loaded at compile time. It pulls in the
+# full Mojo IOLoop/transactor/TLS stack (~7-8 MB RSS) which every nmisd worker
+# would otherwise inherit via NMISNG::Sys -> NMISNG::Engine::SnmpRPC, even
+# though only the (non-default) SNMP-over-RPC engine ever needs it. Loading it
+# lazily in the ua builder keeps it out of the baseline for the common case of
+# direct Net::SNMP polling.
 #Wraps Mojo user agent to make JSON-RPC 2.0 requests, inspired by MojoX::JSONRPC2::HTTP;
 #We will need a long requesttime out for large snmp requests
 use constant REQUEST_TIMEOUT    => 300;
 has ua  => sub {
+    require Mojo::UserAgent;
     Mojo::UserAgent->new
         ->inactivity_timeout(0)
         ->request_timeout(REQUEST_TIMEOUT)

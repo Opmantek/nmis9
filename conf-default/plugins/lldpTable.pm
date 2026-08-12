@@ -60,7 +60,8 @@ sub or_terms_to_query_or {
 sub update_plugin
 {
 	my (%args) = @_;
-	my ($node,$S,$C,$NG) = @args{qw(node sys config nmisng)};
+	my ($node,$S,$C,$NG,$node_obj) = @args{qw(node sys config nmisng node_obj)};
+	my $nodeobj = $node_obj // $S->nmisng_node;
 
 	# anything to do? does this node collect lldp information?
 	my $ids = $S->nmisng_node->get_inventory_ids(
@@ -315,7 +316,7 @@ sub update_plugin
 		if ($mustsave)
 		{
 			$lldpinventory->data($data); # set changed info
-			my (undef,$error) = $lldpinventory->save( node => $node ); # and save to the db, update not required because it wasn't made here
+			my (undef,$error) = $lldpinventory->save( node => $nodeobj ); # and save to the db, update not required because it wasn't made here
 			$NG->log->error("Failed to save inventory for $lldpinventory->{_id}: $error")
 					if ($error);
 		}
