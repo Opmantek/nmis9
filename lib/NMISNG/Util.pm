@@ -1059,6 +1059,61 @@ sub _config_perms_error
 	return undef;
 }
 
+# plugin_file_safe: check that a plugin file is safe to load (OMK-12697).
+# Uses lstat() so the check applies to the path entry itself — a symlink to a
+# root-owned file must not bypass the guard. On Linux, symlinks always have mode
+# 0120777, so & 022 is non-zero and they are rejected before require follows them.
+# args: $pluginfile — path to check; $trusted_uid — UID trusted in addition to root
+#       (pass 0 for root-only)
+# returns: (1, 'ok') if safe, (0, reason-string) if rejected
+sub plugin_file_safe
+{
+	my ($pluginfile, $trusted_uid) = @_;
+	$trusted_uid //= 0;
+
+	my @fstat = CORE::lstat($pluginfile);
+	return (0, "cannot lstat: $!") if (!@fstat);
+
+	my ($file_mode, $file_uid) = @fstat[2, 4];
+
+	if ($file_mode & 022)
+	{
+		return (0, sprintf("group- or world-writable (mode %04o)", $file_mode & 07777));
+	}
+
+	if ($file_uid != 0 && $file_uid != $trusted_uid)
+	{
+		return (0, "owned by UID $file_uid, not root (0)"
+			. ($trusted_uid != 0 ? " or UID $trusted_uid (nmis_user)" : ""));
+	}
+
+	return (1, 'ok');
+}
+
+sub plugin_dir_safe
+{
+	my ($plugindir, $trusted_uid) = @_;
+	$trusted_uid //= 0;
+
+	my @dstat = CORE::lstat($plugindir);
+	return (0, "cannot lstat: $!") if (!@dstat);
+
+	my ($dir_mode, $dir_uid) = @dstat[2, 4];
+
+	if ($dir_mode & 022)
+	{
+		return (0, sprintf("group- or world-writable (mode %04o)", $dir_mode & 07777));
+	}
+
+	if ($dir_uid != 0 && $dir_uid != $trusted_uid)
+	{
+		return (0, "owned by UID $dir_uid, not root (0)"
+			. ($trusted_uid != 0 ? " or UID $trusted_uid (nmis_user)" : ""));
+	}
+
+	return (1, 'ok');
+}
+
 sub _load_and_flatten
 {
 	my ($filepath) = @_;
@@ -2676,7 +2731,8 @@ sub selftest
 	my (%args) = @_;
 	my @details;
 
-	# bsts fallback is a bit ugly, also assumes caller has loaded compat::nmis
+	# bsts fallback is a bit ugly; require here avoids circular dep at compile time
+	require Compat::NMIS;
 	my $nmisng = $args{nmisng} || Compat::NMIS::new_nmisng();
 	my $config = $nmisng->config;
 
@@ -3619,6 +3675,7 @@ sub resolve_dns_name
 	my ($lookup) = @_;
 	my @results;
 
+	require Compat::NMIS;
 	my $nmisng = Compat::NMIS::new_nmisng();
 
 	$nmisng->log->debug2(sub {"resolve_dns_name($lookup)"});
@@ -3842,6 +3899,7 @@ sub array_diff(\@\@) {
 # @returns the number of moved files
 sub replace_files_recursive {
 	my ($path, $new, $old, $extension, $force) = @_;
+	require Compat::NMIS;
 	my $nmisng = Compat::NMIS::new_nmisng();
 	$nmisng->log->info("Replacing $new for $old in $path ");
 	my $C = $nmisng->config();

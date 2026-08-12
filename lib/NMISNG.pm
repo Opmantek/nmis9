@@ -3469,12 +3469,45 @@ sub plugins
 		or ( !$C->{plugin_root} and !$C->{plugin_root_default} )
 		or ( !-d $C->{plugin_root} and !-d $C->{plugin_root_default} ) );
 
+	# Resolve the service user once per invocation (OMK-12697).
+	# getpwnam() may hit NSS/LDAP; calling it per-file in the loop would be wasteful.
+	# Resolved before the directory scan so the directory-level check below can use it.
+	# Uses nmis_user (same owner as lib/) so plugin dirs don't need to be root-owned.
+	my $trusted_uid = 0;    # root (UID 0) always trusted
+	my $owner_name  = $C->{nmis_user} // '';
+	if ($owner_name)
+	{
+		my @pw = getpwnam($owner_name);
+		if (@pw)
+		{
+			$trusted_uid = $pw[2];
+		}
+		else
+		{
+			$self->log->warn("nmis_user '$owner_name' not found in system passwd"
+				. " — only root-owned plugins will be trusted (OMK-12697)");
+		}
+	}
+
 	# first check the custom plugin dir, then the default dir;
 	# files in custom win over files in default
 	my %candfiles;    # filename => fullpath
 	for my $dir ( $C->{plugin_root}, $C->{plugin_root_default})
 	{
 		next if ( !-d $dir );
+
+		# Security check: reject plugin directories that are group/world-writable or not
+		# trusted-owned (OMK-12697). A writable directory enables rename-swap attacks
+		# that replace a trusted file between lstat and require.
+		my ($dir_safe, $dir_reason) = NMISNG::Util::plugin_dir_safe($dir, $trusted_uid);
+		if (!$dir_safe)
+		{
+			$self->log->error("Plugin dir $dir rejected: $dir_reason"
+				. " — not loading plugins from it (OMK-12697);"
+				. " to fix, run as root: /usr/local/nmis9/bin/nmis-cli act=fixperms");
+			next;
+		}
+
 		if ( !opendir( PD, $dir ) )
 		{
 			$self->log->error("Error: cannot open plugin dir $dir: $!");
@@ -3493,9 +3526,18 @@ sub plugins
 		$packagename =~ s/\.pm$//;
 		my $pluginfile = $candfiles{$candidate};
 
-		# read it and check that it has precisely one matching package line
 		$self->log->debug("Checking candidate plugin $candidate ($pluginfile)");
 
+		# Security check (OMK-12697): lstat, mode & 022, uid guard via NMISNG::Util.
+		# Runs before open() so no content is read from a file that will be rejected.
+		my ($file_safe, $file_reason) = NMISNG::Util::plugin_file_safe($pluginfile, $trusted_uid);
+		if (!$file_safe)
+		{
+			$self->log->error("Plugin $pluginfile rejected: $file_reason — not loading (OMK-12697)");
+			next;
+		}
+
+		# read it and check that it has precisely one matching package line
 		if ( !open( F, $pluginfile ) )
 		{
 			$self->log->error("Error: cannot open plugin file $pluginfile: $!");
