@@ -1922,11 +1922,9 @@ sub pingable
 
 	my ( $ping_min, $ping_avg, $ping_max, $ping_loss, $pingresult, $lastping );
 	my $backup_loss;    # captured independently of $ping_loss - see below
-	# OMK-12605 blind-review round 5: the primary's own loss, captured
-	# before either branch below may overwrite $ping_loss with the backup's
-	# numbers on primary-down failover - needed so Node Polling Failover can
-	# be determined independently of that substitution, same reasoning as
-	# $backup_loss.
+	# the primary's own loss, captured before either branch below may
+	# overwrite $ping_loss with the backup's numbers on failover - needed so
+	# Node Polling Failover can be determined independently of that swap.
 	my $primary_loss;
 
 	my $nodename = $self->name;
@@ -2048,15 +2046,10 @@ sub pingable
 				}
 				else
 				{
-					# OMK-12605 blind-review round 3: primary is fine, but
-					# Backup Host Down still needs an independent, live read
-					# on the backup itself here - this fallback mode (fping
-					# unavailable or stale) previously left it completely
-					# uncovered below, unlike Node Down. One extra
-					# synchronous ping per cycle, accepted as the cost of
-					# this already-degraded mode; the normal fping-cached-
-					# data path captures this for free from data already in
-					# memory.
+					# primary is fine, but Backup Host Down still needs an
+					# independent, live read on the backup here - one extra
+					# synchronous ping, accepted as the cost of this fallback
+					# mode (the normal fping-cached path gets this for free).
 					$self->nmisng->log->debug2(sub {"Starting internal ping of ($nodename = backup address $fallback) to check its own status"});
 					(undef, undef, undef, $backup_loss)
 							= $self->ext_ping(host => $fallback, packet => $packet, retries => $retries, timeout => $timeout);
@@ -2142,18 +2135,12 @@ sub pingable
 				$self->handle_down( sys => $S, type => "node", details => "Ping failed", catchall_inventory => $catchall_inventory );
 			}
 
-			# OMK-12605 blind-review round 3: Backup Host Down needs the same
-			# coverage in this fallback path that Node Down already has just
-			# above. Unlike Node Down, no real event is raised for it here -
-			# only the fping worker's own state machine (bin/nmisd) creates
-			# or clears an actual "Backup Host Down" event; this only keeps
-			# the status document refreshed from what was independently
-			# measured a few lines up, using the same direct-helper-only
-			# rule as the fping-owned branch below (never notify/checkEvent,
-			# so event ownership stays where it already is). Skipped
-			# entirely when the backup wasn't measured this cycle, same
-			# reasoning as the fping-owned branch: never assert a state
-			# about a condition nothing assessed.
+			# Backup Host Down needs the same per-cycle coverage Node Down
+			# just got above. No real event raised here though - only the
+			# fping worker's state machine owns that; this just keeps the
+			# status document fresh from what was measured a few lines up.
+			# Skipped entirely when the backup wasn't measured this cycle:
+			# never assert a state about a condition nothing assessed.
 			if (defined($self->configuration->{host_backup})
 					&& $self->configuration->{host_backup}
 					&& defined($backup_loss))
@@ -2171,18 +2158,13 @@ sub pingable
 				);
 			}
 
-			# OMK-12605 blind-review round 5: Node Polling Failover needs the
-			# same per-cycle refresh, but only for nodes that never take the
-			# SNMP-session code path that already covers it every cycle via
-			# notify()/checkEvent() in collect()/update() (if snmp_enabled,
-			# writing here too would double up / race against that path).
-			# For an SNMP-disabled, ping-only multihomed node, this event was
-			# previously only ever raised by the fping worker's own state
-			# machine on a transition - never refreshed, never reaching the
-			# dashnode file, exactly the gap already fixed for Node Down and
-			# Backup Host Down. Skipped when either side wasn't measured this
-			# cycle, and when both primary and backup are down (that's a
-			# total outage, Node Down's territory, not a "failover").
+			# Node Polling Failover needs the same per-cycle refresh, but only
+			# for nodes that never take the SNMP-session code path in
+			# collect()/update() that already covers it (writing here too
+			# would double up). This closes the gap for SNMP-disabled,
+			# ping-only multihomed nodes. Skipped when either side wasn't
+			# measured, or both primary and backup are down (that's a total
+			# outage, Node Down's territory, not a "failover").
 			if (defined($self->configuration->{host_backup})
 					&& $self->configuration->{host_backup}
 					&& !$S->status->{snmp_enabled}
@@ -2206,24 +2188,17 @@ sub pingable
 		}
 		else
 		{
-			# fping owns the up/down decision this cycle (fresh cached fping
-			# data was found above); the event itself is untouched here, that
-			# stays the fping worker's exclusive job. But the operational
-			# status document still needs to refresh every cycle regardless
-			# of transitions, so that (a) it doesn't go stale while a down
-			# condition persists past fping's next check, and (b) a node
-			# that has never gone down still gets an 'ok' entry from its
-			# first collect() cycle (OMK-12605 follow-up). Direct
-			# save_operational_status call only, never notify/checkEvent -
-			# those can create/rename event records, and event ownership
-			# for Node Down must stay exclusively with the fping worker.
-			# OMK-12605 blind-review fix: $pingresult (computed above from the
-			# same cached fping data) is recomputed fresh every call and can
-			# never drift out of sync the way a catchall flag can if
+			# fping owns the up/down decision this cycle; the event itself is
+			# untouched here, that's the fping worker's exclusive job. The
+			# status document still needs refreshing every cycle regardless,
+			# so it doesn't go stale mid-outage and a never-down node still
+			# gets an 'ok' entry. Direct save_operational_status only, never
+			# notify/checkEvent - those own event creation, which must stay
+			# with the fping worker. $pingresult (recomputed fresh here) drives
+			# the decision rather than the catchall flag, which can drift if
 			# something closes the event out-of-band without going through
-			# handle_down. Use it for the up/down decision; the catchall
-			# flag and its piggybacked level/details remain useful only for
-			# display text when genuinely down.
+			# handle_down; the flag's piggybacked level/details are still used
+			# for display text when down.
 			my $isdown = !$pingresult;
 			my ( $down_level, $down_details );
 			if ($isdown)
@@ -2251,43 +2226,21 @@ sub pingable
 				inventory_id => $catchall_inventory->id,
 			);
 
-			# Backup Host Down (OMK-12605 follow-up, Task 2): same per-cycle
-			# refresh discipline as Node Down above, but only applicable to
-			# multihomed nodes (host_backup configured) - a node without a
-			# configured backup host gets NO status document for this event
-			# at all, not ok and not error.
+			# Backup Host Down: same per-cycle refresh as Node Down above,
+			# only for multihomed nodes (host_backup configured) - no backup
+			# host means no status document at all, not ok and not error.
 			#
-			# OMK-12605 blind-review round 2 fix: this now decides up/down
-			# from $backup_loss (captured above, live, every cycle, straight
-			# from the same cached fping data Node Down already trusts) -
-			# exactly the same principle as Node Down using $pingresult
-			# instead of the catchall flag. An earlier version of this code
-			# read the backupdown flag handle_down() piggybacks onto the
-			# catchall, OR'd with !$pingresult for the total-outage case.
-			# Two independent reviews found that flag-reliant version could
-			# get stuck: if the event is closed out-of-band (GUI/API) rather
-			# than through handle_down()'s own up transition, the flag never
-			# resets, so the doc kept reporting error indefinitely even after
-			# the backup genuinely recovered - fighting the Event->delete
-			# close hook every subsequent cycle. Live data can't go stale
-			# that way.
+			# Decided from live $backup_loss, not the backupdown catchall
+			# flag: a flag-based version can get stuck error forever if the
+			# event is later closed out-of-band (GUI/API) rather than through
+			# handle_down()'s own up transition, since nothing then resets it.
 			#
-			# OMK-12605 blind-review round 3 fix: do NOT treat "not measured"
-			# as "down" here the way Node Down's own analogous case does.
-			# That reasoning only holds when the primary has already failed
-			# (Fix 2c) - it does not generalise to Backup Host Down's own
-			# determination, because a ping timed-data record can be missing
-			# backup_loss for reasons that have nothing to do with the
-			# backup's real state: the fping worker disabled or off
-			# (nmisd_fping_worker => false is a supported setting), fallen
-			# behind, or unavailable, in which case pingable()'s own internal
-			# ping fallback writes the record instead, and that fallback
-			# never populates backup_loss at all. Reporting error in that
-			# case would be permanently wrong for a perfectly healthy backup,
-			# on every site without a healthy fping worker - not a narrow
-			# startup case. Skip the write entirely when nothing was
-			# actually measured, per the base spec's own principle: never
-			# assert a state about a condition nothing assessed.
+			# "Not measured" is deliberately NOT treated as "down": a ping
+			# record can lack backup_loss for reasons unrelated to the
+			# backup's real state (fping worker off - a supported setting -
+			# or fallen behind), which would otherwise mean a permanently
+			# false error on every site without a healthy fping worker. Skip
+			# the write entirely rather than assert a state nothing measured.
 			if (defined($self->configuration->{host_backup})
 					&& $self->configuration->{host_backup}
 					&& defined($backup_loss))
@@ -2313,20 +2266,13 @@ sub pingable
 				);
 			}
 
-			# OMK-12605 blind-review round 5: Node Polling Failover, same
-			# per-cycle refresh discipline as Backup Host Down just above,
-			# but only for nodes that never take the SNMP-session code path
-			# in collect()/update() that already covers this event every
-			# cycle (if snmp_enabled, that path's own notify()/checkEvent()
-			# calls already refresh the status doc; writing here too would
-			# double up). This closes the gap for an SNMP-disabled,
-			# ping-only multihomed node: previously this event was only ever
-			# raised by the fping worker's own state machine on a
-			# transition, so it went stale and never reached the dashnode
-			# file - exactly what this follow-up already fixed for Node
-			# Down and Backup Host Down. Skipped when either side wasn't
-			# measured, or when both primary and backup are down (a total
-			# outage is Node Down's territory, not a "failover").
+			# Node Polling Failover, same per-cycle refresh as Backup Host
+			# Down above, but only for nodes that never take the SNMP-session
+			# code path in collect()/update() that already covers this event
+			# (writing here too would double up). Closes the gap for
+			# SNMP-disabled, ping-only multihomed nodes. Skipped when either
+			# side wasn't measured, or both primary and backup are down (a
+			# total outage is Node Down's territory, not a "failover").
 			if (defined($self->configuration->{host_backup})
 					&& $self->configuration->{host_backup}
 					&& !$S->status->{snmp_enabled}
@@ -2426,23 +2372,18 @@ sub handle_down
 		my $quicklynow = $catchall_inventory->data;
 		$quicklynow->{"${typeofdown}down"} = ($goingup ? 'false' : 'true');
 
-		# OMK-12605 follow-up: piggyback the event's resolved level/details
-		# onto this same catchall save, so that per-cycle status-doc refresh
-		# code elsewhere (pingable()'s $mustping==false branch) can read them
-		# straight out of data already in memory - zero new database reads,
-		# same save call. Task 1 uses this for typeofdown eq node/snmp/wmi,
-		# Task 2 reuses it as-is for typeofdown eq backup. A future failover
-		# equivalent could reuse the same generic key shape
-		# (<type>downlevel/<type>downdetails) too.
+		# piggyback the event's resolved level/details onto this same
+		# catchall save, so per-cycle status-doc refresh code elsewhere
+		# (pingable()'s $mustping==false branch) can read them straight out
+		# of data already in memory - zero new database reads.
 		if (!$goingup && ref($event_obj))
 		{
 			$quicklynow->{"${typeofdown}downlevel"}   = $event_obj->level;
 			$quicklynow->{"${typeofdown}downdetails"} = $event_obj->details;
 		}
-		# OMK-12605 blind-review fix: clear them again on the way up, so a
-		# later outage whose notify() doesn't return a usable $event_obj
-		# falls through to the reader's own generic fallback rather than
-		# silently reusing this outage's stale level/details text.
+		# clear them again on the way up, so a later outage whose notify()
+		# doesn't return a usable $event_obj falls through to the reader's
+		# own fallback rather than silently reusing stale text.
 		elsif ($goingup)
 		{
 			delete $quicklynow->{"${typeofdown}downlevel"};

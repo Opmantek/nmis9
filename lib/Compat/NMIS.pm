@@ -2210,15 +2210,10 @@ sub checkEvent
 												details => $args{details}, level => $args{level},
 												upevent => $upevent );
 
-	# OMK-12605 blind-review round 5: only report "ok" once the close has
-	# actually happened (or there was nothing active to close) - check()
-	# now returns a true outcome for both of those, and false for its two
-	# early-bailout cases (Proactive dampening not satisfied yet, and the
-	# OMK-12622 duplicate-key case where a stale Up event blocks the save).
-	# Previously this write happened unconditionally, before check() ran at
-	# all, so a still-active down event could sit behind an "ok" status doc
-	# and dashnode entry - the exact false-clear this feature exists to
-	# prevent.
+	# only report "ok" once the close has actually happened (or there was
+	# nothing active to close) - check() returns false on its two
+	# early-bailout cases (Proactive dampening, the OMK-12622 duplicate-key
+	# case), so a still-active down event can't end up behind a false "ok".
 	NMISNG::Status::save_operational_status(
 		nmisng       => $S->nmisng,
 		node         => $S->nmisng_node,
@@ -2334,10 +2329,8 @@ sub notify
 		($level,$log,$syslog) = $event_obj->getLogLevel(sys=>$S);
 		$event_obj->level($level);
 
-		# OMK-12605 blind-review: escape the event name before it hits this
-		# regex - the same die risk fixed in save_operational_status's copy
-		# of this check applies here too, and this is the original source
-		# both notify() and the helper's stateless test are modelled on.
+		# escape the event name before it hits this regex - an unescaped
+		# metacharacter (e.g. an unbalanced paren) would otherwise die here.
 		my $is_stateless = ($C->{non_stateful_events} !~ /\Q$event\E/
 												or NMISNG::Util::getbool($thisevent_control->{Stateful}))? 0: 1;
 		$event_obj->stateless($is_stateless);
@@ -2348,8 +2341,7 @@ sub notify
 			$event_obj->details( $details );
 		}
 
-		# OMK-12605 blind-review round 4: same die risk as the stateless
-		# check above, missed in the round 3 pass over this function.
+		# same die risk as the stateless check above.
 		if (NMISNG::Util::getbool($C->{log_node_configuration_events})
 				and $C->{node_configuration_events} =~ /\Q$event\E/
 				and NMISNG::Util::getbool($thisevent_control->{Log}))

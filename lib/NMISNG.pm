@@ -765,25 +765,18 @@ sub compute_thresholds
 		# event control is as configured or all true.
 		my $thisevent_control = $events_config->{$eventKey} || {Log => "true", Notify => "true", Status => "true"};
 
-		# operational docs are maintained by the event write path (OMK-12605):
-		# not swept here (slow-polled nodes would flap), and Status=false
-		# means skip from the calculation, never stamp "ignored".
-		# status_summary_exclude_events (Config.nmis) is a second, site-wide
-		# source of the same "don't count this one" decision, checked in
-		# addition to the per-event flag - it catches a site whose own
-		# Events.nmis entry for one of these events predates the installer
-		# merge (installer_hooks/10-postcopy-confmerges), or an event this
-		# ticket deliberately excludes for reasons documented in Config.nmis
-		# itself (see the comment there).
+		# operational (code-raised) docs: not swept here (slow-polled nodes
+		# would flap), and Status=false means skip from the calculation,
+		# never stamp "ignored". status_summary_exclude_events (Config.nmis)
+		# is a second, site-wide source of the same decision, for a site
+		# whose Events.nmis predates the installer merge, or an event this
+		# ticket deliberately excludes (see the comment in Config.nmis).
 		if ( ( $status_obj->method // '' ) eq "Operational" )
 		{
-			# OMK-12605 round 5: master on/off gate, requested so existing
-			# customers upgrading don't see their health numbers change with
-			# nothing different in their network. Defaults false (see
-			# Config.nmis) - when off, no Operational doc counts here at all,
-			# same as before this ticket shipped. When on, the finer-grained
-			# per-event Status flag and status_summary_exclude_events list
-			# below still apply exactly as already shipped.
+			# master on/off gate so existing customers upgrading don't see
+			# health numbers change with nothing different in their network.
+			# Off by default: no Operational doc counts here at all. Once on,
+			# the finer-grained Status flag and exclude list below still apply.
 			next if ( not NMISNG::Util::getbool( $self->config->{health_score_include_operational_events} ) );
 			next if ( not NMISNG::Util::getbool( $thisevent_control->{Status} )
 				or _in_event_list( $self->config->{status_summary_exclude_events}, $eventKey ) );

@@ -16,16 +16,10 @@ printBanner "Config file updates"
 execPrint $TARGETDIR/admin/updateconfig.pl $TARGETDIR/conf-default/Config.nmis $TARGETDIR/conf/Config.nmis
 
 # ...then Events.nmis, but only if the site already has its own copy. A
-# site with no conf/Events.nmis at all reads conf-default/Events.nmis
-# directly, live, on every load (NMISNG::Util::loadTable's conf-missing
-# fallback) - unconditionally merging here would have updateconfig.pl
-# auto-create a full copy from an empty starting hash (its whole-file
-# fallback for a missing live file), silently freezing that site at
-# upgrade-time defaults forever after, and flagging the new file as a
-# "custom config" needing manual review on every later upgrade, for a file
-# the admin never touched. Only a site that already customized
-# Events.nmis needs the additive merge (new/missing per-event keys, e.g.
-# TrackStatus, without touching anything the site already has).
+# site with none reads conf-default/Events.nmis live on every load, so
+# merging unconditionally would auto-create a full copy and silently
+# freeze that site at today's defaults forever after. Only a site that
+# already customized Events.nmis needs the additive merge.
 if [ -f "$TARGETDIR/conf/Events.nmis" ]; then
 		execPrint $TARGETDIR/admin/updateconfig.pl $TARGETDIR/conf-default/Events.nmis $TARGETDIR/conf/Events.nmis
 fi

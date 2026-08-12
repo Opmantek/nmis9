@@ -491,13 +491,11 @@ sub check
 		}
 	}
 
-	# OMK-12605 blind-review round 5: explicit outcome so checkEvent() can
-	# tell "the event genuinely closed, or there was nothing active to
-	# close" apart from "we bailed out without persisting the close" -
-	# the two early `return;`s above (dampening not satisfied yet, and the
-	# OMK-12622 duplicate-key case where a stale Up event blocks the save)
-	# both leave the down event still active in the db and must read as
-	# false here, so a caller can avoid reporting a false "ok".
+	# explicit outcome so checkEvent() can tell "genuinely closed, or
+	# nothing active to close" apart from "bailed out without persisting" -
+	# the two early `return;`s above (dampening not satisfied, the
+	# OMK-12622 duplicate-key case) leave the down event still active and
+	# must read as false, so a caller can avoid reporting a false "ok".
 	return 1;
 }
 
