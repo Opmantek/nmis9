@@ -344,13 +344,16 @@ SKIP: {
 	require NMISNG::Snmp::Mock;
 	NMISNG::Snmp::Mock->import();
 
-	# Isolated <nmis_var> so loadModel's model-cache writes (and node locks) land in a
-	# scratch dir, not the real install's var dir shared by other processes on this host.
+	# Isolated <nmis_var>/<nmis_logs> so loadModel's model-cache writes (and node locks)
+	# land in a scratch dir, not the real install's dirs shared by other processes on this
+	# host -- this is a live install with nmisd actually polling, not an idle sandbox.
 	my $c_var_dir = "$tmpbase/mongo-c-var";
-	make_path("$c_var_dir/nmis_system/model_cache");
+	my $c_log_dir = "$tmpbase/mongo-c-logs";
+	make_path("$c_var_dir/nmis_system/model_cache", $c_log_dir);
 	my $int_C = Clone::clone($real_C);
-	$int_C->{db_name}    = "t_threshold-" . time;
+	$int_C->{db_name}      = "t_threshold-" . time;
 	$int_C->{'<nmis_var>'} = $c_var_dir;
+	$int_C->{'<nmis_logs>'} = $c_log_dir;
 	# $node->save() below passes no meta=>, so audit_log() currently bails out on a missing
 	# who/what/where/how before it would ever write to the real <nmis_logs>/audit.log. This
 	# guards against that changing later: audit_log() reloads the real global config, so
@@ -358,6 +361,13 @@ SKIP: {
 	$int_C->{audit_enabled} = 'false';
 	my $int_log = NMISNG::Log->new(level => 'info');
 	my $nmisng  = NMISNG->new(config => $int_C, log => $int_log);
+	# Compat::NMIS::new_nmisng() is a process-wide singleton (state $_nmisng in
+	# lib/Compat/NMIS.pm) that DNS resolution (resolve_dns_name) calls bare, with no
+	# config/log -- so on its first-ever call in this process it would build a logger
+	# pointed at the real <nmis_logs>/nmis.log and cache itself for the rest of the run.
+	# Seeding it here first, with our own config+logger, makes every later bare call in
+	# this section reuse this instance instead of lazily building one from real config.
+	Compat::NMIS::new_nmisng(config => $int_C, log => $int_log, nocache => 1);
 
 	# Monkey-patch RRD to skip actual I/O
 	{
@@ -514,15 +524,21 @@ SKIP: {
 	require NMISNG::Snmp::Mock;
 	NMISNG::Snmp::Mock->import();
 
-	# Isolated <nmis_var>, same rationale as Section C.
+	# Isolated <nmis_var>/<nmis_logs>, same rationale as Section C.
 	my $d_var_dir = "$tmpbase/mongo-d-var";
-	make_path("$d_var_dir/nmis_system/model_cache");
+	my $d_log_dir = "$tmpbase/mongo-d-logs";
+	make_path("$d_var_dir/nmis_system/model_cache", $d_log_dir);
 	my $d_C = Clone::clone($real_C);
 	$d_C->{db_name}      = "t_threshold-d-" . time;
 	$d_C->{'<nmis_var>'} = $d_var_dir;
+	$d_C->{'<nmis_logs>'} = $d_log_dir;
 	$d_C->{audit_enabled} = 'false'; # same rationale as Section C.
 	my $d_log    = NMISNG::Log->new(level => 'info');
 	my $d_nmisng = NMISNG->new(config => $d_C, log => $d_log);
+	# Same rationale as Section C: seed the Compat::NMIS singleton with our own
+	# config+logger before any bare (bare, no-args) call can lazily build one from
+	# the real global config.
+	Compat::NMIS::new_nmisng(config => $d_C, log => $d_log, nocache => 1);
 
 	{
 		no warnings 'redefine';
