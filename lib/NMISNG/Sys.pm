@@ -2266,8 +2266,9 @@ sub loadModel
 # args: self, destination hashref, source hashref, optional recursion level indicator
 # stuff from source overwrites stuff in dest, including arrays.
 # Tags _source_file on inline alert entries (alert: sub-keys inside sys/rrd section DSes).
-# Reads from $source (never the shared cache), writes into $dest (the merged model).
-# For primary model source == dest (already cloned). For common/override they differ.
+# Walks $source (Common/override or primary model), writes into $dest ($self->{mdl}).
+# For common/override, $source may alias loadTable's shared in-process cache, so this can
+# tag that shared hash too -- safe, since every load re-tags from scratch.
 sub _tag_inline_alert_sections
 {
 	my ($self, $source, $dest, $filename) = @_;

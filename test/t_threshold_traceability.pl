@@ -31,6 +31,7 @@ use NMISNG::Status;
 use NMISNG::Sys;
 use NMISNG::Log;
 use NMISNG::Util;
+use Compat::NMIS;
 # =============================================================================
 # Fake NMISNG (Sections A and B — no MongoDB required)
 # =============================================================================
@@ -294,7 +295,10 @@ diag("=== Section B: loadModel inline alert tagging ===");
 	   "B6: threshold entry tagged by the existing threshold tagging loop");
 }
 
-# B7: Shared cache not mutated — second load still produces correct tagging
+# B7: repeated loads still produce correct tagging, even though _mergeHash may alias a
+# Common's contributed sections into $self->{mdl} rather than cloning them (see the
+# _tag_inline_alert_sections header comment) -- tagging is idempotent, so this converges
+# to the right value on every pass regardless.
 {
 	clear_cache();
 	my ($name, $feat) = ("TrB7", "TrB7Feature");
@@ -310,7 +314,7 @@ diag("=== Section B: loadModel inline alert tagging ===");
 		ok($sys->loadModel(model => "Model-$name"), "B7 pass $pass: loadModel succeeded");
 		is($sys->{mdl}{commonSection}{rrd}{testSection}{snmp}{commonDs}{alert}{_source_file},
 		   "Common-$feat",
-		   "B7 pass $pass: inline alert tagged correctly (shared cache not mutated)");
+		   "B7 pass $pass: inline alert tagged correctly across repeated loads");
 	}
 }
 
@@ -333,15 +337,20 @@ my $can_mongo = eval {
 };
 
 SKIP: {
-	skip "MongoDB not available: $@", 18 unless $can_mongo;
+	skip "MongoDB not available: $@", 22 unless $can_mongo;
 
 	require NMISNG;
 	require NMISNG::Node;
 	require NMISNG::Snmp::Mock;
 	NMISNG::Snmp::Mock->import();
 
-	my $int_C = NMISNG::Util::loadConfTable();
-	$int_C->{db_name} = "t_threshold-" . time;
+	# Isolated <nmis_var> so loadModel's model-cache writes (and node locks) land in a
+	# scratch dir, not the real install's var dir shared by other processes on this host.
+	my $c_var_dir = "$tmpbase/mongo-c-var";
+	make_path("$c_var_dir/nmis_system/model_cache");
+	my $int_C = Clone::clone($real_C);
+	$int_C->{db_name}    = "t_threshold-" . time;
+	$int_C->{'<nmis_var>'} = $c_var_dir;
 	my $int_log = NMISNG::Log->new(level => 'info');
 	my $nmisng  = NMISNG->new(config => $int_C, log => $int_log);
 
@@ -451,6 +460,32 @@ SKIP: {
 		   "C13: threshold_unit absent/empty for inline alert (no unit field in inline alert model)");
 	}
 
+	# C14-C18: handle_custom_alerts (top-level model "alerts" section, distinct from the
+	# inline sys/rrd alerts above) drives the custom-alert threshold_metric fix end to end,
+	# from the model's CVAR value expression through to the saved status document.
+	$node->handle_custom_alerts(sys => $S, catchall_inventory => $catchall);
+
+	my $custom_cursor = NMISNG::DB::find(
+		collection => $nmisng->status_collection(),
+		query      => { event => 'Custom Sensor Alert', node_uuid => $node->uuid },
+	);
+	my @custom_docs = $custom_cursor ? $custom_cursor->all() : ();
+	ok(scalar(@custom_docs) >= 1,
+	   "C14: status document saved for custom alert testSensorTestAlert");
+
+	SKIP: {
+		skip "no custom alert status docs in MongoDB", 4 unless @custom_docs;
+		my $cdoc = $custom_docs[0];
+		is($cdoc->{threshold_metric}, 'testSensorValue',
+		   "C15: threshold_metric derived from custom alert's CVAR value expression (bb1f7921 fix)");
+		is($cdoc->{threshold_source}, 'Model-TestSnmp',
+		   "C16: threshold_source persisted for custom alert");
+		is($cdoc->{threshold_key}, 'testSensorTestAlert',
+		   "C17: threshold_key = custom alert name");
+		is($cdoc->{model_subconcept}, 'testSensor',
+		   "C18: model_subconcept = custom alert section");
+	}
+
 	$nmisng->get_db()->drop();
 	ok(1, "C: cleanup complete");
 }
@@ -467,15 +502,19 @@ SKIP: {
 diag("=== Section D: threshold_metric model fallback (MongoDB) ===");
 
 SKIP: {
-	skip "MongoDB not available: $@", 9 unless $can_mongo;
+	skip "MongoDB not available: $@", 10 unless $can_mongo;
 
 	require NMISNG;
 	require NMISNG::Node;
 	require NMISNG::Snmp::Mock;
 	NMISNG::Snmp::Mock->import();
 
-	my $d_C = NMISNG::Util::loadConfTable();
-	$d_C->{db_name} = "t_threshold-d-" . time;
+	# Isolated <nmis_var>, same rationale as Section C.
+	my $d_var_dir = "$tmpbase/mongo-d-var";
+	make_path("$d_var_dir/nmis_system/model_cache");
+	my $d_C = Clone::clone($real_C);
+	$d_C->{db_name}      = "t_threshold-d-" . time;
+	$d_C->{'<nmis_var>'} = $d_var_dir;
 	my $d_log    = NMISNG::Log->new(level => 'info');
 	my $d_nmisng = NMISNG->new(config => $d_C, log => $d_log);
 
@@ -536,7 +575,7 @@ SKIP: {
 	ok(defined($d_ts_inv), "D3: testSensor inventory instance found in MongoDB");
 
 	SKIP: {
-		skip "no testSensor inventory for D4-D8", 5 unless defined($d_ts_inv);
+		skip "no testSensor inventory for D4-D9", 6 unless defined($d_ts_inv);
 
 		my $d_index = $d_ts_inv->data->{index} // '';
 
@@ -561,13 +600,14 @@ SKIP: {
 		ok(scalar(@d_docs) >= 1, "D4: status doc saved for testSensorUtil threshold breach");
 
 		SKIP: {
-			skip "no status docs in MongoDB for D5-D8", 4 unless @d_docs;
+			skip "no status docs in MongoDB for D5-D9", 5 unless @d_docs;
 			my $d = $d_docs[0];
 			is($d->{threshold_metric}, 'testSensorUtil',
 			   "D5: threshold_metric populated from model item= when item arg is absent");
 			is($d->{threshold_key},    'testSensorUtil', "D6: threshold_key = thrname");
 			is($d->{model_subconcept}, 'testSensor',     "D7: model_subconcept = type");
 			is($d->{threshold_unit},   '%',              "D8: threshold_unit = '%' from threshold definition");
+			is($d->{threshold_select}, 'default',        "D9: threshold_select = select branch used ('default')");
 		}
 	}
 

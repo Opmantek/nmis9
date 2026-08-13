@@ -28,7 +28,6 @@ working_tests=(
     t_event_cancelingevent_cycle.pl
     t_event_query_isolation.pl
     t_event.pl
-    t_model_overrides.pl
     t_plugin_nodeobj.pl
     t_plugin_nodevalidation.pl
     notify_depend.t

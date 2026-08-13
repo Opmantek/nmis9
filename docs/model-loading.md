@@ -89,6 +89,21 @@ Reloading from source rewrites both files atomically.
 
 The first run after deploying this code reloads every model once (no sidecars exist yet); steady-state polling reads from cache.
 
+## Status Document Fields
+
+When a threshold or alert fires, `NMISNG::Status` persists a trail back to the model definition that produced it, alongside the usual event fields. These land on documents in the `status` MongoDB collection:
+
+| Field | Meaning | Populated from |
+|---|---|---|
+| `threshold_source` | Model/Common/override filename that defined the threshold or alert -- the `_source_file` tag described above. | `$S->mdl->{threshold}{name}{$name}{_source_file}`, or the alert's own `_source_file`. |
+| `threshold_metric` | Name of the underlying metric/DS the threshold or alert is evaluating. | The threshold's `item`; for custom alerts, the first `CVAR` varname parsed out of the alert's `value` expression, falling back to the alert's `ds`. |
+| `threshold_key` | The threshold or alert's own key in the model. | The threshold name (`thrname`), or the alert's key under `alerts.<section>`. |
+| `threshold_select` | Which entry in the threshold's `select` map matched (e.g. `default`, or a numbered level key). | `translate_threshold_level`'s `level_select`. |
+| `threshold_unit` | Unit string from the threshold or alert definition, if any. | `$S->mdl->{threshold}{name}{$name}{unit}`, or the alert's `unit`. |
+| `model_subconcept` | The concept/section the threshold or alert belongs to (e.g. `interface`, `testSensor`). | The threshold's type, or the alert's `section`. |
+
+These fields let a consumer -- for example opCharts, which keys off `threshold_metric` -- trace a status document back to the model file and definition that produced it, without re-deriving that from the node's current (and possibly since-changed) model.
+
 ## Pre-processing
 
 Before the merged model is written to cache, `loadModel` performs a small cleanup pass:
