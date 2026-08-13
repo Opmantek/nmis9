@@ -351,6 +351,11 @@ SKIP: {
 	my $int_C = Clone::clone($real_C);
 	$int_C->{db_name}    = "t_threshold-" . time;
 	$int_C->{'<nmis_var>'} = $c_var_dir;
+	# $node->save() below passes no meta=>, so audit_log() currently bails out on a missing
+	# who/what/where/how before it would ever write to the real <nmis_logs>/audit.log. This
+	# guards against that changing later: audit_log() reloads the real global config, so
+	# only this cloned config's own audit_enabled (not <nmis_var>) can gate it off.
+	$int_C->{audit_enabled} = 'false';
 	my $int_log = NMISNG::Log->new(level => 'info');
 	my $nmisng  = NMISNG->new(config => $int_C, log => $int_log);
 
@@ -515,6 +520,7 @@ SKIP: {
 	my $d_C = Clone::clone($real_C);
 	$d_C->{db_name}      = "t_threshold-d-" . time;
 	$d_C->{'<nmis_var>'} = $d_var_dir;
+	$d_C->{audit_enabled} = 'false'; # same rationale as Section C.
 	my $d_log    = NMISNG::Log->new(level => 'info');
 	my $d_nmisng = NMISNG->new(config => $d_C, log => $d_log);
 
@@ -618,7 +624,7 @@ SKIP: {
 # =============================================================================
 # SECTION E: Common override _source_file tagging (no MongoDB)
 #
-# Uses three fixture models (in test/testdata/) to verify:
+# Builds three model/Common/override hashes inline (written to a tempdir below) to verify:
 #   E1-E3: without override, fanValue alert comes from Common-CiscoStatus-test
 #   E4-E6: with Override-Common-CiscoStatus-test in models-custom, the
 #           overriding file owns _source_file and its fields win (level=Critical)
