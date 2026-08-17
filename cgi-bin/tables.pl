@@ -86,6 +86,10 @@ my $wantwidget = $widget eq "true";
 
 # select function
 
+# OMK-12699: write acts need POST and a valid CSRF token. Must sit after any act
+# rewriting and before dispatch.
+$AU->enforce_csrf($Q) or exit 0;
+
 if ($Q->{act} eq 'config_table_menu') { 			menuTable(); 
 } elsif ($Q->{act} eq 'config_table_add') { 		editTable(); 
 } elsif ($Q->{act} eq 'config_table_view') { 		viewTable();
@@ -274,6 +278,7 @@ sub viewTable
 	print start_form(-id=>"$formid", -href=>url(-absolute=>1)."?");
 	print hidden(-override => 1, -name => "conf", -value => $Q->{conf})
 			. hidden(-override => 1, -name => "act", -value => $action)
+			. $AU->csrf_hidden_field
 			. hidden(-override => 1, -name => "widget", -value => $widget)
 			. hidden(-override => 1, -name => "table", -value => $table)
 			. hidden(-override => 1, -name => "key", -value => $key)
@@ -470,6 +475,7 @@ sub editTable
 	print start_form(-name=>"$formid",-id=>"$formid",-href=>"$url")
 			. hidden(-override => 1, -name => "conf", -value => $Q->{conf} )
 			. hidden(-override => 1, -name => "act", -value => "config_table_$func")
+			. $AU->csrf_hidden_field
 			. hidden(-override => 1, -name => "table" , -value => $table )
 			. hidden(-override => 1, -name => "widget", -value => $widget)
 			. hidden(-override => 1, -name => "cancel", -value => '', -id=> "cancelinput")
@@ -1058,6 +1064,7 @@ sub doeditTable
 			print start_form(-id=>$formid, -href => $thisurl)
 					. hidden(-override => 1, -name => "conf", -value => $Q->{conf})
 					. hidden(-override => 1, -name => "act", -value => "config_table_menu")
+					. $AU->csrf_hidden_field
 					. hidden(-override => 1, -name => "widget", -value => $widget)
 					. hidden(-override => 1, -name => "table", -value => $Q->{table});
 
@@ -1157,6 +1164,7 @@ sub dodeleteTable {
 			print start_form(-id=>"", -href => $thisurl)
 					. hidden(-override => 1, -name => "conf", -value => $Q->{conf})
 					. hidden(-override => 1, -name => "act", -value => "config_table_menu")
+					. $AU->csrf_hidden_field
 					. hidden(-override => 1, -name => "widget", -value => $widget)
 					. hidden(-override => 1, -name => "table", -value => $Q->{table});
 

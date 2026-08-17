@@ -321,6 +321,109 @@ plugins are disabled on a correctly permissioned install.
 
 ---
 
+### H4 / OMK-12699 — anti-CSRF token and POST-only enforcement on the CGI GUI
+
+**Files:** `lib/NMISNG/Auth.pm`, every mutating script under `cgi-bin/`,
+`menu/js/commonv8.js`, `conf-default/Config.nmis`,
+`conf-default/docker/Config.nmis.docker`, `conf-default/Table-Config.nmis`
+
+**What changed**
+
+| Setting | Before | After |
+|---------|--------|-------|
+| Write acts under `cgi-bin` | reachable by GET, no token | POST only, and a valid `csrf_token` required |
+| Unknown or missing act | ran whatever the script dispatched | classified as a write, so refused unless it POSTs with a token |
+| `tools.pl?act=tool_system_collect` | GET ran the support-archive job | GET renders a confirmation, `tool_system_docollect` POSTs the job |
+| `menu.pl` window state | raw JSON body, dispatched on the body existing | `act=menu_window_state` with the payload in `windowdata` |
+| `auth_csrf_enforce` (new) | did not exist | `true` |
+
+**Why:** every state-changing action was a GET with no unguessable value in it,
+so any page an authenticated operator visited could drive one with an `<img>`
+tag or an auto-submitting form. The token is a stateless HMAC over the
+authenticated username and an expiry, keyed with the existing `auth_web_key`,
+so it needs no server-side session store and cannot be minted for another user.
+
+**Delegated functionality affected.** Anything that drove a write act by URL.
+In practice that means customer automation holding a session cookie and calling
+`cgi-bin` directly, and any bookmark or saved link that pointed at a write act.
+Both break on upgrade. Read acts, which are the overwhelming majority of the
+GUI, are untouched and still work by GET with no token.
+
+**Escape hatch: `auth_csrf_enforce`, default `true`.** Setting it to an explicit
+false token (`false`, `f`, `no`, `n`, `0`) makes the guard stand aside for the
+whole install. This exists for exactly one situation, an operator who finds
+their automation broken by the upgrade and needs it working again while they fix
+it. Turning it off is logged to the auth log for every write act the guard then
+stands aside for, naming the act and the script, so a silently disabled guard is
+not possible. The check sits after the read classification, so a disabled guard
+does not log on ordinary page loads. Anything other than a recognised false
+token leaves enforcement on, deliberately spelled out rather than passed to
+`getbool`, so a value like `falsey` cannot switch the guard off by prefix match.
+
+**Two carve-outs are not configurable, by design.** The guard stands aside off
+the CGI path, since a command-line invocation has no browser and no session to
+ride, matching what OMK-12686 did for the ISINDEX guard. It also stands aside
+when `auth_require` is off, because such an install never calls `loginout`, has
+no user to bind a token to and no session cookie for an attacker to use. Without
+that second carve-out an install with authentication disabled would lose every
+GUI write on upgrade, with no token obtainable to fix it.
+
+**Known gap, a stale browser cache breaks window-state saves quietly.** A cached
+pre-upgrade `commonv8.js` still posts the raw JSON body that `menu.pl` no longer
+dispatches on, so the upgraded server refuses the save with a 403, and
+`postWindowState` has no error handling to surface it. Window layout silently
+stops persisting until the browser picks up the new script.
+`nmis_common` (`conf-default/Config.nmis`) carries no cache-busting version
+parameter, so there is nothing to force that refresh. It self-heals on the next
+cache expiry or a hard reload, and it affects only the saved window layout, so
+this ships as a release note rather than a fix. Adding a version parameter to
+the script include is the real fix and is not implemented.
+
+**Mitigation to investigate.** Nothing here narrows the escape hatch to a
+subset of acts or a subset of clients. An install that needs tokenless writes
+for one automated caller has to disable the guard for every caller. A per-act or
+per-source allowance would be better and is not implemented.
+
+### H5 / OMK-12700 — SameSite and Secure on the session cookie
+
+**Files:** `lib/NMISNG/Auth.pm`, `conf-default/Config.nmis`,
+`conf-default/docker/Config.nmis.docker`, `conf-default/Table-Config.nmis`
+
+**What changed**
+
+| Setting | Before | After |
+|---------|--------|-------|
+| Session cookie `SameSite` | no attribute | `Lax` |
+| `auth_cookie_samesite` (new) | did not exist | `Lax` |
+| `auth_cookie_secure` (new) | did not exist | `false` |
+
+**Why:** `SameSite=Lax` stops the session cookie riding along on cross-site
+POSTs, which is the transport the CSRF work in H4 defends against. It is the
+browser-side half of the same fix, and useful on its own for any write path that
+predates or outlives the token.
+
+**Delegated functionality affected.** A cross-site POST that previously carried
+the session cookie no longer does. Anything embedding the NMIS GUI in a frame on
+another origin and posting into it is affected. `Secure` is off by default and
+only takes effect when an operator turns it on, so plain-HTTP installs are
+untouched.
+
+**Escape hatch: `auth_cookie_samesite = off`.** That is the only way back to a
+cookie with no `SameSite` attribute, which is what shipped before. Blank and
+unset still resolve to `Lax`, so an install that never set the key keeps the
+protection rather than silently losing it to an empty value in a config file.
+`None` is rejected rather than emitted: `CGI::Cookie` cannot produce it, and
+opmojo writes this same cookie, so accepting it would leave the two disagreeing
+about the cookie they share. An operator who genuinely needs `None` has to use
+`off` and set the attribute at the web server.
+
+**Known gap.** An old `CGI.pm` drops an unrecognised `-samesite` silently, so the
+cookie ships without the attribute and nothing appears to be wrong. This is
+detected and logged once per process rather than left invisible, but it is not
+fixed here, and the only fix is upgrading `CGI.pm`.
+
+---
+
 ## Open threads to investigate (epic-wide, not tied to one change)
 
 These came up while reviewing OMK-12707 and are recorded so they are not lost.

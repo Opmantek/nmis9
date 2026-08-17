@@ -80,6 +80,11 @@ my $wantwidget = $widget eq 'true';
 #======================================================================
 
 # select function
+
+# OMK-12699: write acts need POST and a valid CSRF token. Must sit after any act
+# rewriting and before dispatch.
+$AU->enforce_csrf($Q) or exit 0;
+
 if ($Q->{act} eq 'event_table_view')
 {
 	viewEvent();
@@ -179,6 +184,7 @@ sub listEvent
 	print start_form(-id=>"src_events_form",-href=>url(-absolute=>1)."?")
 			.	hidden(-override => 1, -name => "conf", -value => $Q->{conf})
 			. hidden(-override => 1, -name => "act", -value => "event_table_update")
+			. $AU->csrf_hidden_field
 			. hidden(-override => 1, -name => "widget", -value => $widget);
 
 	print start_table;

@@ -191,6 +191,15 @@ the originally collected value.',
 	'title' =>			'Format: string<br>Used as label for displaying this variable.',
 		);
 
+# OMK-12699: a missing act is this script's read-only menu, and the menu links it
+# that way. Normalise before the guard, which classifies anything unregistered
+# as a write and would refuse the act-less link.
+$Q->{act} ||= 'config_model_menu';
+
+# OMK-12699: write acts need POST and a valid CSRF token. Must sit after any act
+# rewriting and before dispatch.
+$AU->enforce_csrf($Q) or exit 0;
+
 # showing stuff in the gui
 if (!$Q->{act} or $Q->{act} eq 'config_model_menu') {	displayModel(); }
 elsif ($Q->{act} eq 'config_model_add') {	addModel(); }
@@ -252,6 +261,7 @@ sub displayModel
 	print start_form(-id=>"nmisModels", -href => url(-absolute => 1)."?")
 			. hidden(-override => 1, -name => "conf", -value => $C->{conf})
 			. hidden(-override => 1, -name => "act", -value => "config_model_menu")
+			. $AU->csrf_hidden_field
 			. hidden(-override => 1, -name => "widget", -value => $Q->{widget}),
 			# the menu-ish table part
 			start_table(),
@@ -467,6 +477,7 @@ sub editModel
 									 -href=>url(-absolute=>1)."?")
 			. hidden(-override => 1, -name => "conf", -value => $C->{conf})
 			. hidden(-override => 1, -name => "act", -value => "config_model_doedit")
+			. $AU->csrf_hidden_field
 			. hidden(-override => 1, -name => "widget", -value => $Q->{widget})
 			. hidden(-override => 1, -name => "cancel", -value => "", -id => "cancel")
 			. hidden(-name=>'model', -default=>$wantedmodel, -override=>'1')
@@ -540,6 +551,7 @@ sub deleteModel
 									 -href=>url(-absolute=>1)."?")
 			. hidden(-override => 1, -name => "conf", -value => $C->{conf})
 			. hidden(-override => 1, -name => "act", -value => "config_model_dodelete")
+			. $AU->csrf_hidden_field
 			. hidden(-override => 1, -name => "widget", -value => $Q->{widget})
 			. hidden(-override => 1, -name => "cancel", -value => "", -id => "cancel")
 			. hidden(-name=>'model', -default=>$wantedmodel, -override=>'1')
@@ -642,6 +654,7 @@ sub addModel
 									 -href=>url(-absolute=>1)."?")
 			. hidden(-override => 1, -name => "conf", -value => $C->{conf})
 			. hidden(-override => 1, -name => "act", -value => "config_model_doadd")
+			. $AU->csrf_hidden_field
 			. hidden(-override => 1, -name => "widget", -value => $Q->{widget})
 			. hidden(-override => 1, -name => "cancel", -value => "", -id => "cancel")
 			. hidden(-name=>'model', -default=>$wantedmodel, -override=>'1')

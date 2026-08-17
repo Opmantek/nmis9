@@ -86,6 +86,11 @@ exit 1 if (defined($Q->{cluster_id}) && $Q->{cluster_id} ne $C->{cluster_id});
 #======================================================================
 
 # select function
+
+# OMK-12699: write acts need POST and a valid CSRF token. Must sit after any act
+# rewriting and before dispatch.
+$AU->enforce_csrf($Q) or exit 0;
+
 if ($Q->{act} eq 'config_nodeconf_view') {
 	displayNodemenu();
 }
@@ -129,6 +134,7 @@ sub displayNodemenu
 	print start_form(-id => $menuformid, -href => $thisurl);
 	print hidden(-override => 1, -name => "conf", -value => $Q->{conf})
 			. hidden(-override => 1, -name => "act", -value => "config_nodeconf_view")
+			. $AU->csrf_hidden_field
 			. hidden(-override => 1, -name => "widget", -value => $widget);
 
 	print start_table() ; # first table level
@@ -176,6 +182,7 @@ sub displayNodeConf
 	print start_form(-id => $formid, -href => $thisurl);
 	print hidden(-override => 1, -name => "conf", -value => $Q->{conf})
 			. hidden(-override => 1, -name => "act", -value => "config_nodeconf_update")
+			. $AU->csrf_hidden_field
 			. hidden(-override => 1, -name => "node", -value => $node)
 			. hidden(-override => 1, -name => "widget", -value => $widget)
 			. hidden(-id => "doupdate", -override => 1, -name => "update", -value => '');
@@ -622,6 +629,7 @@ sub updateNodeConf {
 		print start_form(-id=>$formid, -href => $thisurl);
 		print hidden(-override => 1, -name => "conf", -value => $Q->{conf})
 				. hidden(-override => 1, -name => "act", -value => "config_nodeconf_view")
+				. $AU->csrf_hidden_field
 				. hidden(-override => 1, -name => "widget", -value => $widget);
 
 		print table(Tr(td({class=>'header'},escapeHTML("User-initiated update of $node")))),

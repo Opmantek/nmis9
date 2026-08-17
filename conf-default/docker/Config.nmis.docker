@@ -2,6 +2,9 @@
   'authentication' => {
     'auth_banner_title' => 'NMIS9',
     'auth_buttons_visible' => 'true',
+    'auth_cookie_samesite' => 'Lax',
+    'auth_cookie_secure' => 'false',
+    'auth_csrf_enforce' => 'true',
     'auth_cw_company_id' => '',
     'auth_cw_private_key' => '',
     'auth_cw_public_key' => '',

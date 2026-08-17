@@ -77,6 +77,10 @@ my $nmisng = Compat::NMIS::new_nmisng();
 
 # select function
 
+# OMK-12699: write acts need POST and a valid CSRF token. Must sit after any act
+# rewriting and before dispatch.
+$AU->enforce_csrf($Q) or exit 0;
+
 if ($Q->{act} eq 'event_database_list') {			displayEventList();
 } elsif ($Q->{act} eq 'event_database_view') {		displayEvent();
 } elsif ($Q->{act} eq 'event_database_delete') {	displayEvent();
@@ -127,6 +131,7 @@ sub displayFlow{
 	print start_form(-id=>"tls_event_flow_form", -href => url(-absolute=>1)."?")
 			. hidden(-override => 1, -name => "conf", -value => $Q->{conf})
 			. hidden(-override => 1, -name => "act", -value => "event_flow_view")
+			. $AU->csrf_hidden_field
 			. hidden(-override => 1, -name => "widget", -value => $widget);
 
 	print start_table;
@@ -615,9 +620,25 @@ sub displayEventItems {
 DELETE:
 	if ($Q->{act} =~ /delete$/) {
 		# $event has been mangled for the escalation lookup...
+		# OMK-12699: was an <a href>, i.e. a tokenless GET. Now a POST form.
+		# The id is unique per event: widget dialogs share one document, so a fixed
+		# id would make get() submit the first such form on the page and delete
+		# whichever event that one belongs to.
+		my $fid = join("_", "eventdel", $node_uuid // '',
+					   $thisevent->{event} // '', $element // '');
+		$fid =~ s/[^A-Za-z0-9_]+/_/g;
 		print Tr(td({class=>'header'},b('Delete this Event ? ')),
-			td(a({href=>"view-event.pl?act=event_database_dodelete&node_uuid=$node_uuid&event="
-								.$thisevent->{event}."&element=$element&widget=$widget"},'DELETE')));
+			td(start_form(-id => $fid, -href => "view-event.pl?",
+										-action => "view-event.pl", -method => 'POST')
+				 . hidden(-override => 1, -name => "act", -value => "event_database_dodelete")
+				 . $AU->csrf_hidden_field
+				 . hidden(-override => 1, -name => "node_uuid", -value => $node_uuid)
+				 . hidden(-override => 1, -name => "event", -value => $thisevent->{event})
+				 . hidden(-override => 1, -name => "element", -value => $element)
+				 . hidden(-override => 1, -name => "widget", -value => $widget)
+				 . button(-name => "deletebutton", -value => 'DELETE',
+									-onclick => ($wantwidget ? "get('$fid');" : "submit()"))
+				 . end_form));
 	}
 	#=====================================================
 }

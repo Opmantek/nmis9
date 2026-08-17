@@ -186,6 +186,12 @@ my %hash = (
 		'authentication' => [
 			{ 'auth_method_1' => { display => 'popup', value => ['apache','htpasswd','radius','tacacs','ldap','ldaps','ms-ldap']}},
 			{ 'auth_method_2' => { display => 'popup', value => ['apache','htpasswd','radius','tacacs','ldap','ldaps','ms-ldap']}},
+			{ 'auth_cookie_samesite' => { display => 'popup', value => ['Lax','Strict','off'],
+																		validate => { "onefromlist" => undef }}},
+			{ 'auth_cookie_secure' => { display => 'popup', value => ['false','true'],
+																	validate => { "onefromlist" => undef }}},
+			{ 'auth_csrf_enforce' => { display => 'popup', value => ['true','false'],
+																 validate => { "onefromlist" => undef }}},
 			{ 'auth_expire' => { display => 'text', value => ['+20min']}},
 			{ 'auth_htpasswd_file' => { display => 'text', value => ['<nmis_conf>/users.dat']}},
 			{ 'auth_ldap_server' => { display => 'text', value => ['']}},

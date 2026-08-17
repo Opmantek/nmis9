@@ -39,6 +39,7 @@ working_tests=(
     t_authkey_recovery.t
     t_authkey_env.t
     t_auth_cookie_flavour.t
+    t_auth_cookie_flags.t
     t_auth_sso_shared_key.t
     t_auth_session_no_eval.pl
     t_plugin_loader_guard.t
@@ -59,6 +60,8 @@ working_tests=(
     t_nmis_cli_htpasswd.t
     t_access_policy.pl
     t_mongo_exposure.t
+    t_csrf.t
+    t_csrf_cgi.t
 )
 
 # run every file even when one fails, so a failure early in the list does not

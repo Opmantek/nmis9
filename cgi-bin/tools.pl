@@ -35,6 +35,7 @@ use lib "$FindBin::Bin/../lib";
 
 use strict;
 use NMISNG::Util;
+use NMISNG::DB;
 use Compat::NMIS;
 use NMISNG::Sys;
 
@@ -71,6 +72,11 @@ my $wantwidget = $widget eq "true";
 
 #======================================================================
 
+# OMK-12699: write acts need POST and a valid CSRF token. Must sit after any act
+# rewriting and before dispatch. Only tool_system_docollect is a write here: the
+# other tools read, while collect execs admin/support.pl and writes an archive.
+$AU->enforce_csrf($Q) or exit 0;
+
 # select function
 
 if ($Q->{act} =~ /tool_system/) {
@@ -95,17 +101,43 @@ sub typeTool
 	$tool =~ s/tool_system_//i;
 	my $node = $Q->{node};
 
-	my $NT = Compat::NMIS::loadNodeTable();
-	my $host = $NT->{$node}{host};
+	# OMK-12699: collect execs admin/support.pl and writes a support archive, so it
+	# is a write and cannot run on a tokenless GET. The menu link still arrives as
+	# "collect" and now renders a confirmation carrying the token; "docollect" is
+	# the POST that actually runs it, and shares collect's tls_collect right.
+	my $confirm_collect = ($tool eq "collect");
+	$tool = "collect" if ($tool eq "docollect");
 
 	# input sanitising - ideally we'd like to accept just [a-zA-Z0-9_-]
 	# but people regularly go beyond that set. so, for now, we just ditch
-	# the definitely problematic ones.
+	# the definitely problematic ones. Checked before the lookup below, so a
+	# hostile name never reaches a query.
 	if ($node =~ /[&`'"<>]/)
 	{
 		print header($headeropts), "Tools: ERROR, Rejecting Unsafe node argument '".escapeHTML($node)."'<br>\n";
 		exit;
 	}
+
+	# two fields of one node, so a projected query rather than the deprecated
+	# loadNodeTable. No cluster_id term: loadNodeTable spanned local and foreign
+	# nodes, and filtering would stop resolving remote ones. '$eq' with make_string
+	# keeps exact-match semantics, so a crafted "regex:..." name cannot match
+	# another node (NMISNG::DB::get_query_part), and numeric names stay strings.
+	my ($host, $nodename) = ('', '');
+	if ($node ne '')
+	{
+		my $md = Compat::NMIS::new_nmisng()->get_nodes_model(
+			filter      => { name => { '$eq' => NMISNG::DB::make_string($node) } },
+			fields_hash => { 'name' => 1, 'configuration.host' => 1 },
+			limit       => 1);
+		my $rec = $md->error ? undef : $md->data->[0];
+		if ($rec)
+		{
+			$host     = $rec->{configuration}{host} // '';
+			$nodename = $rec->{name} // '';
+		}
+	}
+
 	if ($host =~ /[&`'"<>]/)
 	{
 		print header($headeropts), "Tools: ERROR, Rejecting Unsafe host argument '".escapeHTML($host)."'<br>\n";
@@ -115,7 +147,7 @@ sub typeTool
 	my $S = NMISNG::Sys->new;
 	$S->init(name=>$node,snmp=>'false');
 
-	my $title = escapeHTML("Command $tool for node $NT->{$node}{name} ($host)");
+	my $title = escapeHTML("Command $tool for node $nodename ($host)");
 	$title = escapeHTML("Command $tool") if $node eq '';
 
 	if ( $tool =~ /^(ping|trace|nslookup|finger|man|mank|mtr|lft|snmp)$/
@@ -130,6 +162,28 @@ sub typeTool
 
 	return unless $AU->CheckAccess("tls_$tool");
 	my $wid = "580px";
+
+	if ($confirm_collect)
+	{
+		my $fid = "toolcollect";
+		print start_table({width=>"$wid"});
+		print Tr(td({class=>'header'}, $title));
+		print Tr(td({class=>'info'},
+					start_form(-id => $fid, -href => url(-absolute=>1)."?",
+							   -action => url(-absolute=>1), -method => 'POST')
+					. hidden(-override => 1, -name => "conf", -value => $Q->{conf})
+					. hidden(-override => 1, -name => "act", -value => "tool_system_docollect")
+					. $AU->csrf_hidden_field
+					. hidden(-override => 1, -name => "widget", -value => $widget)
+					. "Collecting support data runs a server-side archive job and can take "
+					. "several minutes. "
+					. button(-name => "collectbutton", -value => 'Collect Support Data',
+							 -onclick => ($wantwidget ? "get('$fid');" : "submit()"))
+					. end_form));
+		print end_table;
+		Compat::NMIS::pageEnd() if (!$wantwidget);
+		return;
+	}
 
 	print Compat::NMIS::createHrButtons(node=>$node, system=>$S, widget=>$widget, conf => $Q->{conf}, AU => $AU);
 
@@ -220,9 +274,14 @@ sub selectNode {
 	# start of form
   # the get() code doesn't work without a query param, nor does it work with all params present
 	# conversely the non-widget mode needs post inputs as query params are ignored
+	# OMK-12699: the act here is whatever brought the user in, so it is dynamic.
+	# Every tool reaching this point is a read, but the token rides along anyway:
+	# the form already posts, and a dynamic act must not depend on today's list
+	# staying read-only.
 	print start_form(-id=>"nmisTools", -href=>url(-absolute=>1)."?")
 			. hidden(-override => 1, -name => "conf", -value => $Q->{conf})
 			. hidden(-override => 1, -name => "act", -value => $Q->{act})
+			. $AU->csrf_hidden_field
 			. hidden(-override => 1, -name => "cancel", -value => '', -id=> "cancelinput")
 			. hidden(-override => 1, -name => "widget", -value => $widget);
 

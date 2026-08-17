@@ -107,6 +107,52 @@ sub _lock_sensitive_tables
 	return 1;
 }
 
+# Secure attribute for the session cookie. Fails OPEN (default off): a Secure
+# cookie over plain http is dropped by the browser, so a wrong true is an
+# outage. Deliberately not getbool, which prefix-matches /^[yt1]/ and would
+# read "tls-later" as true. Token set matches NMISNG::Util::getbool_cli exactly,
+# minus the die: an unusable value must not take the web UI down.
+sub _cookie_secure
+{
+	my $self = shift;
+	my $val = $self->{config}->{auth_cookie_secure};
+	return 0 if (!defined($val) or $val !~ /\S/);
+	return 1 if ($val =~ /^\s*(true|t|yes|y|1)\s*$/i);
+	return 0 if ($val =~ /^\s*(false|f|no|n|0)\s*$/i);
+	NMISNG::Util::logAuth("Invalid auth_cookie_secure \"$val\", Secure stays off");
+	return 0;
+}
+
+# SameSite for the session cookie. CGI::Cookie emits only Strict and Lax and
+# discards anything else silently, so an unrecognised value is logged and
+# replaced with Lax rather than vanishing. None is rejected: opmojo writes this
+# same cookie and CGI cannot emit None, so the two would disagree.
+sub _cookie_samesite
+{
+	my $self = shift;
+	my $val = $self->{config}->{auth_cookie_samesite};
+	return 'Lax' if (!defined($val) or $val !~ /\S/);
+	$val =~ s/^\s+|\s+$//g;
+	# OMK-12700 escape hatch: "off" is the way back to the pre-upgrade cookie,
+	# which carried no SameSite at all. Blank still means Lax, so an install that
+	# never set the key keeps the protection.
+	return undef if ($val =~ /^off$/i);
+	return ucfirst(lc($val)) if ($val =~ /^(strict|lax)$/i);
+	NMISNG::Util::logAuth("Invalid auth_cookie_samesite \"$val\", using Lax");
+	return 'Lax';
+}
+
+# the -samesite argument for CGI::cookie, or nothing at all when the attribute
+# is switched off. Passing -samesite => undef would still hand CGI::Cookie a key
+# to act on, and would make _emit_cookie's drop detection read as a drop.
+sub _cookie_samesite_args
+{
+	my $self = shift;
+
+	my $val = $self->_cookie_samesite;
+	return defined($val) ? (-samesite => $val) : ();
+}
+
 # record non-standard "conf" ONLY if confname is given as argument
 # attention: arg conf is a LIVE config (confname is the name)
 # args:
@@ -284,6 +330,236 @@ sub _secure_compare
 	return $diff == 0;
 }
 
+#----------------------------------
+# OMK-12699 anti-CSRF token, formatted "<expiry_ts>--<hmac_sha256_hex>". The MAC
+# covers the authenticated username and the expiry, not a session id, so two
+# concurrent sessions of one user hold interchangeable tokens.
+# Shipped behaviour: docs/security-hardening-register.md, entries H4 and H5.
+#----------------------------------
+
+# token life in seconds, from auth_expire, so it expires with the session that
+# owns it. Same unit set as generate_cookie, same '+60min' fallback.
+sub _csrf_lifetime
+{
+	my $self = shift;
+
+	my %factors = ( s => 1, m => 60, 'min' => 60, h => 3600,
+					d => 86400, w => 604800, M => 31 * 86400, y => 365 * 86400 );
+	my $expires = $self->{config}->{auth_expire} || '+60min';
+
+	return $1 * $factors{$2} if ($expires =~ /^\+?(\d+)\s*(min|s|m|h|d|w|M|y)$/);
+	return 3600;
+}
+
+# the single place the token is constructed. mint, verify and t_csrf.t all go
+# through it, so the wire format cannot drift between them.
+sub _csrf_format
+{
+	my ($user, $expiry, $key) = @_;
+
+	return "$expiry--" . Digest::SHA::hmac_sha256_hex("$user:$expiry", $key);
+}
+
+sub mint_csrf_token
+{
+	my $self = shift;
+
+	my $web_key = $self->_auth_web_key;
+	return '' unless defined $web_key;
+
+	# no user means nothing to bind to, and two anonymous sessions would then
+	# agree on the same MAC
+	my $user = $self->{user};
+	return '' if (!defined $user or $user eq '');
+
+	return _csrf_format($user, time + $self->_csrf_lifetime, $web_key);
+}
+
+# verify_csrf: true when the token was minted for the currently authenticated
+# user and has not expired. Constant-time on the digest comparison.
+sub verify_csrf
+{
+	my ($self, $token) = @_;
+
+	my $web_key = $self->_auth_web_key;
+	return '' unless defined $web_key;
+
+	my $user = $self->{user};
+	return '' if (!defined $user or $user eq '');
+
+	my ($expiry) = ($token // '') =~ /^(\d+)--[0-9a-f]+$/;
+	return '' if (!defined $expiry);
+	return '' if ($expiry < time);
+
+	# recomputed over the CURRENTLY authenticated user, which is what stops an
+	# attacker's token validating in a victim's session
+	return _secure_compare(_csrf_format($user, $expiry, $web_key), $token);
+}
+
+# Every act in cgi-bin, classified read or write. Central so the write surface can
+# be audited in one place; t_csrf.t fails if any dispatch chain grows an act that
+# is not listed here. Anything unlisted is treated as a write at runtime.
+our %CSRF_ACT_CLASS = (
+	'tables.pl' => {
+		config_table_doadd    => 'write', config_table_doedit => 'write',
+		config_table_dodelete => 'write',
+		map { $_ => 'read' } qw(config_table_menu config_table_add config_table_view
+								config_table_show config_table_edit config_table_delete),
+	},
+	'config.pl' => {
+		config_nmis_doadd    => 'write', config_nmis_doedit => 'write',
+		config_nmis_dodelete => 'write',
+		map { $_ => 'read' } qw(config_nmis_menu config_nmis_add config_nmis_edit
+								config_nmis_delete),
+	},
+	'models.pl' => {
+		config_model_doadd    => 'write', config_model_doedit => 'write',
+		config_model_dodelete => 'write',
+		map { $_ => 'read' } qw(config_model_menu config_model_add config_model_edit
+								config_model_delete),
+	},
+	'outages.pl' => {
+		outage_table_doadd => 'write', outage_table_dodelete => 'write',
+		outage_table_view  => 'read',
+	},
+	'view-event.pl' => {
+		event_database_dodelete => 'write',
+		map { $_ => 'read' } qw(event_database_view event_database_list
+								event_database_delete event_flow_view),
+	},
+	'events.pl' => {
+		event_table_update => 'write',
+		map { $_ => 'read' } qw(event_table_view event_table_list),
+	},
+	'nodeconf.pl' => {
+		config_nodeconf_update => 'write', config_nodeconf_view => 'read',
+	},
+	'model_policy.pl' => { update => 'write', status => 'read' },
+	'menu.pl' => {
+		menu_window_state => 'write',
+		map { $_ => 'read' } qw(menu_about_view menu_bar_portal menu_bar_site),
+	},
+	# every tool reads except docollect, which execs admin/support.pl and writes a
+	# support archive. collect is the read-only confirmation that fronts it.
+	'tools.pl' => {
+		tool_system_docollect => 'write',
+		map { $_ => 'read' } qw(tool_system tool_system_collect tool_system_hostinfo
+			tool_system_ping tool_system_trace tool_system_nslookup tool_system_finger
+			tool_system_who tool_system_man tool_system_mank tool_system_ps
+			tool_system_iostat tool_system_vmstat tool_system_date tool_system_df
+			tool_system_dns tool_system_lft tool_system_mtr tool_system_snmp),
+	},
+	'setup.pl'        => { setup_doedit => 'write', setup_menu => 'read' },
+	'network.pl' => {
+		nmis_selftest_reset => 'write',
+		map { $_ => 'read' } qw(network_cpu_list network_interface_overview
+			network_interface_view network_interface_view_act network_interface_view_all
+			network_metrics_graph network_node_view network_port_view network_service_list
+			network_service_view network_status_view network_storage_view
+			network_summary_allgroups network_summary_business network_summary_customer
+			network_summary_group network_summary_health network_summary_large
+			network_summary_metrics network_summary_small network_summary_view
+			network_system_health_view network_top10_view nmis_polling_summary
+			nmis_runtime_view nmis_selftest_view node_admin_summary),
+	},
+
+	# read-only scripts. Listed so the completeness check covers the whole tree
+	# and a write act cannot be added to one of them unnoticed.
+	'access.pl'   => { access_menu_load => 'read' },
+	'find.pl'     => { map { $_ => 'read' } qw(find_interface_menu find_interface_view
+											   find_node_menu find_node_view) },
+	'logs.pl'     => { map { $_ => 'read' } qw(log_file_summary log_file_view log_list_view) },
+	'node.pl'     => { map { $_ => 'read' } qw(network_export network_export_options
+											   network_graph_view network_stats) },
+	'reports.pl'  => { map { $_ => 'read' } qw(report_csv_nodedetails report_dynamic_avail
+			report_dynamic_health report_dynamic_outage report_dynamic_port
+			report_dynamic_response report_dynamic_times report_dynamic_top10
+			report_stored_avail report_stored_file report_stored_health
+			report_stored_outage report_stored_port report_stored_response
+			report_stored_times report_stored_top10) },
+	'rrddraw.pl'  => { draw_graph_view => 'read' },
+	'services.pl' => { map { $_ => 'read' } qw(details overview) },
+	'snmp.pl'     => { snmp_var_menu => 'read' },
+	'ip.pl'       => { tool_ip_menu => 'read' },
+);
+
+# enforce_csrf: called by each mutating CGI after loginout and before its dispatch
+# chain. Reads pass through; writes require POST and a valid token.
+# Returns true to continue, false after sending a 403.
+sub enforce_csrf
+{
+	my ($self, $Q) = @_;
+
+	# command-line invocation has no browser and no session, so nothing to forge.
+	# Matches the carve-out OMK-12686 established for the ISINDEX guard.
+	return 1 if (!$ENV{GATEWAY_INTERFACE});
+
+	# auth_require off means the CGIs never call loginout, so there is no session
+	# cookie to ride and no user to bind a token to. Enforcing here would refuse
+	# every write on such an install, since mint_csrf_token cannot produce a token
+	# without a user either.
+	return 1 if (!$self->Require);
+
+	my $script = File::Basename::basename($ENV{SCRIPT_NAME} // $0);
+	my $act    = $Q->{act} // '';
+
+	# unlisted acts are treated as writes, so a new act fails closed rather than
+	# shipping unprotected while nobody notices. The ||{} matters: a nested lookup
+	# would autovivify the script key and grow the registry on every unknown hit.
+	my $class = ($CSRF_ACT_CLASS{$script} || {})->{$act} // 'write';
+	return 1 if ($class eq 'read');
+
+	# OMK-12699 escape hatch, for automation that drives write acts with a session
+	# cookie and no token and would otherwise break on upgrade. Only an explicit
+	# false token disables it, spelled out rather than passed to getbool so that
+	# "falsey" or "no_thanks" cannot switch the guard off by prefix match. Checked
+	# after the read short-circuit so a disabled guard logs once per write, not on
+	# every page load, but still logs, so it stays visible in the auth log.
+	my $enforce = $self->{config}->{auth_csrf_enforce};
+	if (defined($enforce) and $enforce =~ /^\s*(false|f|no|n|0)\s*$/i)
+	{
+		NMISNG::Util::logAuth("SECURITY: CSRF enforcement is off for act=$act on $script, "
+													."auth_csrf_enforce is \"$enforce\"");
+		return 1;
+	}
+
+	my $method = $ENV{REQUEST_METHOD} // '';
+	if ($method ne 'POST')
+	{
+		return $self->_csrf_refuse("act=$act on $script requires POST, got $method");
+	}
+	if (!$self->verify_csrf($Q->{csrf_token}))
+	{
+		return $self->_csrf_refuse("act=$act on $script has a missing or invalid CSRF token");
+	}
+	return 1;
+}
+
+# log the refusal and send a 403. Split out so both refusal paths stay one line.
+sub _csrf_refuse
+{
+	my ($self, $why) = @_;
+
+	NMISNG::Util::logAuth("SECURITY: CSRF check failed, $why");
+	print CGI::header(-status => '403 Forbidden', -type => 'text/plain'),
+		  "403 Forbidden: this request failed its CSRF check.\n",
+		  "If you were filling in a form, reload the page and submit it again. "
+		  ."A form left open longer than the session lifetime carries an expired token.\n";
+	return '';
+}
+
+# the ready-made hidden input, so no CGI needs to know the field name or format.
+# Empty when no token can be minted, rather than a blank value that looks like one.
+sub csrf_hidden_field
+{
+	my $self = shift;
+
+	my $token = $self->mint_csrf_token;
+	return '' if (!$token);
+
+	return CGI::hidden(-name => 'csrf_token', -value => $token, -override => 1);
+}
+
 # returns the configured ssh domain (if any), or a blank string
 sub get_cookie_domain
 {
@@ -373,6 +649,24 @@ sub verify_id
 }
 
 
+# CGI::Cookie drops a -samesite it does not recognise without erroring or
+# changing its return value, so on a CGI.pm too old for SameSite the attribute
+# never ships and nothing says so. Warn once per process (OMK-12700).
+our $samesite_drop_logged = 0;
+sub _emit_cookie
+{
+	my ($self, $args) = @_;
+	my $cookie = CGI::cookie($args);
+	if (defined($args->{-samesite}) and $cookie !~ /;\s*SameSite=/i
+			and !$samesite_drop_logged)
+	{
+		$samesite_drop_logged = 1;
+		NMISNG::Util::logAuth("CGI.pm $CGI::VERSION dropped SameSite=$args->{-samesite} from the "
+													."session cookie, so it ships without SameSite. Upgrade CGI.pm.");
+	}
+	return $cookie;
+}
+
 # generate_cookie creates a cookie string
 # based on given username, sso domain and expiration
 # args: user_name (required);
@@ -394,9 +688,11 @@ sub generate_cookie
 	# a stale cookie be cleared while authentication is disabled.
 	if (exists($args{value}))
 	{
-		return CGI::cookie( { -name => $name,
+		return $self->_emit_cookie( { -name => $name,
 							  -domain => $cookiedomain,
 							  -httponly => 1,
+							  $self->_cookie_samesite_args,
+							  -secure => $self->_cookie_secure,
 							  -value => $args{value},
 							  -expires => $expires } );
 	}
@@ -437,9 +733,11 @@ sub generate_cookie
 
 	# an explicit value was already returned early above, so at this point the
 	# cookie always carries the freshly signed value.
-	return CGI::cookie( { -name => $name,
+	return $self->_emit_cookie( { -name => $name,
 						  -domain => $cookiedomain,
 						  -httponly => 1,
+						  $self->_cookie_samesite_args,
+						  -secure => $self->_cookie_secure,
 						  -value => "$value--$signature",
 						  -expires => $expires } );
 

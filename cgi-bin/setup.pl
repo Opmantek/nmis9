@@ -85,6 +85,10 @@ $AU->CheckAccess("table_config_view","header");
 # check for remote request - fixme9: not supported at this time
 exit 1 if (defined($Q->{cluster_id}) && $Q->{cluster_id} ne $C->{cluster_id});
 
+# OMK-12699: write acts need POST and a valid CSRF token. Must sit after any act
+# rewriting and before dispatch.
+$AU->enforce_csrf($Q) or exit 0;
+
 # just two actions: showing the setup (menu/panel), handling an edit action
 if ($Q->{act} eq 'setup_menu' or NMISNG::Util::getbool($Q->{cancel}))
 {
@@ -147,6 +151,7 @@ Entries that likely need to be adjusted are marked with $iconbad.|;
 	print start_form(-id=>"nmissetup", -href=>url(-absolute=>1)."?")
 			. hidden(-override => 1, -name => "conf", -value => $Q->{conf})
 			. hidden(-override => 1, -name => "act", -value => "setup_doedit")
+			. $AU->csrf_hidden_field
 			. hidden(-override => 1, -name => "widget", -value => $widget)
 			. hidden(-override => 1, -name => "cancel", -value => '', -id=> "cancelinput");
 
