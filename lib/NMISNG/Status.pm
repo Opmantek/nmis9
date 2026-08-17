@@ -58,7 +58,13 @@ my %known_attrs = (
 	type => 1,
 	value => 1,
 	class => 1,
-	lastupdate => 1
+	lastupdate => 1,
+	threshold_select => 1,
+	threshold_source  => 1,
+	threshold_metric  => 1,
+	threshold_key     => 1,
+	threshold_unit    => 1,
+	model_subconcept  => 1
 );
 
 sub new

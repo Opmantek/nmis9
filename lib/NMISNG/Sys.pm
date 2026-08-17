@@ -48,6 +48,19 @@ use Clone;
 use Carp qw(longmess);
 use Scalar::Util;
 
+# Top-level model sections that hold metadata rather than collectable device
+# data.  Used in two places: the OID-normalisation walk in loadModel and the
+# inline-alert tagging walk in _tag_inline_alert_sections.  Defined once so
+# the two sites cannot drift.
+use constant MODEL_NON_DEVICE_SECTIONS =>
+	qw(-common- alerts database event heading stats summary threshold);
+
+# Bump when the cached merged model's structure changes, so caches written by
+# older code are treated as stale and rebuilt rather than served as-is.
+# v1 introduced the _source_file threshold/alert traceability tags: a valid
+# pre-v1 sidecar would otherwise keep an untagged cache "fresh" forever.
+use constant MODEL_CACHE_VERSION => 1;
+
 # the sys constructor does next to nothing, just roughly setup the structure
 sub new
 {
@@ -1598,6 +1611,8 @@ sub getValues
 						source  => $thing->{query} ? "wmi" : "snmp",   # not sure we actually need that in the alert context
 						value   => $value,
 						test_result => $result,
+						unit    => $sectiondetails->{alert}{unit},
+						_source_file => $sectiondetails->{alert}{_source_file},
 						calculate_details => (defined($sectiondetails->{alert}{calculate_details}) && $sectiondetails->{alert}{calculate_details} ne '') ? $sectiondetails->{alert}{calculate_details} : undef,
 						inventory_id => ($inventory) ? $inventory->id : undef
 					};
@@ -1805,7 +1820,9 @@ sub loadModel
 
 			# also verify scoped override files (Override-Model-X.nmis and Override-Common-X.nmis)
 			# auto-discovered from models-custom only. Detects adds, edits, and deletes since cache was written.
-			# Cache-tracking metadata lives in a sidecar file alongside $thiscf so $self->{mdl} stays a pure model hash.
+			# Cache-tracking metadata (applied overrides, cache_version) lives in a sidecar file alongside
+			# $thiscf, so $self->{mdl} stays structurally a pure model hash (aside from the nested
+			# _source_file traceability tags inside threshold/alerts sections, which walkers skip).
 			if (!$isstale)
 			{
 				my $sidecar_path = "$thiscf.meta.json";
@@ -1819,6 +1836,15 @@ sub loadModel
 				if (ref($cache_meta) ne "HASH" or ref($cache_meta->{applied_overrides}) ne "ARRAY")
 				{
 					$self->nmisng->log->debug2(sub {"Cached model \"$model\" stale: missing or invalid sidecar at $sidecar_path."});
+					$isstale = 1;
+				}
+				# cache format version mismatch: the cached model was written by code whose
+				# merged-model structure differs from ours (e.g. before _source_file tagging),
+				# so it must be rebuilt even though every mtime still looks current.
+				elsif (($cache_meta->{cache_version} // 0) != MODEL_CACHE_VERSION)
+				{
+					$self->nmisng->log->debug2(sub {"Cached model \"$model\" stale: cache_version "
+						. ($cache_meta->{cache_version} // "missing") . " != " . MODEL_CACHE_VERSION . "."});
 					$isstale = 1;
 				}
 				else
@@ -1917,6 +1943,21 @@ sub loadModel
 			$shortname =~ s/^Model-//;
 			$self->{mdl}->{system}->{nodeModel} = $shortname;
 
+			# tag thresholds/alerts in the primary model with their source filename
+			for my $tname (keys %{$self->{mdl}{threshold}{name} // {}}) {
+				$self->{mdl}{threshold}{name}{$tname}{_source_file} = $model;
+			}
+			for my $sect (keys %{$self->{mdl}{alerts} // {}}) {
+				for my $aname (keys %{$self->{mdl}{alerts}{$sect} // {}}) {
+					$self->{mdl}{alerts}{$sect}{$aname}{_source_file} = $model
+						if ref($self->{mdl}{alerts}{$sect}{$aname}) eq 'HASH';
+				}
+			}
+			# source == dest here because the primary model has already been
+			# cloned into $self->{mdl} (line ~1912).  If that clone is ever
+			# removed, pass a Clone::clone($self->{mdl}) as source instead.
+			$self->_tag_inline_alert_sections($self->{mdl}, $self->{mdl}, $model);
+
 			# scoped overrides are auto-discovered from models-custom (no config setting required).
 			# Override-Model-<name>.nmis  applies to Model-<name>.nmis
 			# Override-Common-<feature>.nmis applies to Common-<feature>.nmis (merged right after the matching Common)
@@ -1927,7 +1968,7 @@ sub loadModel
 				my $path = "$custom_models_dir/$name.nmis";
 				return 1 if (!-e $path); # absent is normal/silent
 				my $mtime = (stat($path))[9];
-				my $data = NMISNG::Util::loadTable(dir => "models", name => "$name.nmis", conf => $C);
+				my $data = NMISNG::Util::loadTable(dir => "models", name => "$name.nmis", utf8 => 1, conf => $C);
 				if (ref($data) ne "HASH" or !keys %$data)
 				{
 					$self->{error} = "ERROR ($self->{name}) failed to read scoped override $path: $data";
@@ -1939,6 +1980,16 @@ sub loadModel
 					$self->{error} = "ERROR ($self->{name}) scoped override merge failed for $path!";
 					return 0;
 				}
+				for my $tname (keys %{$data->{threshold}{name} // {}}) {
+					$self->{mdl}{threshold}{name}{$tname}{_source_file} = $name;
+				}
+				for my $sect (keys %{$data->{alerts} // {}}) {
+					for my $aname (keys %{$data->{alerts}{$sect} // {}}) {
+						$self->{mdl}{alerts}{$sect}{$aname}{_source_file} = $name
+							if ref($self->{mdl}{alerts}{$sect}{$aname}) eq 'HASH';
+					}
+				}
+				$self->_tag_inline_alert_sections($data, $self->{mdl}, $name);
 				push @applied_overrides, { path => $path, mtime => $mtime };
 				return 1;
 			};
@@ -1966,6 +2017,17 @@ sub loadModel
 						$self->{error} = "ERROR ($self->{name}) model merging failed!";
 						return 0;
 					}
+					# tag thresholds/alerts contributed by this common model with its filename
+					for my $tname (keys %{$commonres->{data}{threshold}{name} // {}}) {
+						$self->{mdl}{threshold}{name}{$tname}{_source_file} = $name;
+					}
+					for my $sect (keys %{$commonres->{data}{alerts} // {}}) {
+						for my $aname (keys %{$commonres->{data}{alerts}{$sect} // {}}) {
+							$self->{mdl}{alerts}{$sect}{$aname}{_source_file} = $name
+								if ref($self->{mdl}{alerts}{$sect}{$aname}) eq 'HASH';
+						}
+					}
+					$self->_tag_inline_alert_sections($commonres->{data}, $self->{mdl}, $name);
 					# apply Override-Common-<feature> immediately after its base Common file
 					return 0 if (!$apply_scoped_override->("Override-Common-$feature"));
 				}
@@ -1989,6 +2051,17 @@ sub loadModel
 						$self->{error} = "ERROR ($self->{name}) model merging failed!";
 						return 0;
 					}
+					# tag thresholds/alerts contributed by this override model with its filename
+					for my $tname (keys %{$commonres->{data}{threshold}{name} // {}}) {
+						$self->{mdl}{threshold}{name}{$tname}{_source_file} = $name;
+					}
+					for my $sect (keys %{$commonres->{data}{alerts} // {}}) {
+						for my $aname (keys %{$commonres->{data}{alerts}{$sect} // {}}) {
+							$self->{mdl}{alerts}{$sect}{$aname}{_source_file} = $name
+								if ref($self->{mdl}{alerts}{$sect}{$aname}) eq 'HASH';
+						}
+					}
+					$self->_tag_inline_alert_sections($commonres->{data}, $self->{mdl}, $name);
 				}
 			}
 
@@ -1998,9 +2071,9 @@ sub loadModel
 			
 			# this section is deep and scary because that's how models are...
 			foreach my $root_section (keys %{$self->{mdl}}) {
-				# skip sections which we are not interested in at the moment, this should land us with a list that looks 
+				# skip sections which we are not interested in at the moment, this should land us with a list that looks
 				# like system,systemHealth,interface (and then a bunch of stuff tacked on, storage,hrdisk,device,etc)
-				next if( grep( /^$root_section$/, (qw(-common- alerts database event heading stats summary threshold))));
+				next if( grep( /^$root_section$/, MODEL_NON_DEVICE_SECTIONS));
 				# only look at sys and rrd keys in here because these are the only ones that have datasets
 				# other things like nocollect do live in here
 				foreach my $rrd_or_sys (qw(sys rrd)) {
@@ -2028,11 +2101,13 @@ sub loadModel
 			if ( -d $modelcachedir && ( $self->{cache_models} || $self->{update} ) )
 			{
 				NMISNG::Util::writeHashtoFile( file => $thiscf, data => $self->{mdl}, json => 1, pretty => 0, conf => $C );
-				# sidecar with the list of scoped overrides actually merged in. Used by the freshness check
-				# on subsequent cache hits to detect added / edited / deleted scoped override files.
-				# Kept out of the model JSON so $self->{mdl} stays a pure model hash that all walkers can iterate.
+				# sidecar with the list of scoped overrides actually merged in, plus the cache format
+				# version. Used by the freshness check on subsequent cache hits to detect added / edited /
+				# deleted scoped override files and a structure-version change. Kept out of the model JSON
+				# (the model itself carries only the nested _source_file tags, which walkers skip).
 				NMISNG::Util::writeHashtoFile( file => "$thiscf.meta.json",
-											   data => { applied_overrides => \@applied_overrides },
+											   data => { applied_overrides => \@applied_overrides,
+														 cache_version    => MODEL_CACHE_VERSION },
 											   json => 1, pretty => 0, conf => $C );
 			}
 		}
@@ -2190,6 +2265,43 @@ sub loadModel
 # small internal helper that merges two hashes
 # args: self, destination hashref, source hashref, optional recursion level indicator
 # stuff from source overwrites stuff in dest, including arrays.
+# Tags _source_file on inline alert entries (alert: sub-keys inside sys/rrd section DSes).
+# Walks $source (Common/override or primary model), writes into $dest ($self->{mdl}).
+# For common/override, $source may alias loadTable's shared in-process cache, so this can
+# tag that shared hash too -- safe, since every load re-tags from scratch.
+sub _tag_inline_alert_sections
+{
+	my ($self, $source, $dest, $filename) = @_;
+	for my $root_sect (keys %$source)
+	{
+		next if grep { $_ eq $root_sect } MODEL_NON_DEVICE_SECTIONS;
+		for my $rrd_or_sys (qw(sys rrd))
+		{
+			my $section_map = $source->{$root_sect}{$rrd_or_sys} // {};
+			for my $sect_key (keys %$section_map)
+			{
+				for my $proto (qw(snmp wmi))
+				{
+					for my $ds (keys %{$section_map->{$sect_key}{$proto} // {}})
+					{
+						next unless ref($section_map->{$sect_key}{$proto}{$ds}) eq 'HASH';
+						next unless ref($section_map->{$sect_key}{$proto}{$ds}{alert}) eq 'HASH';
+						# Walk $dest one level at a time to avoid autovivifying
+						# intermediate keys for sections the primary model lacks.
+						my $d = $dest->{$root_sect};
+						my $d2 = ($d  // {})->{$rrd_or_sys};
+						my $d3 = ($d2 // {})->{$sect_key};
+						my $d4 = ($d3 // {})->{$proto};
+						my $dest_ds = ($d4 // {})->{$ds};
+						next unless ref($dest_ds) eq 'HASH' && ref($dest_ds->{alert}) eq 'HASH';
+						$dest_ds->{alert}{_source_file} = $filename;
+					}
+				}
+			}
+		}
+	}
+}
+
 #
 # returns: destination hashref or undef, also sets details for status().
 sub _mergeHash

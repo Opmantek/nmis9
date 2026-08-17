@@ -1380,6 +1380,7 @@ sub loadTable
 	my $conf = $args{conf};
 
 	my $lock = NMISNG::Util::getbool($args{lock}); # if lock is true then no caching and no fallbacks
+	my $utf8 = NMISNG::Util::getbool($args{utf8}); # pass through to readFiletoHash for model files
 
 	# full path -> { data => ..., mtime => ... }
 	state %cache;
@@ -1408,28 +1409,28 @@ sub loadTable
 	my $externalFiles = NMISNG::Util::get_external_files(dir=>$externalDir);
 
 	if ($lock) {
-		my $table = NMISNG::Util::readFiletoHash(file=>$file, lock=>$lock, conf => $conf);
+		my $table = NMISNG::Util::readFiletoHash(file=>$file, lock=>$lock, utf8=>$utf8, conf => $conf);
 
 		foreach (@$externalFiles) {
 			# Read and mix
 			my $lock = NMISNG::Util::getbool($args{lock});
-			my $extfile = NMISNG::Util::readFiletoHash(file=>$_, lock=>$lock, conf => $conf);
+			my $extfile = NMISNG::Util::readFiletoHash(file=>$_, lock=>$lock, utf8=>$utf8, conf => $conf);
 			$table = {%$table, %$extfile};
-		}		
+		}
 		return $table;
 	}
-	
+
 	# look at the cache, does it have existing non-stale data?
 	my $filetime = stat($file)->mtime;
 
 	if (ref($cache{$file}) ne "HASH"
 			|| $filetime != $cache{$file}->{mtime})
 	{
-		my $table = NMISNG::Util::readFiletoHash(file=>$file, conf => $conf);
+		my $table = NMISNG::Util::readFiletoHash(file=>$file, utf8=>$utf8, conf => $conf);
 
 		foreach (@$externalFiles) {
 			# Read and mix
-			my $extfile = NMISNG::Util::readFiletoHash(file=>$_, conf => $conf);
+			my $extfile = NMISNG::Util::readFiletoHash(file=>$_, utf8=>$utf8, conf => $conf);
 			$table = {%$table, %$extfile};
 		}
 		# nope, reread
@@ -1567,7 +1568,7 @@ sub getModelFile
 			return { success => 1, mtime => $age, is_custom => $iscustom } if ($args{only_mtime});
 
 			# loadtable caches, therefore preferred over readfiletohash
-			my $modeldata = NMISNG::Util::loadTable(dir => $choices, name => $relfn, conf => $C);
+			my $modeldata = NMISNG::Util::loadTable(dir => $choices, name => $relfn, utf8 => 1, conf => $C);
 			# modeldata has the error in it if there was one
 			return { error => "failed to read file $fn: $! $modeldata" } if (ref($modeldata) ne "HASH"
 																														or !keys %$modeldata);
@@ -1602,6 +1603,10 @@ sub _write_data_to_handle
 	}
 	return undef;
 }
+
+# Serializer used by writeHashtoFile, held in a package variable so tests can
+# override it (e.g. to simulate an error-free write that produces no bytes).
+our $_data_writer = \&_write_data_to_handle;
 
 # write hash data to file in suitable format
 # Uses atomic write (temp file + rename) to prevent 0-length files on disk-full or crash.
@@ -1665,12 +1670,34 @@ sub writeHashtoFile
 			or do { close($lockhandle);
 					return("writeHashtoFile: cannot create temp file $tmpfile: $!"); };
 
-		my $errormsg = _write_data_to_handle($tmphandle, $data, $file, $useJson, $pretty);
+		my $errormsg = $_data_writer->($tmphandle, $data, $file, $useJson, $pretty);
+
+		# Force buffered data all the way to disk before the rename. flush()
+		# pushes perlio buffers down to the OS. sync() (fsync) then forces the
+		# OS to write them to the physical medium. Without this, a crash or
+		# power loss between the write and the rename could leave the renamed
+		# file pointing at data that never reached disk.
+		if (!$errormsg && !$tmphandle->flush)
+		{
+			$errormsg = "cannot flush temp file $tmpfile: $!";
+		}
+		if (!$errormsg && $^O !~ /Win32/ && !$tmphandle->sync)
+		{
+			$errormsg = "cannot sync temp file $tmpfile: $!";
+		}
 
 		# close flushes buffers — check for write errors (e.g. disk full)
 		if (!close($tmphandle) && !$errormsg)
 		{
 			$errormsg = "cannot close temp file $tmpfile: $!";
+		}
+
+		# Refuse to rename an empty temp file over the target. A 0-byte temp
+		# file after an error-free write means something went wrong upstream,
+		# and overwriting a good config with it would lose data.
+		if (!$errormsg && !-s $tmpfile)
+		{
+			$errormsg = "temp file $tmpfile is empty, refusing to overwrite $file";
 		}
 
 		if ($errormsg)
@@ -1693,7 +1720,7 @@ sub writeHashtoFile
 		seek($handle, 0, 0) or return("writeHashtoFile: can't seek in $file: $!");
 		truncate($handle, 0) or return("writeHashtoFile: can't truncate $file: $!");
 
-		my $errormsg = _write_data_to_handle($handle, $data, $file, $useJson, $pretty);
+		my $errormsg = $_data_writer->($handle, $data, $file, $useJson, $pretty);
 		close $handle;
 		return("writeHashtoFile: $errormsg") if ($errormsg);
 	}
@@ -1726,6 +1753,7 @@ sub readFiletoHash
 	my $file = $args{file};
 	my $lock = NMISNG::Util::getbool($args{lock}); # option
 	my $json = NMISNG::Util::getbool($args{json}); # also optional
+	my $utf8 = NMISNG::Util::getbool($args{utf8}); # decode Perl-format file as UTF-8
 	my $conf = $args{conf};
 
 	my (%hash, $handle, $line);
@@ -1775,6 +1803,23 @@ sub readFiletoHash
 			}
 			else											# perl
 			{
+				# Caller passes utf8=>1 for model files (which must be UTF-8) to
+				# ensure multi-byte literals like '°C' survive the eval as proper
+				# Perl Unicode strings and are not re-encoded by JSON::XS later.
+				# Try strict UTF-8 first (FB_CROAK), but fall back to latin1 if the
+				# file isn't valid UTF-8 -- a model with stray bytes still loads
+				# instead of dying mid-load, matching the JSON branch above. The
+				# encoding problem is surfaced as a warning rather than silenced.
+				# Do NOT apply to config/state files whose encoding is uncontrolled.
+				if ($utf8) {
+					require Encode;
+					my $decoded = eval { Encode::decode('UTF-8', $data, Encode::FB_CROAK) };
+					if ($@) {
+						warn("readFiletoHash: $file is not valid UTF-8, falling back to latin1: $@");
+						$decoded = Encode::decode('iso-8859-1', $data);
+					}
+					$data = $decoded;
+				}
 				# convert data to hash. this is really very yucky.
 				%hash = eval $data;
 				if ($@)

@@ -6252,6 +6252,20 @@ sub collect_cbqos_data
 	return $happy? 1 : 0;
 }
 
+# threshold_metric for a custom alert is the first CVAR=<varname> declaration in
+# the alert's value expression (left-to-right). The varname is the model's data
+# source / SNMP object name (e.g. hrStorageUsed) -- what opCharts keys on -- so it
+# is stored as-is rather than resolved to a dotted numeric OID.
+# Limitation: for computed multi-CVAR alerts this is only the first operand, and
+# where an alert's value displays a different metric than its test triggers on, it
+# reflects the displayed value. Returns undef when the expression has no CVAR.
+sub _metric_name_from_value
+{
+	my ($value_expr) = @_;
+	my ($metric_name) = (($value_expr // '') =~ /CVAR\d?=(\w+)/);
+	return $metric_name;
+}
+
 # this function finds and handles custom alerts for this node,
 # and runs process_alerts when any are found.
 # args: self, sys
@@ -6428,9 +6442,14 @@ sub handle_custom_alerts
 					$alert->{alert}   = $alrt;                      # the key, good enough
 					$alert->{index}   = $index;
 					$alert->{source} = $CA->{$sect}{$alrt}{source};
+					$alert->{_source_file} = $CA->{$sect}{$alrt}{_source_file};
 					$alert->{inventory_id} = $inventory->id();
 					$alert->{calculate_details} = $CA->{$sect}{$alrt}{calculate_details} if( defined($CA->{$sect}{$alrt}{calculate_details}) && $CA->{$sect}{$alrt}{calculate_details} ne '') ;
-					 
+
+					# threshold_metric: first CVAR varname from the alert's value expression
+					# (see _metric_name_from_value for rationale and limitations). undef -> // ds.
+					$alert->{metric_name} = _metric_name_from_value($CA->{$sect}{$alrt}{value});
+
 					push( @{$S->{alerts}}, $alert );
 				}
 			}
@@ -6547,8 +6566,13 @@ sub process_alerts
 			section => $alert->{section},
 			source => $alert->{source},
 			# name does not exist for simple alerts, let's synthesize it from ds
-			name => $alert->{alert} || $alert->{ds},
+			name => $alert->{alert} // $alert->{ds},
 			value    => $alert->{value},
+			threshold_source  => $alert->{_source_file},
+			threshold_metric  => $alert->{metric_name} // $alert->{ds},
+			threshold_unit    => $alert->{unit},
+			model_subconcept  => $alert->{section},
+			threshold_key     => $alert->{alert} // $alert->{ds},
 			inventory_id => $alert->{inventory_id}
 		);
 		my $save_error = $status_obj->save();

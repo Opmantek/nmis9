@@ -102,7 +102,7 @@ isnt( $node1, undef, "Node object returned when required parameters provided" );
 is( $node1->is_new, 1, "New node is new" );
 is( $node1->_dirty, 0, "New node with no config is not dirty" );
 $node1->name($node_name1);
-$node1->cluster_id(1);
+$node1->cluster_id($C->{cluster_id});
 $node1->configuration( {host => "1.2.3.4", host_backup => "10.2.3.4",
 											 group => "somegroup",
 											 netType => "default",
@@ -136,7 +136,7 @@ my $node2 = NMISNG::Node->new(
 	nmisng => $nmisng,
 );
 $node2->name($node_name2);
-$node2->cluster_id(1);
+$node2->cluster_id($C->{cluster_id});
 $node2->configuration( {host => "1.2.3.5", host_backup => "10.2.3.5",
 											 group => "somegroup",
 											 netType => "default",
@@ -220,7 +220,7 @@ my $node3 = NMISNG::Node->new(
 	nmisng => $nmisng,
 );
 $node3->name($node_name3);
-$node3->cluster_id(1);
+$node3->cluster_id($C->{cluster_id});
 $node3->configuration( {					
 						host => "1.2.3.3",
 						host_backup => "10.2.3.7",
@@ -258,7 +258,7 @@ my $node4 = NMISNG::Node->new(
 	nmisng => $nmisng,
 );
 $node4->name($node_name4);
-$node4->cluster_id(1);
+$node4->cluster_id($C->{cluster_id});
 $node4->configuration( {					
 						host => "1.2.4.4",
 						host_backup => "",
@@ -274,7 +274,7 @@ my $node5 = NMISNG::Node->new(
 	nmisng => $nmisng,
 );
 $node5->name($node_name5);
-$node5->cluster_id(1);
+$node5->cluster_id($C->{cluster_id});
 $node5->configuration( {					
 						host => "1.2.4.5",
 						host_backup => "",
@@ -319,7 +319,7 @@ my $node6 = NMISNG::Node->new(
 	nmisng => $nmisng,
 );
 $node6->name($node_name6);
-$node6->cluster_id(1);
+$node6->cluster_id($C->{cluster_id});
 $node6->configuration( {host => "1.2.3.6", host_backup => "10.2.3.6",
 											 group => "somegroup",
 											 netType => "default",
@@ -333,7 +333,7 @@ my $node7 = NMISNG::Node->new(
 	nmisng => $nmisng,
 );
 $node7->name($node_name7);
-$node7->cluster_id(1);
+$node7->cluster_id($C->{cluster_id});
 $node7->configuration( {host => "node7", host_backup => "node7backup",
 											 group => "somegroup",
 											 netType => "default",
