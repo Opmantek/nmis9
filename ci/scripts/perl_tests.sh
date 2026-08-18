@@ -1,8 +1,14 @@
 #!/usr/bin/env bash
 set -eu
 
-nmis_home="/usr/local/nmis9"
+# The defaults are the CI container's layout. They are overridable so the
+# behaviour of this script can itself be tested (test/t_ci_perl_tests.t drives
+# the real file with a stub prove), and so it can be run against a checkout
+# outside the container. CI sets none of these.
+nmis_home="${NMIS_HOME:-/usr/local/nmis9}"
 nmis_tests="$nmis_home/test"
+prove_bin="${PROVE:-/usr/bin/prove}"
+yes_bin="${YES:-/usr/bin/yes}"
 
 working_tests=(
     uuid.t
@@ -62,6 +68,7 @@ working_tests=(
     t_mongo_exposure.t
     t_csrf.t
     t_csrf_cgi.t
+    t_ci_perl_tests.t
 )
 
 # run every file even when one fails, so a failure early in the list does not
@@ -69,7 +76,7 @@ working_tests=(
 status=0
 failed=()
 for i in "${working_tests[@]}"; do
-    if ! /usr/bin/yes n | /usr/bin/prove "$nmis_tests/$i"; then
+    if ! "$yes_bin" n | "$prove_bin" "$nmis_tests/$i"; then
         status=1
         failed+=("$i")
     fi
