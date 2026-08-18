@@ -23,6 +23,8 @@ working_tests=(
     t_polling.pl
     t_node_lock_stale.pl
     t_duplicate_event.pl
+    t_operational_status.pl
+    t_updateconfig.pl
     t_event_cancelingevent_cycle.pl
     t_event_query_isolation.pl
     t_event.pl
