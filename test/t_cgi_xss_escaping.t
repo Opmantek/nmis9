@@ -46,9 +46,11 @@
 # Requires a reachable MongoDB (uses the configured database, same as the CGIs)
 # and the NMISx Mojo app - i.e. the dev container; it skips cleanly elsewhere.
 # Seeds and removes one node; temporarily patches community_rss_url in the
-# untracked conf/ override (always restored on exit). Authenticates as the shipped
-# default user (nmis) rather than disabling auth. The modules.pl start_html(-xbase)
-# sink has its own fail-without-fix regression in t_cgi_modules_xbase.t.
+# untracked conf/ override (always restored on exit). Authenticates as a throwaway
+# administrator it seeds in the untracked conf/ (OMK-12688 removed the shipped
+# nmis/nm1888 default credential) rather than disabling auth. The modules.pl
+# start_html(-xbase) sink has its own fail-without-fix regression in
+# t_cgi_modules_xbase.t.
 
 use strict;
 use warnings;
@@ -58,6 +60,7 @@ use lib "$FindBin::Bin/../lib";
 use Test::More;
 use Test::Mojo;
 use File::Copy;
+use Crypt::PasswdMD5 qw(apache_md5_crypt);
 
 use NMISNG;
 use NMISNG::Log;
@@ -98,8 +101,51 @@ END {
 	if ($CFGBAK && -f $CFGBAK) { copy($CFGBAK, $CFGFILE); unlink $CFGBAK; }
 }
 
+# ---- seed a throwaway administrator ----------------------------------------
+# OMK-12688 removed the shipped nmis/nm1888 default credential (users.dat now
+# ships '*NMIS-UNSEEDED*'), so this test can no longer log in as it. Seed our
+# own admin into the UNTRACKED conf/Users.nmis and conf/users.dat, exactly as
+# t_csrf_cgi.t does, and authenticate as that. Backed up and restored in END.
+# Skipped when conf/ is absent, so it never runs ahead of the skip_all guards.
+my $TESTUSER = 'xss_test_admin';
+my $TESTPASS = 'xss-test-' . $$;
+my $USERSCFG = "$FindBin::Bin/../conf/Users.nmis";
+my $USERSDAT = "$FindBin::Bin/../conf/users.dat";
+my ($UCFGBAK, $UDATBAK);
+if (-f $USERSCFG && -f $USERSDAT) {
+	$UCFGBAK = "$USERSCFG.xssbak";
+	$UDATBAK = "$USERSDAT.xssbak";
+	copy($USERSCFG, $UCFGBAK);
+	copy($USERSDAT, $UDATBAK);
+
+	open(my $uin, '<', $USERSCFG) or die "cannot read $USERSCFG: $!";
+	my $utxt = do { local $/; <$uin> }; close $uin;
+	# a seeding miss must say so, or the account never appears and the run dies at
+	# the login assertion, which reads as a product failure, not a fixture one.
+	my $seeded = ($utxt =~ s{(\%hash\s*=\s*\()}{$1
+  '$TESTUSER' => {
+    '_id' => '$TESTUSER',
+    'groups' => 'all',
+    'privilege' => 'administrator',
+    'user' => '$TESTUSER'
+  },});
+	die "cannot seed $TESTUSER into $USERSCFG: no '%hash = (' found, the file format changed\n"
+		if (!$seeded);
+	open(my $uout, '>', $USERSCFG) or die "cannot write $USERSCFG: $!";
+	print $uout $utxt; close $uout;
+
+	open(my $upw, '>>', $USERSDAT) or die "cannot append to $USERSDAT: $!";
+	print $upw $TESTUSER . ":" . apache_md5_crypt($TESTPASS) . "\n"; close $upw;
+}
+
+END {
+	if ($UCFGBAK && -f $UCFGBAK) { copy($UCFGBAK, $USERSCFG); unlink $UCFGBAK; }
+	if ($UDATBAK && -f $UDATBAK) { copy($UDATBAK, $USERSDAT); unlink $UDATBAK; }
+}
+
 my $C = NMISNG::Util::loadConfTable();
 plan skip_all => "no MongoDB configured" unless ($C && $C->{db_name});
+plan skip_all => "could not seed the test admin under conf/" unless $UDATBAK;
 
 my $logger = NMISNG::Log->new(level => 'error');
 my $nmisng = NMISNG->new(config => $C, log => $logger);
@@ -173,9 +219,14 @@ my $t = eval { Test::Mojo->new('NMISx') };
 plan skip_all => "NMISx Mojo app not available (run in the dev container): $@" unless $t;
 
 $t->post_ok('/cgi-nmis9/nmiscgi.pl' => form =>
-	{ conf => 'Config', auth_username => 'nmis', auth_password => 'nm1888' });
-my $logged_in = grep { $_->name =~ /CGISESSID|nmis|omk/ } @{$t->ua->cookie_jar->all};
-ok($logged_in, "authenticated session established");
+	{ conf => 'Config', auth_username => $TESTUSER, auth_password => $TESTPASS });
+# a real login-success assertion, not just "a session cookie exists" (which is
+# true even for a failed login): a failed login re-renders the form with
+# "Invalid username/password", and every escaped-marker check below would then
+# fail with no obvious cause. Fail loudly here - this is exactly what the old
+# cookie-jar check silently missed when OMK-12688 dropped the nmis/nm1888 default.
+unlike($t->tx->res->body // '', qr{Invalid username/password},
+	"the seeded admin authenticates");
 
 # ---- helper: fetch a page and assert markers are escaped, not raw ----------
 sub assert_escaped {

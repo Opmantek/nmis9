@@ -330,6 +330,45 @@ sub _secure_compare
 	return $diff == 0;
 }
 
+# _cookie_signatures: the two acceptable HMAC signatures for a signed-cookie
+# value, keyed by Mojolicious signed-cookie generation. nmis9 shares one signed
+# session cookie with the OMK apps (opmojo4), which use Mojolicious's own
+# signed_cookie. Mojolicious changed the MAC at 9.0: 8.x is HMAC-SHA1 over the
+# value alone, 9.x is HMAC-SHA256 over "name=value". nmis9 tracks neither
+# release, so it must speak both forms to keep NMIS<->OMK SSO working across an
+# opmojo4 8.x -> 9.x upgrade (OMK-12902). This is the single definition of the
+# two forms; both verify_id and generate_cookie derive from it so they cannot
+# drift apart. Returns a list suitable for a hash:
+#   mojo8 => hmac_sha1_hex(value)            # Mojolicious < 9
+#   mojo9 => hmac_sha256_hex("name=value")   # Mojolicious >= 9
+sub _cookie_signatures
+{
+	my ($name, $value, $web_key) = @_;
+	return (
+		mojo8 => Digest::SHA::hmac_sha1_hex($value, $web_key),
+		mojo9 => Digest::SHA::hmac_sha256_hex("$name=$value", $web_key),
+	);
+}
+
+# _cookie_sign_format: which Mojolicious signed-cookie form generate_cookie
+# emits, chosen by the auth_sso_cookie_format config key. Defaults to 'mojo8'
+# (today's form, matching an OMK app on Mojolicious 8.x) so nothing on the wire
+# changes until an operator opts in. Set 'mojo9' once the peer OMK app has moved
+# to Mojolicious 9.x. verify_id accepts BOTH forms regardless of this setting,
+# so only the outbound NMIS->OMK direction depends on it (OMK-12902). Any
+# unrecognised value keeps the safe mojo8 default, loudly.
+sub _cookie_sign_format
+{
+	my $self = shift;
+	my $fmt = $self->{config}->{auth_sso_cookie_format};
+	return 'mojo8' if (!defined $fmt or $fmt eq '');
+	$fmt = lc $fmt;
+	return $fmt if ($fmt eq 'mojo8' or $fmt eq 'mojo9');
+	NMISNG::Util::logAuth("WARN auth_sso_cookie_format '$fmt' is not recognised; "
+			. "signing auth cookies in the default 'mojo8' form. Use 'mojo8' or 'mojo9'.");
+	return 'mojo8';
+}
+
 #----------------------------------
 # OMK-12699 anti-CSRF token, formatted "<expiry_ts>--<hmac_sha256_hex>". The MAC
 # covers the authenticated username and the expiry, not a session id, so two
@@ -613,12 +652,19 @@ sub verify_id
 	my $web_key = $self->_auth_web_key;
 	return '' unless defined $web_key;
 
-	# first, compare the checksum from cookie with a new one generated from cookie value
-	my $expected = Digest::SHA::hmac_sha1_hex($sessiondata, $web_key);
-	if (!_secure_compare($expected, $signature))
+	# compare the cookie signature against both acceptable Mojolicious forms: the
+	# 8.x MAC (HMAC-SHA1 over the value) and the 9.x MAC (HMAC-SHA256 over
+	# "name=value"). The OMK apps share this cookie and their MAC form follows
+	# their Mojolicious version, so nmis9 must accept either to survive an
+	# opmojo4 8.x -> 9.x upgrade (OMK-12902). Both comparisons are constant-time;
+	# a length mismatch (sha1 40 vs sha256 64 hex chars) fails the length guard
+	# in _secure_compare without a byte scan.
+	my %expected = _cookie_signatures($self->get_cookie_name(), $sessiondata, $web_key);
+	if (!_secure_compare($expected{mojo8}, $signature)
+		&& !_secure_compare($expected{mojo9}, $signature))
 	{
 		NMISNG::Util::logAuth('OMK cookie did not validate correctly!'
-						.($self->{debug}? " expected $expected but cookie had $signature" : ""));
+						.($self->{debug}? " expected $expected{mojo8} (mojo8) or $expected{mojo9} (mojo9) but cookie had $signature" : ""));
 		return '';
 	}
 	# only then decode and json-parse the structure
@@ -726,7 +772,12 @@ sub generate_cookie
 	$value =~ y/=/-/;
 	my $web_key = $self->_auth_web_key;
 	return '' unless defined $web_key;
-	my $signature = Digest::SHA::hmac_sha1_hex($value, $web_key);
+	# sign in the Mojolicious form selected by auth_sso_cookie_format (default
+	# mojo8 = HMAC-SHA1 over the value; mojo9 = HMAC-SHA256 over "name=value").
+	# verify_id accepts both forms, so this only governs the NMIS->OMK direction
+	# (OMK-12902). Both forms come from the one _cookie_signatures definition.
+	my %sigs = _cookie_signatures($name, $value, $web_key);
+	my $signature = $sigs{$self->_cookie_sign_format};
 
 	NMISNG::Util::logAuth("generated OMK cookie for $authuser: $value--$signature")
 			if ($self->{debug});

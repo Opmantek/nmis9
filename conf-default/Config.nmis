@@ -323,6 +323,9 @@ my %hash = (
 	'auth_method_3' => '',
 	'auth_radius_secret' => '',
 	'auth_radius_server' => '',
+	# SSO cookie signing form for the OMK apps: 'mojo8' (default, Mojolicious 8.x)
+	# or 'mojo9' (9.x). Installer-managed, not a customer setting. See OMK-12902.
+	'auth_sso_cookie_format' => 'mojo8',
 	'auth_sso_domain' => '', # must be .yourdomain.tld, including the leading .
 	'auth_web_key' => 'Please Change Me!',
 	'expire_users' => 'false',
