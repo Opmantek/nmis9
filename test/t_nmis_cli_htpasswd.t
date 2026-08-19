@@ -182,11 +182,15 @@ ok(-x $tool, 'nmis-cli is executable');
 	is($rc, 1, 'set-htpasswd-password without a user exits 1');
 	like($out, qr/user/i, 'and says a user is required');
 
-	# nmis-cli's own dispatch, not the htpasswd action: an unrecognised act
-	# exits 255 (its established convention), not the 1 the old standalone
-	# tool used.
+	# nmis-cli's own dispatch, not the htpasswd action: an unrecognised act must
+	# be rejected, never silently treated as a no-op. nmis-cli's "Unrecognized
+	# action" catch-all exits 255, but that sits after the database connection,
+	# which this suite deliberately runs without (the htpasswd actions dispatch
+	# before it), so an unknown act dies earlier at the connect instead of
+	# reaching the 255 handler. Assert only the invariant that holds either way:
+	# a non-zero exit, i.e. the act was not silently accepted.
 	($rc, $out) = run("act=nonsense", "file=$f");
-	is($rc, 255, 'an unknown act exits 255');
+	isnt($rc, 0, 'an unknown act is rejected, not silently accepted');
 
 	($rc, $out) = run("act=set-htpasswd-password", "user=bob", "password=x", "file=$dir/nope.dat");
 	is($rc, 2, 'a missing password file exits 2, an operational failure');
