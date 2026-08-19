@@ -47,6 +47,11 @@ services:
       NMIS_DB_PORT: ${MONGODB_PORT:-27017}
       NMIS_SERVER_NAME: ${NMIS_SERVER_NAME}
       NMIS_CLUSTER_ID: ${NMIS_CLUSTER_ID}
+      # Used only when there is no usable password yet. NOT named
+      # NMIS_ADMIN_PASSWORD: NMIS maps NMIS_<KEY> onto config key <key>.
+      NMIS9_ADMIN_PASSWORD: ${NMIS_ADMIN_PASSWORD:-}
+      # docker-secret form, see compose.yaml. Setting both is rejected.
+      NMIS9_ADMIN_PASSWORD_FILE: ${NMIS_ADMIN_PASSWORD_FILE:-}
       DEV_UID: ${DEV_UID}
       DEV_GID: ${DEV_GID}
       CONTAINER: 1

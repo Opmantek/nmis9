@@ -342,6 +342,17 @@ sub slurp { my ($p) = @_; open(my $f, '<', $p) or die $!; local $/; my $c = <$f>
 	is(slurp($f), "bob:NEW\n", 'and the duplicate is still collapsed');
 }
 
+# an unusable first duplicate is skipped, so expect still matches what
+# _file_verify authenticated against
+{
+	my $f = "$dir/cas_dup_unusable.dat";
+	spew($f, "bob:\nbob:bbb\n");
+	is(NMISNG::Util::set_htpasswd_entry(file => $f, user => 'bob',
+		expect => 'bbb', hash => 'NEW'), undef,
+	   'an empty first duplicate does not fool the compare-and-swap');
+	is(slurp($f), "bob:NEW\n", 'and the duplicate is collapsed');
+}
+
 # A1: the backup destination is unlinked before it is written. cp cannot
 # overwrite a .bak another uid owns, so a stale one would block every write.
 {

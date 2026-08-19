@@ -64,6 +64,10 @@ working_tests=(
     t_htpasswd_store.t
     t_auth_password_rehash.t
     t_nmis_cli_htpasswd.t
+    t_nmis_cli_seed_password.t
+    t_nmis_cli_discard_password.t
+    t_seed_decision.t
+    t_session_expiry.t
     t_access_policy.pl
     t_mongo_exposure.t
     t_csrf.t

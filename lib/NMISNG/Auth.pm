@@ -2466,8 +2466,12 @@ sub read_session_fields
 }
 
 # returns the current session counter for the given user
-# args: user, required.
+# args: user, required. "ALL" matches every user. remove_all, optional.
 # returns: (undef,counter) or error message
+#
+# ALSO DELETES, intentionally: expired session files for that user are unlinked
+# as it walks. remove_all unlinks that user's sessions whether expired or not,
+# which is how a password change evicts them (bin/nmis-cli::_evict_sessions).
 sub get_live_session_counter
 {
 	my ($self, %args) = @_;
@@ -2515,9 +2519,15 @@ sub get_live_session_counter
 	return (undef, $count);
 }
 
-# returns the current session counter for the given user
-# args: user, required.
-# returns: (undef,counter) or error message
+# live session counts for every user.
+# args: none. returns: hashref of { user => { sessions => n } }, undef if the
+# session dir cannot be opened.
+#
+# ALSO A GARBAGE COLLECTOR, intentionally: every expired session file it walks
+# past is unlinked. Nothing else removes them, so bin/nmisd's purge job calls
+# this hourly purely for that side effect and discards the counts. Without it the
+# directory grows without bound and anything scanning it for a user gets slower
+# forever.
 sub get_all_live_session_counter
 {
 	my ($self, %args) = @_;

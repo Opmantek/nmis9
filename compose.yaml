@@ -17,6 +17,16 @@ services:
       NMIS_DB_PORT: ${MONGODB_PORT:-27017}
       NMIS_SERVER_NAME: ${NMIS_SERVER_NAME}
       NMIS_CLUSTER_ID: ${NMIS_CLUSTER_ID}
+      # Used only when there is no usable password yet, so a restart never resets
+      # one changed in the GUI. NOT named NMIS_ADMIN_PASSWORD: NMIS maps NMIS_<KEY>
+      # onto config key <key>, which would expose the plaintext in the config.
+      NMIS9_ADMIN_PASSWORD: ${NMIS_ADMIN_PASSWORD:-}
+      # the docker-secret form. Point it at a mounted secret and leave
+      # NMIS_ADMIN_PASSWORD empty, so the password never reaches docker inspect.
+      # Setting both is rejected. Example:
+      #   secrets: [nmis_admin_password]
+      #   NMIS9_ADMIN_PASSWORD_FILE=/run/secrets/nmis_admin_password
+      NMIS9_ADMIN_PASSWORD_FILE: ${NMIS_ADMIN_PASSWORD_FILE:-}
       CONTAINER: 1
     depends_on:
       - mongo

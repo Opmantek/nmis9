@@ -3620,11 +3620,14 @@ sub audit_log
 
 	my $auditlogfile = $C->{'<nmis_logs>'}."/audit.log";
 
-	# format is tab-delimited, any tabs in input are removed
+	# format is tab-delimited, one record per line, so tabs are removed from input
+	# and newlines are folded to a space. Without the newline fold a caller passing
+	# attacker-influenced text (a username, a filename) could forge extra records
+	# in this root-owned log, since readers split on newlines.
 	# order: ts, who, what, where, how, details
 	# time format same as NMISNG::Log/Mojo::Log
   my @output = ( '['. localtime($args{when}||time) .']',
-								 map { s/\t+//g; $_ } (@args{qw(who what where how details)}) );
+								 map { s/\t+//g; s/[\r\n]+/ /g; $_ } (@args{qw(who what where how details)}) );
 
 	open(F, ">>$auditlogfile") or return "cannot open $auditlogfile for writing: $!";
 	flock(F, LOCK_EX) or  return "cannot lock $auditlogfile: $!";
@@ -5184,7 +5187,9 @@ sub set_htpasswd_entry
 		my ($u, $h) = split(/:/, $line, 2);
 		if (defined($u) && $u eq $user)
 		{
-			($current, $seen) = ($h, 1) if (!$seen);
+			# the first USABLE entry is what _file_verify authenticates against,
+			# so an empty or colon-less line must not become the CAS baseline
+			($current, $seen) = ($h, 1) if (!$seen && defined($h) && $h ne '');
 			# collapse duplicates: rewrite the first, drop the rest
 			next if ($replaced || !defined($hash));
 			push @keep, "$user:$hash";

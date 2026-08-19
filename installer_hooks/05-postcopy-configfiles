@@ -5,6 +5,14 @@
 SCRIPTPATH=${0%/*}
 . $SCRIPTPATH/common_functions.sh
 
+# whether nmis-cli may print the seeded password. unattended stdout is usually a
+# captured log, so keep it out of there. :- so an unset UNATTENDED is not fatal.
+if [ -n "${UNATTENDED:-}" ]; then
+	REVEAL=none
+else
+	REVEAL=show
+fi
+
 if [ -n "$CLEANSLATE" ]; then
 		printBanner "Installing default config files"
 
@@ -13,10 +21,19 @@ if [ -n "$CLEANSLATE" ]; then
 				execPrint "cp -va $TARGETDIR/conf-default/$i $TARGETDIR/conf/"
 		done
 		execPrint "$TARGETDIR/admin/patch_config.pl -b $TARGETDIR/conf/Config.nmis '/directories/<nmis_base>'=$TARGETDIR"
-		
+
 		## add mtr and lft to Config.nmis.
 		execPrint "$TARGETDIR/admin/patch_config.pl -b $TARGETDIR/conf/Config.nmis '/tools/mtr'=mtr"
 		execPrint "$TARGETDIR/admin/patch_config.pl -b $TARGETDIR/conf/Config.nmis '/tools/lft'=lft"
+
+		# users.dat was just copied above, so it still carries the shipped
+		# '*NMIS-UNSEEDED*' marker and nmis-cli replaces it.
+		# not execPrint, to keep the password out of the install log.
+		if ! "$TARGETDIR/bin/nmis-cli" act=seed-htpasswd-password user=nmis \
+			file="$TARGETDIR/conf/users.dat" reveal=$REVEAL generate-password=t; then
+			echolog "ERROR: could not set a random nmis administrator password. Aborting install; fix the cause and re-run, or run bin/nmis-cli act=seed-htpasswd-password user=nmis manually."
+			exit 1
+		fi
 
 else
 		# upgrade case
@@ -43,6 +60,16 @@ EOF
 			input_yn "Continue with the upgrade?" "0376" || exit 1
 		fi
 
+		# idempotent: an existing real password and a deliberate lock (nmis:*/!)
+		# are left alone. A still-shipped nm1888 default is rotated, and so is
+		# the '*NMIS-UNSEEDED*' marker the noclobber cp above may have just laid
+		# down on a site that had no users.dat at all.
+		if ! "$TARGETDIR/bin/nmis-cli" act=seed-htpasswd-password user=nmis \
+			file="$TARGETDIR/conf/users.dat" reveal=$REVEAL generate-password=t; then
+			echolog "ERROR: could not set a random nmis administrator password. Aborting; fix the cause and re-run, or run bin/nmis-cli act=seed-htpasswd-password user=nmis manually."
+			exit 1
+		fi
+
 		# jQuery upgrade
 		printBanner "Upgrading jquery configuration"
 
@@ -57,7 +84,7 @@ EOF
 		else
 			echolog "Not updating configuration items as directed."
 		fi
-		
+
 		cat <<EOF
 jQuery and jQuery UI have been upgraded. Custom changes could be lost 
 overriding these values.
@@ -73,7 +100,7 @@ EOF
 		else
 				echolog "Not updating jQuery as directed."
 		fi
-		
+
 		# patch Access upgrade
 		printBanner "Upgrading Access configuration"
 

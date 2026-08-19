@@ -424,6 +424,228 @@ fixed here, and the only fix is upgrading `CGI.pm`.
 
 ---
 
+### H16 / OMK-12688 — the shipped administrator credential is no longer usable
+
+**Files:** `conf-default/users.dat`, `bin/nmis-cli`,
+`installer_hooks/05-postcopy-configfiles`, `docker-entrypoint.sh`,
+`docker-dev/docker-entrypoint-dev.sh`, `test/t_cgi_endpoints.sh`
+
+**What changed**
+
+| Thing | Before | After |
+|-------|--------|-------|
+| `conf-default/users.dat` `nmis` entry | `nmis:SG65RBEiLjd5U`, a live DES crypt of the published password `nm1888` | `nmis:*NMIS-UNSEEDED*`, a locked marker `crypt()` cannot produce, so nothing verifies against it |
+| Password on a fresh install | none set, the shipped hash *was* the login | random 20 characters from `/dev/urandom`, stored as sha512 crypt at 100000 rounds |
+| Where the first password comes from | published in the docs | `/usr/local/etc/firstwave/nmis-initial-password`, 0600 and root-owned, or printed once on an interactive console |
+| Setting a password | external `htpasswd` only, NMIS had no write path into the store | `bin/nmis-cli act=set-htpasswd-password`, plus `act=seed-htpasswd-password` for installers |
+
+`conf-default/Users.nmis` is unchanged. The `nmis` account still exists and is
+still `administrator` across all groups. Only its credential changed.
+
+**Why:** the shipped hash was a working password that has been public for years,
+and `installer_hooks/05-postcopy-configfiles` copied `users.dat` verbatim into
+live `conf/` on every fresh install. `dockerfile:159-161` copies the same file
+into the image. Nothing anywhere forced a change. That is anonymous
+administrator access on any default install. The hashing helpers it now uses
+(`generate_random_password`, `hash_password`) come from OMK-12705.
+
+**The seeding is idempotent, which is what makes it safe to call everywhere.**
+`act=seed-htpasswd-password` runs at installer hook 05, on upgrade, and on every
+container start. It classifies the stored entry first:
+
+| Stored `nmis` hash | What happens |
+|--------------------|--------------|
+| absent, or empty   | random password set |
+| exactly `*NMIS-UNSEEDED*`, the shipped marker | random password set |
+| verifies `nm1888` (des or apr1) | rotated |
+| any other lock (`*` or `!`) | left locked |
+| any other hash     | left alone |
+
+The classification is the same in all three callers, so none of them passes any
+context. A lock is ambiguous in principle, the shipped seed on a fresh install
+against a deliberate operator lockdown on an existing site, and the marker is
+what resolves it. Anything else beginning `*` or `!` is somebody's lockdown and
+is never re-enabled. This replaced an earlier `seed=t|f` flag that made each
+caller declare which situation it was in.
+
+**Delegated functionality lost:** there is no longer a first login anyone can
+know in advance. Scripted provisioning, demo images, documentation and CI that
+authenticated as `nmis`/`nm1888` must now read the initial-password file or set
+a password explicitly. `test/t_cgi_endpoints.sh` was changed for exactly this
+and now fails with a clear message instead of using a hardcoded password.
+
+**Recovery — how an operator gets in**
+
+- Interactive install: the password is printed once at the end of the install.
+- Unattended host install: read it from
+  `/usr/local/etc/firstwave/nmis-initial-password`.
+- Containers: there is nothing to read. They never invent a password and never
+  create that file, so the password is the one you supplied through
+  `NMIS_ADMIN_PASSWORD`. If you have lost it, reset with
+  `docker exec <container> /usr/local/nmis9/bin/nmis-cli act=set-htpasswd-password user=nmis`.
+- The path is overridable with `NMIS_INITIAL_PASSWORD_FILE`.
+- Lost it, or want a different one:
+  `bin/nmis-cli act=set-htpasswd-password user=nmis`. This works inside the
+  container too, where `htpasswd` (`apache2-utils`) is not installed.
+- **Record it promptly. The file is removed automatically**, see below.
+
+**Containers never invent a password, so they never create the file.** The
+operator supplies it, `NMIS9_ADMIN_PASSWORD` or `NMIS9_ADMIN_PASSWORD_FILE` in
+the service environment, fed from `NMIS_ADMIN_PASSWORD` in `.env`. Both
+entrypoints pass `generate-password=f`, so if a password has to be set and none
+was supplied the container refuses to start rather than inventing one.
+
+That is not a preference, it is forced by the privilege model.
+`nmis_frontend` in `docker-entrypoint.sh` `su`'s nmisd to `${NMIS_USER}`, while
+an invented password has to be recorded in a root-owned 0600 file inside a
+root-owned 0700 directory. The container's own nmisd could neither read that
+file nor remove it once it was spent, so the file would be created and then
+never retired for the life of the container. Supplying the password removes the
+file from the container story altogether, which is a better answer than adding a
+privileged process to clean up after one.
+
+Three details keep this from becoming a new `nm1888`:
+
+- The shipped `.env` carries the key **empty**. A value there would be the same
+  known password on every deployment, which is the hole this whole entry closes.
+  `test/t_nmis_cli_seed_password.t` asserts it stays empty.
+- The container-side name deliberately avoids the `NMIS_` prefix.
+  `_apply_env_overrides` maps `NMIS_<KEY>` onto config key `lc(<KEY>)` and can
+  add new keys, so `NMIS_ADMIN_PASSWORD` would put the plaintext into the config
+  surface. The `.env` variable may use that name because compose substitution
+  happens on the host and never enters the container.
+- The `_FILE` form is supported, the same convention the postgres, mysql and
+  mongo images use, so the secret can live in a docker secret rather than in the
+  environment and in `docker inspect`.
+
+The password is read from the environment rather than argv, so it does not
+appear in `ps` or `docker top`, and a supplied password is never written to the
+initial-password file or echoed, because the operator already has it.
+
+**On host installs the file is still created, and retires itself once it is no
+longer needed.** `bin/nmis-cli act=discard-initial-password` removes it once
+*any* user has logged into the GUI. `bin/nmisd` runs it from the hourly purge
+job, so the file disappears within an hour of the first login. nmisd is root
+there, its systemd unit sets no `User=`.
+
+The GUI cannot do this itself. The file is 0600 and root-owned in a root-owned
+directory, and the web server runs as `apache` or `www-data`. Rather than grant
+the web user a way to remove it, which would mean a writable root config
+directory or a sudo rule, the unprivileged side keeps doing what it already did
+and root notices afterwards. `NMISNG::Auth::update_last_login` already records
+every successful login in `users_login.json`, so **no GUI-side code changed**.
+
+Any user counts, not just `nmis`. An LDAP or SSO site never logs in as the local
+`nmis` account, and a provisioned admin account can exist without an `nmis`
+login ever happening, so keying on `nmis` alone would strand the file forever on
+exactly the deployments most likely to be long-lived.
+
+The comparison is against the file's mtime rather than "has anyone ever logged
+in", so re-seeding is not immediately undone by a login that predates it.
+
+**Known limits, accepted deliberately**
+
+- If nobody ever logs into the GUI, the file stays indefinitely. There is no age
+  cap. This is interim: the structural fix is forcing a password change at first
+  login, which makes the contents worthless rather than merely short-lived, and
+  is tracked separately below.
+- A file relocated with `NMIS_INITIAL_PASSWORD_FILE` is never retired. nmisd
+  only knows the default path. Relocating it makes the file yours to manage.
+- The trigger is authenticated activity, not a fresh login.
+  `NMISNG::Auth::update_last_login` has a single caller, below the branch that
+  handles both the username and password path and the `# check cookie` path, so
+  an idle tab auto-refreshing on `page_refresh_time` or `widget_refresh_time`
+  stamps `users_login.json` too. Consequence: on an upgrade that rotates a
+  still-shipped `nm1888` default, somebody else's open session can retire the
+  new file before the operator reads it. Recovery is
+  `act=set-htpasswd-password` as root. This is currently masked, because the
+  same upgrade rotates an unset `auth_web_key` at
+  `installer_hooks/11-postcopy-authkey` and invalidates every cookie, but that
+  masking is incidental and expires: on later upgrades the key is already
+  unique, the hook changes nothing, and sessions survive. Keying on session
+  creation rather than activity is the fix. **Tracked as OMK-12854**, which also
+  records the five conditions this needs (host install, upgrade, an unconfigured
+  `nmis` entry, another user's live session, and the window before the key
+  rotates) and the two alignments that were rejected. Containers cannot hit it at
+  all, because they never create the file.
+- `users_login.json` is owned and written by the web user, so root is acting on
+  untrusted input. The blast radius is bounded: the path unlinked is fixed and
+  never derived from that file, nothing in it is executed, and every value is
+  rejected unless it is a plain timestamp. A compromised web process could cause
+  the password file to be deleted early, which costs the operator a recorded
+  convenience and gains the attacker nothing.
+- Removal is a plain `unlink`, with no attempt to overwrite the contents first.
+  Anyone able to read freed disk blocks could have read a 0600 root-owned file
+  directly, so scrubbing would defend against nobody and would imply a guarantee
+  that journaling, copy-on-write and SSD wear levelling cannot deliver.
+
+**Why the shipped marker is `*NMIS-UNSEEDED*` and not a bare `*`:** the seeder
+has to tell a never-seeded account from one an operator locked, and a bare `*`
+is both. Docker makes this concrete. It pre-fills a new named volume from the
+image content at the mount path (`dockerfile:159-162` copies the file into
+`${NMIS_HOME}/conf/`, `dockerfile:167` declares that path a `VOLUME`), so a
+fresh volume already holds the shipped store. While the default was briefly a
+bare `nmis:*` during this work, an operator who locked the account by writing the
+same thing looked exactly like a fresh volume and had their lock replaced with a
+working password on the next start. Never seeding a lock was not an option
+either, because it would leave every fresh container with an administrator
+account nobody can log into.
+
+A marker no operator would type removes the ambiguity outright, and
+`bin/nmis-cli::_is_shipped_seed` matches it exactly rather than by prefix. Both
+`nmis:*` and `nmis:!` are still locks everywhere it matters, `lib/NMISNG/Auth.pm`
+and `bin/nmis-cli` both test `/^[*!]/`, so `*NMIS-UNSEEDED*` cannot be
+authenticated against either.
+
+The invariant this rests on is that `conf-default/users.dat` holds exactly the
+marker `bin/nmis-cli` looks for. `test/t_seed_decision.t` asserts both halves,
+so changing one without the other fails the suite rather than silently reopening
+the gap.
+
+**Superseded within this work, never released:** an earlier revision had the
+callers derive a `seed=t|f` argument in shell, `install` unconditionally `t`,
+`upgrade` from whether `conf/users.dat` already existed, `container` by comparing
+`conf/users.dat` byte for byte against `conf-default/users.dat`. The marker makes
+the file self-describing, so the flag, `nmis_seed_decide`, and the ordering
+constraint that the upgrade check had to run above the noclobber `cp` are all
+gone. That emptied `installer_hooks/common_seedpw.sh` down to `nmis_seed_reveal`
+with one caller, so it was inlined into `installer_hooks/05-postcopy-configfiles`
+and the file removed.
+
+Recorded because the reasoning is worth keeping, not because anything has to
+migrate. `seed=` never reached a release, so no caller or runbook refers to it,
+and `nmis-cli` drops the unrecognised key silently rather than erroring. Against
+that earlier revision two behaviours are tighter. A store holding the marker
+alongside other users is now seeded, where the whole-file comparison did not
+recognise it and left the account permanently unusable. And nothing re-enables an
+operator lock any more, where `seed=t` did.
+
+**Mitigations to investigate (not implemented)**
+
+- *Force a change at first login:* nothing expires the seeded password or
+  requires rotation. `act=discard-initial-password` narrows this but does not
+  close it. The plaintext file now goes away once somebody logs in, so the
+  common case is bounded, but two gaps remain. An install nobody ever logs into
+  keeps the file indefinitely, and more importantly the seeded password itself
+  stays valid forever whether or not the file survives. Forcing a change at
+  first login is the fix that makes the recorded password worthless rather than
+  merely short-lived, and it is the reason no age cap was added here.
+- *Directory mode:* `make_path` applies `mode => 0700` only to a directory it
+  creates. A pre-existing, looser `/usr/local/etc/firstwave` keeps its own mode.
+  The file itself is 0600, so what leaks is the filename, not the password. This
+  is deliberate, not an oversight.
+- *Seed classification:* it lives once, in `bin/nmis-cli::seed_htpasswd_password`,
+  and every caller invokes it with no context beyond `reveal=`. Nothing
+  outstanding, listed so the next person changing the seeding behaviour knows
+  there is one place to change.
+- *`reveal=` derivation:* it lives inline at the top of
+  `installer_hooks/05-postcopy-configfiles`, the only caller that derives one.
+  Both entrypoints hardcode `reveal=none`. `test/t_seed_decision.t` lifts the
+  block out of the hook and runs it, rather than restating the logic, so the
+  hook stays the single source.
+
+---
+
 ## Open threads to investigate (epic-wide, not tied to one change)
 
 These came up while reviewing OMK-12707 and are recorded so they are not lost.
