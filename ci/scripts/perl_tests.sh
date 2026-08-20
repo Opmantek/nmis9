@@ -35,6 +35,8 @@ working_tests=(
     t_nmisng_node_nomodel.pl
     # OMK-12775 / BR-01: clear_active_queue must not wipe pending jobs
     t_clear_active_queue.pl
+    # OMK-12776 / BR-02: service inventories must get distinct uuids
+    t_service_inventory_uuid.pl
 )
 
 for i in "${working_tests[@]}"; do
