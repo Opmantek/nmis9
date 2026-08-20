@@ -370,6 +370,133 @@ sub _cookie_sign_format
 }
 
 #----------------------------------
+# OMK-12824: the privileges cached in a session file are signed with
+# auth_web_key, so a planted or edited file cannot supply any.
+sub _session_privs_signature
+{
+	my ($self, $session) = @_;
+
+	my $web_key = $self->_auth_web_key;
+	return undef if (!defined $web_key or !defined $session or !defined $session->id);
+
+	# name=value, so adding, removing, renaming or reordering a field changes these
+	# bytes on its own, which invalidates every seal already on disk. That is safe,
+	# an invalid seal recomputes from _GetPrivs. Golden digest pins it in the tests.
+	my @parts = ("sid=".$session->id,
+			"username=".lc($session->param('username') // ''),
+			map { "$_=".($session->param($_) // '') } qw(priv privlevel rawgroups auth dn));
+	return Digest::SHA::hmac_sha256_hex(join("\0", @parts), $web_key);
+}
+
+# an unsigned session is the upgrade case, not an attack, so it is not logged as
+# one. A wrong signature is.
+sub _session_privs_trusted
+{
+	my ($self, $session) = @_;
+
+	my $stored = $session->param('privs_sig');
+	return '' if (!defined $stored or $stored eq '');
+	my $expected = $self->_session_privs_signature($session);
+	return '' if (!defined $expected);
+	return 1 if (_secure_compare($expected, $stored));
+
+	NMISNG::Util::logAuth("SECURITY session ".$session->id
+			." carries privileges that auth_web_key did not sign; ignoring them");
+	return '';
+}
+
+# OMK-12824: returns the session named by the CGISESSID cookie only if it belongs
+# to $args{user}, else nothing. Sole decider of "whose session is this".
+sub _load_owned_session
+{
+	my ($self, %args) = @_;
+
+	my $owner = $args{user};
+	return undef if (!defined $owner or $owner eq '');
+
+	# never from param(): an id accepted from a request can be planted by a link
+	# and leaks through referer headers and proxy logs
+	my $cgi = new CGI;
+	my $sid = $cgi->cookie($self->get_session_cookie_name());
+	return undef if (!defined $sid or $sid !~ /^[a-f0-9]{32}$/i);
+
+	my $session_dir = $self->{config}->{'session_dir'}
+			// $self->{config}->{'<nmis_var>'}."/nmis_system/user_session";
+	my $session = CGI::Session->load(undef, $sid, { Directory => $session_dir });
+	return undef if (!$session);
+
+	# an expired session is emptied by load(), which is normal, not an attack
+	if ($session->is_empty or $session->is_expired)
+	{
+		NMISNG::Util::logAuth("DEBUG Auth::_load_owned_session, session $sid is empty or expired")
+				if ($self->{debug});
+		return undef;
+	}
+
+	my $sessionuser = $session->param('username');
+	if (!defined $sessionuser or $sessionuser eq '')
+	{
+		NMISNG::Util::logAuth("DEBUG Auth::_load_owned_session, session $sid names no user")
+				if ($self->{debug});
+		return undef;
+	}
+	if (lc($sessionuser) ne lc($owner))
+	{
+		NMISNG::Util::logAuth("SECURITY session $sid is not owned by \"$owner\", it belongs to "
+				."\"$sessionuser\"; ignoring it");
+		return undef;
+	}
+	return $session;
+}
+
+# OMK-12824: the session this request's privileges may be written into. Ours if
+# the cookie names one, a fresh one otherwise, never somebody else's.
+sub _writeback_session
+{
+	my ($self, %args) = @_;
+
+	my $user = $args{user};
+	return undef if (!defined $user or $user eq '');
+	return $self->_load_owned_session(user => $user)
+			|| $self->generate_session(user_name => $user);
+}
+
+# OMK-12824: sole writer of the cached privileges. Signs them, so the reader can
+# tell NMIS wrote them; clears the signature when no key is available to sign.
+sub _store_session_privs
+{
+	my ($self, $session) = @_;
+	return undef if (!$session);
+
+	$session->param('auth',      $self->{auth});
+	$session->param('username',  $self->{user});
+	$session->param('dn',        $self->{dn});
+	$session->param('priv',      $self->{priv});
+	$session->param('privlevel', $self->{privlevel});
+	$session->param('rawgroups', $self->{rawgroups});
+	$session->clear(['groups']);   # nothing reads it, and it would be unsigned
+
+	my $sig = $self->_session_privs_signature($session);
+	if (defined $sig) { $session->param('privs_sig', $sig); }
+	else              { $session->clear(['privs_sig']); }
+	return 1;
+}
+
+# OMK-12824: the level always comes from PrivMap, never from the session, so a
+# PrivMap edit takes effect on sessions signed before it.
+sub _privlevel_for
+{
+	my ($self, $priv) = @_;
+	return undef if (!defined $priv or $priv eq '');
+
+	my $PMT = Compat::NMIS::loadGenericTable("PrivMap");
+	return undef if (ref($PMT) ne "HASH" or !exists $PMT->{$priv});
+	my $level = $PMT->{$priv}{level};
+	return undef if (!defined $level or $level eq '');
+	return $level;
+}
+
+#----------------------------------
 # OMK-12699 anti-CSRF token, formatted "<expiry_ts>--<hmac_sha256_hex>". The MAC
 # covers the authenticated username and the expiry, not a session id, so two
 # concurrent sessions of one user hold interchangeable tokens.
@@ -1551,8 +1678,7 @@ sub do_logout {
 
 	# that's the NAME not the config data
 	my $config = $args{conf} || $self->{confname};
-	my $max_sessions_enabled = NMISNG::Util::getbool($self->{config}->{max_sessions_enabled});
-	
+
 	# Javascript that sets window.location to login URL
 	### fixing the logout so it can be reverse proxied
 	CGI::delete('auth_type'); 		# but don't keep that one
@@ -1560,17 +1686,13 @@ sub do_logout {
 	my $url = CGI::url(-full=>1);
 	$url =~ s!^[^:]+://!//!;
 
-	if ($max_sessions_enabled)
-	{
-		# Remove session
-		my $cgi = new CGI;  
-		my $session_dir = $self->{config}->{'session_dir'} // $self->{config}->{'<nmis_var>'}."/nmis_system/user_session";
-		my $sid = $cgi->cookie($self->get_session_cookie_name()) || $cgi->param($self->get_session_cookie_name()) || undef;
-		my $session = load CGI::Session(undef, $sid, {Directory=>$session_dir});
-		if ($session) {
-			$session->delete();
-			$session->flush();
-		}
+	# OMK-12824: only our own session, and always, not just when
+	# max_sessions_enabled is on: sessions are created either way, so a gated
+	# delete just leaks privilege-bearing files.
+	my $session = $self->_load_owned_session(user => $self->{user});
+	if ($session) {
+		$session->delete();
+		$session->flush();
 	}
 	
 	my $javascript = "function redir() { window.location = '" . NMISNG::Util::escape_js_string($url) . "'; }";
@@ -1876,7 +1998,6 @@ sub loginout {
 	my $headeropts = $args{headeropts};
 	my @cookies = ();
 	my $session;
-	my $session_dir = $self->{config}->{'session_dir'} // $self->{config}->{'<nmis_var>'}."/nmis_system/user_session";
 	my $last_login_dir = $self->{config}->{'last_login_dir'} // $self->{config}->{'<nmis_var>'}."/nmis_system";
 		
 	NMISNG::Util::logAuth("DEBUG: loginout, Type=$type Username=$username")
@@ -1989,13 +2110,7 @@ sub loginout {
 				}	
 				if ($session) {
 					NMISNG::Util::logAuth("DEBUG: loginout, Created a new session.") if $self->{debug};
-					$session->param('auth',                $self->{auth});
-					$session->param('username',            $self->{user});
-					$session->param('dn',                  $self->{dn});
-					$session->param('priv',                $self->{priv});
-					$session->param('privlevel',           $self->{privlevel});
-					$session->param('groups',              $self->{groups});
-					$session->param('rawgroups',           $self->{rawgroups});
+					$self->_store_session_privs($session);
 				} else {
 					NMISNG::Util::logAuth("DEBUG: loginout, Unable to create a new session.") if $self->{debug};
 				}
@@ -2085,21 +2200,16 @@ To re-enable this account visit $self->{config}->{nmis_host_protocol}://$self->{
 	if ($self->{user}) {
 #		if ($max_sessions_enabled)
 #		{
-			# Load session
+			# OMK-12824: load(undef,undef) took the id from the cookie OR the query
+			# string, and any session it found might be someone else's.
 			if (!$session) {
-				$session = CGI::Session->load(undef, undef, {Directory=>$session_dir});
+				$session = $self->_writeback_session(user => $self->{user});
 			}
 			
 			# This is the session cookie
 			if ($session) {
 				NMISNG::Util::logAuth("DEBUG: loginout, Found an existing session.") if $self->{debug};
-				$session->param('auth',                $self->{auth});
-				$session->param('username',            $self->{user});
-				$session->param('dn',                  $self->{dn});
-				$session->param('priv',                $self->{priv});
-				$session->param('privlevel',           $self->{privlevel});
-				$session->param('groups',              $self->{groups});
-				$session->param('rawgroups',           $self->{rawgroups});
+				$self->_store_session_privs($session);
 				my $cookie = $self->generate_cookie(user_name => $self->{user}, name => $session->name, value => $session->id);
 				push @cookies, $cookie;
 				NMISNG::Util::logAuth("DEBUG: loginout made Session cookie $cookies[0]") if $self->{debug};
@@ -2223,23 +2333,27 @@ sub SetUser {
 	{
 		# Determine if we are already logged in.
 		NMISNG::Util::logAuth("DEBUG Auth::SetUser, verifying user '$user'.") if $self->{debug};
-		my $testCookie = $self->verify_id();
-		if( $testCookie ne '' ) { # Found valid cookie
-			NMISNG::Util::logAuth("DEBUG Auth::SetUser, user '$user' verified.") if $self->{debug};
-			my $cgi = new CGI;
-			my $session_dir = $self->{config}->{'session_dir'} // $self->{config}->{'<nmis_var>'}."/nmis_system/user_session";
-			my $sid = $cgi->cookie($self->get_session_cookie_name()) || $cgi->param($self->get_session_cookie_name()) || undef;
-			my $session = load CGI::Session(undef, $sid, {Directory=>$session_dir});
-			if ($session && $session->param('priv')) {
-				NMISNG::Util::logAuth("DEBUG Auth::SetUser, User '$user' found cached priveleges.") if $self->{debug};
-				$self->{user}      = $user;
-				$self->{auth}      = $session->param('auth');
-				$self->{dn}        = $session->param('dn');
-				$self->{priv}      = $session->param('priv');
-				$self->{privlevel} = $session->param('privlevel');
-				$self->{rawgroups} = $session->param('rawgroups');
-				$self->SetGroups( rawgroups => $self->{rawgroups} );
-				return 1;
+		my $authuser = $self->verify_id();
+		# OMK-12824: the cookie says who is authenticated, so the argument must be
+		# that same user, and the session must be theirs and signed by us.
+		if ($authuser ne '' and lc($authuser) eq lc($user))
+		{
+			my $session = $self->_load_owned_session(user => $authuser);
+			if ($session and $session->param('priv') and $self->_session_privs_trusted($session))
+			{
+				my $privlevel = $self->_privlevel_for($session->param('priv'));
+				if (defined $privlevel)
+				{
+					NMISNG::Util::logAuth("DEBUG Auth::SetUser, User '$user' found cached privileges.") if $self->{debug};
+					$self->{user}      = $user;
+					$self->{auth}      = $session->param('auth');
+					$self->{dn}        = $session->param('dn');
+					$self->{priv}      = $session->param('priv');
+					$self->{privlevel} = $privlevel;
+					$self->{rawgroups} = $session->param('rawgroups');
+					$self->SetGroups( rawgroups => $self->{rawgroups} );
+					return 1;
+				}
 			}
 		}
 		$self->{user} = $user; # username
@@ -2448,6 +2562,15 @@ sub TableRegistered {
 	return (ref($registry) eq "HASH" and exists($registry->{$table})) ? 1 : 0;
 }
 
+# CGI::Session::load asks its query object for the claimed session id via
+# cookie() then param(). Answering undef to both is what forces a fresh id.
+{
+	package NMISNG::Auth::_FreshSessionQuery;
+	sub new    { return bless({}, shift); }
+	sub cookie { return undef; }
+	sub param  { return undef; }
+}
+
 # Generate a session to track user login state in the server side
 sub generate_session {
 	
@@ -2459,8 +2582,11 @@ sub generate_session {
 	my $expires = ($args{expires} // $self->{config}->{auth_expire}) || '+60min';
 	my $cookiedomain = $self->get_cookie_domain;
 
-	# Generate session; CGI::Session creates its own unpredictable id
-	my $session = CGI::Session->new(undef, undef, {Directory=>$session_dir});
+	# OMK-12824: new(undef,undef) adopts the session the request's CGISESSID names,
+	# data and all, so a caller could choose the id. The stub query hides the
+	# request's id and makes CGI::Session generate its own.
+	my $session = CGI::Session->new(undef, NMISNG::Auth::_FreshSessionQuery->new,
+			{Directory=>$session_dir});
 	NMISNG::Util::logAuth("INFO Generating session $name for user $user") if ($self->{debug});
 	
 	$session->param('username', $user);

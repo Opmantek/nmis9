@@ -69,6 +69,7 @@ working_tests=(
     t_nmis_cli_discard_password.t
     t_seed_decision.t
     t_session_expiry.t
+    t_auth_session_privs.t
     t_access_policy.pl
     t_mongo_exposure.t
     t_csrf.t

@@ -644,6 +644,103 @@ operator lock any more, where `seed=t` did.
   block out of the hook and runs it, rather than restating the logic, so the
   hook stays the single source.
 
+### H17 / OMK-12824 — session-cached privileges bound to the authenticated user
+
+**Files:** `lib/NMISNG/Auth.pm`, `test/t_auth_session_privs.t`,
+`ci/scripts/perl_tests.sh`
+
+**What changed**
+
+| Behaviour | Before | After |
+|---------|--------|-------|
+| privileges cached in a session file | trusted from whatever session the request named | trusted only when the session names the authenticated user and carries an `auth_web_key` HMAC that NMIS wrote |
+| `privlevel` | taken from the session file | always re-derived from `PrivMap` |
+| `CGISESSID` as a request parameter | accepted in `SetUser` and `do_logout` | ignored, cookie only |
+| `do_logout` session delete | gated on `max_sessions_enabled`, which ships `false` | always, and only the logged-in user's own session |
+| `generate_session` | `CGI::Session->new(undef, undef, ...)`, which adopts the session the request's `CGISESSID` names | mints a fresh id regardless of the request |
+| `groups` session param | written, never read | no longer written |
+
+**Why:** `SetUser` took the username from the HMAC-signed auth cookie and the
+privileges from a session file the caller nominated, and never checked the two
+named the same user. Any authenticated low-privilege user who supplied a session
+id whose `priv` was `administrator` ran that request as an administrator, under
+their own username, so the audit trail stayed honest while authorisation was
+broken.
+
+Ownership alone was not enough to fix it. Because the per-request writeback is
+ungated (below), one escalated request rewrote the victim's session to name the
+attacker, leaving a file that a username-only check would trust forever. The
+same is true of a file planted by anyone who can write to `session_dir`, which
+is OMK-12811. Hence the signature: it does not attest that a privilege is
+correct, it attests that NMIS derived it, and NMIS only derives privileges from
+Users, PrivMap or LDAP.
+
+**This was default-on, not conditional.** Three gates on `max_sessions_enabled`
+exist and two are commented out, at `Auth.pm:2051` and `:2150`, so sessions
+are created on every login and rewritten on every authenticated request whatever
+the setting says. Only the `do_logout` gate was live, and
+`conf-default/Config.nmis:331` ships `'max_sessions_enabled' => 'false'`, so
+logout deleted nothing and privilege-bearing files accumulated. The cached path
+was therefore the normal path on a stock install, not an edge case.
+
+**Delegated functionality affected.** `CGISESSID` passed as a URL or form
+parameter stops working. Nothing in nmis9 or opmojo ever passed it, and the only
+in-repo mentions are `Auth.pm`'s own accessor and four test files, but an
+out-of-repo integration cannot be ruled out from the code. Logout now deletes the
+server-side session file on installs that leave `max_sessions_enabled` at
+`false`, which is the intended semantic and affects nothing that reads those
+files.
+
+An authenticated client that presents the auth cookie but never returns
+`CGISESSID`, such as scripted `cgi-bin` access, now gets a freshly minted session
+file per request, where the previous `load(undef, undef, ...)` produced an empty
+session that never reached disk. Each file is bounded by `auth_expire` and removed
+by the hourly `nmisd` purge, so this is churn in `session_dir` rather than growth,
+but `session_dir` is the group-writable directory this entry already flags as the
+remaining denial-of-service surface.
+
+**No migration.** Sessions written before this change carry no signature, so the
+first request on each falls through to `_GetPrivs` once and the writeback
+re-signs the file. For an LDAP-authorised install that is one directory lookup
+per existing session, once. Nothing is purged, and the hourly `nmisd` job
+already expires stale files.
+
+**Interaction with H16 / OMK-12688.** Session eviction on password change,
+`bin/nmis-cli:1887`, and the hourly purge, `bin/nmisd:1763`, both identify whose
+session a file is by its `username` field. Before this change the per-request
+writeback let an authenticated user rewrite that field on a file they named, so
+binding the writeback also protects eviction.
+
+**The signed layout is pinned by a test, not by a convention.** Each field is
+signed as `name=value`, so adding, removing, renaming or reordering one changes the
+signed bytes by itself. The parts are joined on NUL without escaping the separator
+or the `=`, so that guarantee holds for separator-free values, which is every value
+NMIS derives from Users, PrivMap or LDAP; a value containing a literal NUL followed
+by another field's name could still alias a boundary. Length-prefixing or escaping
+would remove the class, and is worth doing whenever the layout next changes, since
+that already forces a one-time re-sign. That also means a layout change expires every seal on disk without
+anyone having to mark a version, which costs one privilege recomputation per live
+session and is invisible to users. `test/t_auth_session_privs.t` case 22 holds a
+golden digest over a fixed session and key, so such a change fails a test rather
+than passing unnoticed.
+
+An earlier revision of this work carried a `nmis9-session-privs-v1` constant as the
+first signed part, for domain separation and versioning. It was removed. The
+`name=value` encoding does the versioning job without it, and the domain job was
+never reachable: a privileges string always contains a NUL and the CSRF string at
+`Auth.pm:487` never does, while the auth cookie MAC is `hmac_sha1_hex` and fails
+`_secure_compare` on length. A constant whose comment overstates what it defends is
+worse than no constant.
+
+**Known gap.** The cache is kept rather than removed, because `_GetPrivs` calls
+`_get_ldap_privs` for LDAP-authorised installs and removing the cache would put a
+directory round trip on every CGI request. `session_dir` also stays
+group-writable until OMK-12811, so someone who can write there can still delete
+or truncate other people's sessions, which is a denial of service. Neither is
+load-bearing for privilege forgery any more.
+
+---
+
 ---
 
 ## Open threads to investigate (epic-wide, not tied to one change)
