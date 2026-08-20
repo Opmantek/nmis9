@@ -5041,7 +5041,7 @@ sub clear_active_queue
 {
 	my ( $self ) = @_;
 	$self->log->info("clearing active job queue");
-	my $jobs = $self->get_queue_model( { in_progress => 1 });
+	my $jobs = $self->get_queue_model( in_progress => {'$ne' => 0} );
 	if (my $fault = $jobs->error)
 	{
 		return "clear_active_queue: Failed to lookup schedule: $fault\n";
