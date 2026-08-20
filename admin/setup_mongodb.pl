@@ -441,7 +441,7 @@ This is MongoDB's default, but is not recommended for production use.\n\n";
 			if (-f "/etc/redhat-release")
 			{
 				$osflavour="redhat";
-				print "\nINFO: detected OS flavour RedHat/CentOS\n";
+				print "INFO: detected OS flavour RedHat/CentOS\n";
 
 				open(F, "/etc/redhat-release") or die "cannot read redhat-release: $!\n";
 				my $reldata = join('',<F>);
@@ -646,7 +646,7 @@ This is MongoDB's default, but is not recommended for production use.\n\n";
 
 			my $mongod_logrotate_conf = "/etc/logrotate.d/mongod.conf";
 
-			print "\nwriting logrotate configuration file $mongod_logrotate_conf'\n";
+			print "writing logrotate configuration file $mongod_logrotate_conf\n";
 			print "\n" . `cat > "$mongod_logrotate_conf" <<-EOF
 			$mongod_systemlog_path {
 			  weekly
@@ -675,9 +675,10 @@ This is MongoDB's default, but is not recommended for production use.\n\n";
 			sleep 3;
 
 			# test logrotate:
-			print "testing logrotate ...\n\n";
+			print "\nTesting logrotate ...\n\n";
 			print "\n" . `logrotate -vf "$mongod_logrotate_conf"` ||
 				die ("Error: testing logrotate failed with status code: $?\n");
+			print "\nlogrotate tested\n";
 		}
 	}
 }

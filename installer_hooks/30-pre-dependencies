@@ -205,7 +205,7 @@ if [ "${OSFLAVOUR}" = "redhat" ]; then
                     else
                             PROMPT="--prompt";
                     fi;
-                    cpanm Devel::GlobalDestruction::XS --sudo "${PROMPT}" 2>&1||:; # can't use execprint as cpanm may be interactive
+                    cpanm Devel::GlobalDestruction::XS --sudo ${PROMPT} 2>&1||:; # can't use execprint as cpanm may be interactive
                     cpanm Proc::Queue --sudo ${PROMPT} 2>&1||:; # can't use execprint as cpanm may be interactive
                     cpanm Net::SMTPS --sudo ${PROMPT} 2>&1||:; # can't use execprint as cpanm may be interactive
 
