@@ -33,8 +33,8 @@ working_tests=(
     t_plugin_nodevalidation.pl
     notify_depend.t
     t_nmisng_node_nomodel.pl
-    # OMK-12775 / BR-01 defect-register regression
-    defects/t_br01_clear_active_queue_wipes_all.pl
+    # OMK-12775 / BR-01: clear_active_queue must not wipe pending jobs
+    t_clear_active_queue.pl
 )
 
 for i in "${working_tests[@]}"; do
