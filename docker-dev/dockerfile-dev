@@ -72,6 +72,10 @@ RUN apt-get update  > /dev/null && \
     libsys-syslog-perl \
     libtest-deep-perl \
     libcrypt-des-perl \
+    # OMK-12827: crypto modules so the dev/CI image can enable encryption of secrets
+    libcrypt-cbc-perl \
+    libcryptx-perl \
+    libmath-random-secure-perl \
     libdigest-hmac-perl \
     libclone-perl \
     libexcel-writer-xlsx-perl \
@@ -116,6 +120,8 @@ RUN cpanm --notest --no-interactive \
     JSON::PP \
     Time::Local \
     Test::More \
+    # OMK-12827: force the missing-crypto path deterministically in encryption tests
+    Test::Without::Module \
     Config::AutoConf \
     Path::Tiny \
     DateTime::Locale \

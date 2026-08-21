@@ -35,6 +35,12 @@ working_tests=(
     t_nmisng_node_nomodel.pl
     # OMK-12775 / BR-01: clear_active_queue must not wipe pending jobs
     t_clear_active_queue.pl
+    # OMK-12776 / BR-02: service inventories must get distinct uuids
+    t_service_inventory_uuid.pl
+    # OMK-12779 / BR-05: escalation must not be suppressed by an inactive depend Node Down
+    t_escalation_depend_suppression.pl
+    # OMK-12777 / BR-03: one malformed outage record must not abort the whole check
+    t_outage_check_malformed_record.pl
 )
 
 for i in "${working_tests[@]}"; do
