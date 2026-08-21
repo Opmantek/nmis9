@@ -39,6 +39,8 @@ working_tests=(
     t_service_inventory_uuid.pl
     # OMK-12779 / BR-05: escalation must not be suppressed by an inactive depend Node Down
     t_escalation_depend_suppression.pl
+    # OMK-12777 / BR-03: one malformed outage record must not abort the whole check
+    t_outage_check_malformed_record.pl
 )
 
 for i in "${working_tests[@]}"; do
