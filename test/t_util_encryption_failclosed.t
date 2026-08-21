@@ -6,7 +6,9 @@
 # With encryption enabled and Crypt::CBC/Crypt::Cipher::AES/Math::Random::Secure
 # forced absent, the old code logged, set global_enable_password_encryption to
 # "false", wrote the config back, and returned the input. The fix: never write
-# the flag, and return "" for a value that cannot be produced.
+# the flag. decrypt returns "" for a value it cannot decrypt;
+# encrypt returns the value unchanged, so an unguarded caller such as NMISNG::Node::new
+# cannot wipe a stored secret.
 #
 # The flag is set via the NMIS_* env override (in memory, layer 4), so nothing
 # on disk changes. writeConfData is replaced by a spy, so the test proves no

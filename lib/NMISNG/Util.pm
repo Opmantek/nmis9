@@ -4531,7 +4531,10 @@ sub enableEOS {
 sub verifyNMISEncryption {
 	my (%args)   = @_;
 	my $logger   = $args{log};
-	# We create seed file in ./installer_hooks/20-postcopy-user as installer always runs with root permissions:
+	# Master key path. The installer does NOT create this file today. The lines
+	# in installer_hooks/20-postcopy-user that once created it are commented out.
+	# _make_seed creates it lazily and requires root. Restoring install-time
+	# creation is OMK-12827 Slice B.
 	my $seeddir  = '/usr/local/etc/firstwave/';
 	my $seedfile = '/usr/local/etc/firstwave/master.key';
 	my $epochNow = time;
@@ -4806,7 +4809,10 @@ sub decrypt {
 
 	$logger->debug("Encryption is '" . $encryption_enabled . "'.");
 
-	# We create seed file in ./installer_hooks/20-postcopy-user as installer always runs with root permissions:
+	# Master key path. The installer does NOT create this file today. The lines
+	# in installer_hooks/20-postcopy-user that once created it are commented out.
+	# _make_seed creates it lazily and requires root. Restoring install-time
+	# creation is OMK-12827 Slice B.
 	my $seedfile           = '/usr/local/etc/firstwave/master.key';
 	my $strLen             = "";
 	my $fh;
@@ -4939,7 +4945,10 @@ sub encrypt {
 
 	$logger->debug("Encryption is '" . $encryption_enabled . "'.");
 
-	# We create seed file in ./installer_hooks/20-postcopy-user as installer always runs with root permissions:
+	# Master key path. The installer does NOT create this file today. The lines
+	# in installer_hooks/20-postcopy-user that once created it are commented out.
+	# _make_seed creates it lazily and requires root. Restoring install-time
+	# creation is OMK-12827 Slice B.
 	my $seedfile           = '/usr/local/etc/firstwave/master.key';
 	my $strLen             = 0;
 	my $fh;
@@ -4998,7 +5007,10 @@ sub _make_seed {
 	my $seedfile  = shift;
 	my $logger    = shift;
 
-	# We create seed file in ./installer_hooks/20-postcopy-user as installer always runs with root permissions:
+	# Master key path. The installer does NOT create this file today. The lines
+	# in installer_hooks/20-postcopy-user that once created it are commented out.
+	# _make_seed creates it lazily and requires root. Restoring install-time
+	# creation is OMK-12827 Slice B.
 	my $seeddir  = File::Spec->rel2abs(dirname(${seedfile}));
 	my @charset  = (('A'..'Z'), ('a'..'z'), (0..9));
 	my $range    = $#charset + 1;
