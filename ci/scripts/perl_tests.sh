@@ -14,6 +14,7 @@ working_tests=(
     uuid.t
     t_util.pm
     t_util_encryption_failclosed.t
+    t_util_verify_selftest_failclosed.t
     t_nmis_config.pl
     t_writehashtofile.pl
     t_status.pl

@@ -4571,11 +4571,9 @@ sub verifyNMISEncryption {
 	{
 		if (!testEncryption())
 		{
-			$logger->error("ERROR: Encryption is not working!");
-			$logger->error("ERROR: Password encryption will be disabled!");
-			$logger->debug9(sub {"Config '" .  Dumper($fullConfig) . "'."});
-			$fullConfig->{globals}{global_enable_password_encryption} = "false";
-			writeConfData(data=>$fullConfig);
+			my $msg = "Encryption of secrets is enabled but the encryption self-test failed, so secrets cannot be protected. Check that the crypto modules are installed and the master key is readable. Encryption has NOT been changed.";
+			$logger->error("ERROR: $msg");
+			print("ERROR: $msg\n");
 			return(1);
 		}
 		# Make sure we have a seed file.
@@ -4936,10 +4934,10 @@ sub encrypt {
 		$logger->error("ERROR: encryption is enabled but those modules are missing, so this value cannot be encrypted. The flag is left unchanged and the value is stored as-is; install the modules named above.")
 			if ($encryption_enabled);
 		# Fail closed without destroying data. Never rewrite the flag, and never
-		# return "": a caller such as NMISNG::Node::new assigns encrypt()'s result
-		# straight back and persists it, so "" would wipe a stored secret. The
-		# value is already plaintext at rest, so returning it unchanged adds no
-		# new exposure while leaving encryption enabled.
+		# return "" here, so an unguarded caller such as NMISNG::Node::new cannot
+		# wipe a stored secret on this missing-modules path. The value is
+		# already plaintext at rest, so returning it unchanged adds no new
+		# exposure while leaving encryption enabled.
 		return $password;
 	}
 
