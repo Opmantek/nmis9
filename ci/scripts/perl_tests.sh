@@ -41,6 +41,8 @@ working_tests=(
     t_escalation_depend_suppression.pl
     # OMK-12777 / BR-03: one malformed outage record must not abort the whole check
     t_outage_check_malformed_record.pl
+    # OMK-12780 / BR-06: a dampened stateless event must not be resurrected
+    t_stateless_event_not_resurrected.pl
 )
 
 for i in "${working_tests[@]}"; do
