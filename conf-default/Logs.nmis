@@ -47,24 +47,6 @@
     'logName' => 'Generic_Syslog',
     'logDescr' => 'Generic Device Syslog [local7 default]'
   },
-  '9' => {
-    'logOrder' => '9',
-    'logFileName' => '/var/log/messages',
-    'logName' => 'Messages',
-    'logDescr' => 'Messages'
-  },
-  '10' => {
-    'logOrder' => '10',
-    'logFileName' => '/var/log/httpd/access_log',
-    'logName' => 'Apache_Access_Log',
-    'logDescr' => 'Apache Access Log'
-  },
-  '11' => {
-    'logOrder' => '11',
-    'logFileName' => '/var/log/httpd/error_log',
-    'logName' => 'Apache_Error_Log',
-    'logDescr' => 'Apache Error Log'
-  },
   '12' => {
     'logOrder' => '12',
     'logFileName' => 'auth.log',

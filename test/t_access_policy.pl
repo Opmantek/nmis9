@@ -23,7 +23,7 @@
 # *****************************************************************************
 #
 # OMK-12707: the default Access policy must not let non-admins write the
-# Users/Access/Config/PrivMap/AuthLdapPrivs/Tables tables, and the code
+# Users/Access/Config/PrivMap/AuthLdapPrivs/Tables/Logs tables, and the code
 # must enforce admin-only access to those rights even if a (stale or
 # tampered) live Access table still grants them. The enforcement is gated
 # by config auth_lock_sensitive_tables (default on) so an admin can
@@ -45,14 +45,15 @@ use Compat::NMIS;
 # rights the code guard forces admin-only regardless of the Access matrix
 my @guard_rights = (qw(table_users_rw table_access_rw table_config_rw
 											 table_authldapprivs_rw table_privmap_rw
-											 table_tables_rw table_services_rw));
+											 table_tables_rw table_services_rw table_logs_rw));
 
 # rights whose conf-default grant this change tightens to admin-only.
 # table_services_rw is excluded on purpose: its default grant is owned by
 # PR #11; this change only adds it to the code guard.
+# table_logs_rw joined both lists for OMK-12823.
 my @default_admin_rights = (qw(table_users_rw table_access_rw table_config_rw
 															 table_authldapprivs_rw table_privmap_rw
-															 table_tables_rw));
+															 table_tables_rw table_logs_rw));
 
 # part 1: shipped defaults in conf-default/Access.nmis are admin-only.
 # pass an explicit empty conf so readFiletoHash does not fall back to

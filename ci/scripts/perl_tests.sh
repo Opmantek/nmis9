@@ -38,6 +38,7 @@ working_tests=(
     t_report_filename.t
     t_isindex_guard.t
     t_rrddraw_filename.t
+    t_logs_file_confinement.t
     t_auth_graph_refusal.t
     t_graph_authz.t
     t_setup_mongodb_shell.t

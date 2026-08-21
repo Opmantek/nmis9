@@ -69,9 +69,11 @@ below — its default grant is tightened separately in PR #11, so it is not in
 the table above and this change only adds it to the guard. Services is included
 because a service definition can carry a service-check `Program` that executes
 (see C7 / OMK-12692), so writing it is a command surface.
+`table_logs_rw` (Logs) joined the same guard later, under OMK-12823; see that
+entry below for why.
 
 Plus code enforcement independent of the matrix: `CheckAccessCmd` and
-`CheckButton` deny these seven rights to any non-admin regardless of what the
+`CheckButton` deny these rights to any non-admin regardless of what the
 live `Access.nmis` says (needed because an upgraded install keeps its old,
 permissive `conf/Access.nmis`). A deny-by-default `TableRegistered()` allowlist
 was added to the table editor.
@@ -92,11 +94,11 @@ why the guard exists, and also why it needs the opt-out below.
 **Operator opt-out — `auth_lock_sensitive_tables`** (config, default `true`).
 The guard is gated by this flag. Default (or any value that is not an exact
 false token) keeps it enforced; setting it to an exact false token
-(`false`/`no`/`0`, any case, surrounding whitespace allowed) makes the seven
+(`false`/`no`/`0`, any case, surrounding whitespace allowed) makes the
 guarded rights defer to the Access matrix again — i.e. restores the pre-fix
 behaviour. This is the supported way for a customer who needs "the old way" to
 get it back, without a source edit. It is deliberately coarse and blunt:
-flipping it re-opens all seven rights at once, including the never-safe ones
+flipping it re-opens every guarded right at once, including the never-safe ones
 (editing the Access matrix itself, and Config while it still holds
 `auth_web_key`). It is an informed "I accept the risk" switch, not the safe way
 to restore delegation — for that see the mitigation notes below. The match is
@@ -741,6 +743,79 @@ load-bearing for privilege forgery any more.
 
 ---
 
+### OMK-12823 — the log viewer is confined to the nmis log directory
+
+**Files:** `cgi-bin/logs.pl`, `lib/NMISNG/Util.pm`, `conf-default/Logs.nmis`,
+`conf-default/Access.nmis`, `conf-default/Config.nmis`
+
+**What changed**
+
+| Setting | Before | After |
+|---------|--------|-------|
+| File named by a `Logs` entry | any path on the box | must resolve inside `<nmis_logs>`, with symlinks followed (`NMISNG::Util::confine_path_to_dir`) |
+| Shipped `Messages`, `Apache_Access_Log`, `Apache_Error_Log` | `/var/log/messages`, `/var/log/httpd/access_log`, `/var/log/httpd/error_log` | removed |
+| Access rights `messages`, `apache_access_log`, `apache_error_log` | granted | removed |
+| `table_logs_rw` (write the Logs table) | levels 0, 1 | 0, plus the `%admin_only_rights` code guard |
+
+**Why:** `table_logs_rw` was level1, so a manager could add or edit a `Logs`
+entry. `logs.pl` kept `logFileName` verbatim whenever it contained a `/`, then
+read and displayed the file, gated only by `CheckAccess($logName)` where
+`logName` came from the same manager-written entry. A manager could point an
+entry at `conf/Config.nmis` and read `auth_web_key`, or at any file the web
+server user can read. That is the same secret disclosure H11 closes for the
+Config table, reached through a sibling table and CGI. The fix sits at the sink,
+so it holds regardless of who planted the path, an administrator included.
+
+**Delegated functionality affected.** Adding a log from outside `<nmis_logs>` is
+no longer possible at any privilege level, administrator included, so viewing the
+system and Apache logs through NMIS is gone. There is no opt-out: to see an OS
+log in NMIS again, forward or copy it into `<nmis_logs>`. Curating the list at
+all is now an administrator task, see the table grant below. Refused entries
+list as `UA`, with the reason in the web server error log. Symlinking an outside
+file into the log directory does not restore it, because the check resolves the
+target rather than the name.
+
+**Upgrades.** An install that already has a `conf/Logs.nmis` keeps its own copy
+of the three removed entries, and they now list as `UA`. Only fresh installs
+pick up the trimmed default. Existing rows are not re-checked against anything
+but the confinement, so a `logName`/`logFileName` pairing a manager altered
+before the upgrade survives it; the code guard stops further edits, it does not
+undo past ones.
+
+**The table grant is now admin-only too.** The confinement alone closes the file
+read, so the grant was initially left at level1 to keep the curation capability
+above. That leaves the residual below reachable by any manager, so the grant was
+tightened as well: `conf-default/Access.nmis` sets `level1` to `0`, and
+`table_logs_rw` joins `%admin_only_rights` in `NMISNG::Auth`, which is what
+enforces it on an upgraded install whose live `conf/Access.nmis` still grants it
+(same reasoning as H11). OMK-12707 considered and declined this change, rightly,
+because it is redundant with the confinement for the *file read*. It is not
+redundant for the authorization binding, which is a separate defect and the
+reason it is done here. The cost is that a manager can no longer curate the
+viewer's log list at all, not even from inside `<nmis_logs>`. There is no
+narrower grant available, because the table editor authorizes per table rather
+than per field.
+
+**Known gaps.**
+
+- `logName` is chosen in the same entry as the file, so the per-log
+  `CheckAccess($logName)` check can be aimed at a right the writer already holds
+  in order to reach another log inside the directory. The binding is still wrong:
+  the check reads the entry's name while the content comes from the entry's file.
+  With `table_logs_rw` admin-only the only writer is an administrator, who holds
+  every log right anyway, so what remains is an administrator being able to
+  expose a restricted in-directory log (`auth.log`, say) to lower-privileged
+  users by repointing an entry whose name-right they do hold. Same standing as
+  the `os_cmd_read_file_reverse` residual below. The real fix is a `logs.pl`
+  authorization review that binds the required right to the resolved file rather
+  than to the entry's name. **Investigate.**
+- `loadLogFile` still assembles its read command as a string and runs it through
+  a shell (`open (DATA, "$readLogFile |")`). Both filenames reaching that string
+  are now confined, the entry's own and the rotations the glob finds beside it,
+  but `os_cmd_read_file_reverse` from the Config table is still interpolated
+  verbatim. H11 restricts that key to administrators. **Investigate** a
+  list-form open.
+
 ---
 
 ## Open threads to investigate (epic-wide, not tied to one change)
@@ -762,26 +837,12 @@ None are implemented.
   - Service-check `Program` running through a shell as root (C7 / OMK-12692) —
     already tracked; noted here because it is the "drop privileges on the exec
     path" half of the same problem.
-- **Arbitrary file read via the log viewer's `logFileName` (`cgi-bin/logs.pl`).**
-  Found in the OMK-12707 review. `table_logs_rw` is level1 (manager-writable)
-  and `Logs` is a registered table, so a manager can add or edit a Logs entry.
-  `logs.pl:188` keeps `logFileName` verbatim whenever it contains a `/`
-  (otherwise it prepends the nmis log dir), then `loadLogFile($logFileName)`
-  reads and displays it (`logs.pl:230`), gated only by `CheckAccess($logName)`
-  where `logName` is set by the same manager in the same entry. So a manager can
-  point `logFileName` at `conf/Config.nmis` (disclosing `auth_web_key` and other
-  secrets) or any file the web user can read. **The real bug is the missing path
-  confinement in `logs.pl`, not the table grant** — the read path is only ever
-  taken from the Logs table entry, but the fix belongs at the sink: confine
-  `logFileName` to the nmis log directory (reject `/` and `..`, resolve the
-  realpath and require it under `<nmis_logs>`). That closes it regardless of who
-  planted the path, including an admin. Adding `table_logs_rw` to
-  `%admin_only_rights` was considered and rejected for this PR: it would be
-  redundant with the confinement fix for the file-read, and would remove a
-  legitimate manager capability. Tracked as a follow-up (OMK-12823). A smaller
-  residual remains after confinement — a manager-chosen `logName` can still
-  subvert the per-log group-access check to view other in-directory logs — which
-  belongs to a proper `logs.pl` authorization review rather than this ticket.
+- **Log viewer authorization (`cgi-bin/logs.pl`).** The arbitrary file read found
+  in the OMK-12707 review is closed, see the OMK-12823 entry under
+  [Changes from former defaults](#changes-from-former-defaults). Its two
+  residuals are recorded there and neither is implemented, the
+  `CheckAccess($logName)` binding (admin-reachable only, since `table_logs_rw`
+  is now admin-only) and the shell pipe in `loadLogFile`.
 - **Multi-tenancy is not actually enforced by the role model.** Default
   `manager` has `groups => 'all'`. To be "fully multi-tenanted", a manager needs
   to be "admin *within a tenant*" — a tenant/group boundary enforced on every

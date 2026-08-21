@@ -183,9 +183,13 @@ my $logLevelSummary = {
 
 $LL = NMISNG::Util::loadTable(dir=>'conf',name=>'Logs');
 
-# check each log entry for field 'file', and if no path, add the nmis log dir default path
+# OMK-12823: confine each entry's file before anything reads it. The Logs table is
+# manager-writable, so an entry must not be able to name any file on the box. A bare
+# name still gets the nmis log dir prepended, anything else has to resolve inside it.
+# A refused entry becomes '', which loadLogFile and viewLogList already skip.
 foreach ( keys %{$LL} ) {
-	$LL->{$_}{logFileName} = $C->{'<nmis_logs>'} .'/'. $LL->{$_}{logFileName} if $LL->{$_}{logFileName} !~ /\//;
+	$LL->{$_}{logFileName} = NMISNG::Util::confine_path_to_dir(
+			$LL->{$_}{logFileName}, $C->{'<nmis_logs>'}, 'logs.pl') // '';
 
 	# find and store the FQ pathnamme of $logName in config hash
 	if ( lc $LL->{$_}{logName} eq lc $pollerLog ) {
@@ -372,6 +376,10 @@ sub loadLogFile {
 	# but event.log-20160710.gz is OLDER than event.log-20160702.gz...
 	# let's get all files that match the glob '$file*'
 	my	@fileList =  sort { (stat($b))[9] <=> (stat($a))[9] } <$file*>;
+
+	# OMK-12823: <nmis_logs> is writable by the web user and these names go into
+	# the shell pipe below, so a planted rotation must not get through.
+	@fileList = grep { NMISNG::Util::path_inside_dir($_, $C->{'<nmis_logs>'}) } @fileList;
 
 	foreach my $file ( @fileList ) {
 		my $readLogFile = ($file =~ /\.gz$/i) ? "$zcat $file | $tac" : "$tac $file" ;
