@@ -36,9 +36,9 @@ The dev and CI image `crg.apkg.io/firstwavecloud/nmis-dev:latest` is built from 
 
 ## Locked decisions
 
-1. **Fail closed by returning the empty-string sentinel, never by dying.** `encrypt` and `decrypt` already return `""` on genuine crypto failure and callers tolerate it. We keep that contract and add the missing-modules case to it. No new `die` on the runtime read or write paths.
+1. **Fail closed without destroying data, never by dying.** `decrypt` returns the existing `""` sentinel for a value it cannot decrypt, a read failure that no caller persists. `encrypt` returns the value unchanged, never `""`, because a caller such as `NMISNG::Node::new` assigns `encrypt`'s result straight back to a stored secret and saves it, so `""` would wipe the credential. The value handed to `encrypt` is already plaintext at rest, so returning it unchanged adds no new exposure. Neither path rewrites the flag, and no new `die` is introduced. (The first version of this decision used `""` for both; review found `encrypt`-returns-`""` wipes node secrets through `Node::new`, so `encrypt` returns unchanged instead.)
 2. **The loud, human-facing failure lives at the enable boundary.** `verifyNMISEncryption` runs only from `enableEOS` and `disableEOS`, which are root-only admin commands with an operator present that already print to the terminal. That is where we print an actionable message that names the missing packages. `testEncryption` already blocks `enableEOS` when the modules are missing, so the flag cannot be set true through that path.
-3. **Scenario 2 is a Slice B follow-up.** If encryption was already on and the modules later disappear under a running daemon, Slice A keeps the system safe (return `""`, no self-disable) but cannot raise a GUI alert from inside `Util.pm`. Surfacing that needs the `nmisng` and event wiring that lives outside this file.
+3. **Scenario 2 is a Slice B follow-up.** If encryption was already on and the modules later disappear under a running daemon, Slice A keeps the system safe (fail closed, no self-disable, no credential wipe) but cannot raise a GUI alert from inside `Util.pm`. Surfacing that needs the `nmisng` and event wiring that lives outside this file.
 
 ## Changes
 
@@ -70,13 +70,15 @@ Behaviour when the crypto modules cannot load. "enabled" means `global_enable_pa
 | `decrypt` | enabled | `"!!"` ciphertext | input, then flag set false | `""` | none |
 | `decrypt` | enabled | plaintext | input, then flag set false | input unchanged | none |
 | `decrypt` | disabled | any | unchanged from today | unchanged from today | none |
-| `encrypt` | enabled or force | plaintext | input, then flag set false when enabled and not force | `""` | none |
+| `encrypt` | enabled or force | plaintext | input, then flag set false when enabled and not force | input unchanged | none |
 | `encrypt` | enabled or force | `"!!"` ciphertext | input | input unchanged | none |
 | `encrypt` | disabled and not force | any | passthrough or item 8 write-back | passthrough, no write-back | none |
 | `verifyNMISEncryption` | enabled, modules missing | n/a | `1`, then flag set false | `1`, prints actionable message | none |
 | `verifyNMISEncryption` | enabled, self-test fails | n/a | `1`, then flag set false | `1` | none |
 
 In every row the on-disk value of `global_enable_password_encryption` is unchanged by the call.
+
+`encrypt` returns the value unchanged rather than `""` for the plaintext case because `NMISNG::Node::new` (`lib/NMISNG/Node.pm:105-145`) assigns `encrypt`'s result straight back to each stored device secret and calls `save`, with no guard, so `""` would wipe the credential the first time a node loads with encryption enabled and the modules missing. That unguarded assign-and-save in `Node::new` is a fragility of its own, flagged as a follow-up for a later slice, since Slice A does not touch `Node.pm`.
 
 ## Explicitly not touched
 
@@ -95,7 +97,7 @@ New test file under `test/`, driving `NMISNG::Util` directly with a throwaway co
 These use `Test::Without::Module` to force the crypto `require` to fail, so they drive the missing-modules branch on demand rather than relying on the environment. That branch returns before any seed is read, so no master key is needed. With encryption enabled and the modules forced absent:
 
 - `decrypt` of a `"!!"` value returns `""`.
-- `encrypt` of a plaintext value returns `""`.
+- `encrypt` of a plaintext value returns it unchanged, and never `""` (the property that guards the `Node::new` wipe).
 - `verifyNMISEncryption` returns failure and its output names the three packages.
 - `testEncryption` returns 0.
 - After each call, the on-disk `global_enable_password_encryption` is byte-identical to before, and is still `true`.
