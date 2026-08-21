@@ -43,6 +43,8 @@ working_tests=(
     t_outage_check_malformed_record.pl
     # OMK-12780 / BR-06: a dampened stateless event must not be resurrected
     t_stateless_event_not_resurrected.pl
+    # OMK-12781 / BR-07: cleanNodeEvents must write a TTL date and not clobber valid expiries
+    t_cleannodeevents_ttl.pl
 )
 
 for i in "${working_tests[@]}"; do
