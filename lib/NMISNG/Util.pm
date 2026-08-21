@@ -4797,7 +4797,7 @@ sub decrypt {
 		$logger->error("ERROR: Password encryption cannot be enabled!");
 		if ($encryption_enabled)
 		{
-			$logger->error("ERROR: 'global_enable_password_encryption' is 'true' but the crypto modules are missing. Encryption stays enabled and secrets cannot be decrypted. Install the packages above. NMIS will not disable encryption for you.");
+			$logger->error("ERROR: 'global_enable_password_encryption' is 'true' but the crypto modules are missing. Encryption stays enabled and secrets cannot be decrypted. NMIS will not disable encryption for you; install the modules named above.");
 			# Fail closed. Never rewrite the flag. Return "" for a value we
 			# cannot decrypt, and pass a non-encrypted value through unchanged.
 			return (substr($password, 0, 2) eq "!!") ? "" : $password;
@@ -4927,15 +4927,13 @@ sub encrypt {
 	{
 		$logger->error("ERROR: 'Crypt::CBC' and 'Crypt::Cipher::AES', and 'Math::Random::Secure' must be installed in order to enable password encryption!");
 		$logger->error("ERROR: Password encryption cannot be enabled!");
-		if ($encryption_enabled || $force)
-		{
-			$logger->error("ERROR: encryption was requested but the crypto modules are missing. The flag is left unchanged. Install the packages above.")
-				if ($encryption_enabled);
-			# Fail closed. Never rewrite the flag. A "!!" value is already
-			# encrypted so hand it back untouched; a plaintext value cannot be
-			# encrypted so return "" (the existing encryption-failure sentinel).
-			return (substr($password, 0, 2) eq "!!") ? $password : "";
-		}
+		$logger->error("ERROR: encryption is enabled but those modules are missing, so this value cannot be encrypted. The flag is left unchanged and the value is stored as-is; install the modules named above.")
+			if ($encryption_enabled);
+		# Fail closed without destroying data. Never rewrite the flag, and never
+		# return "": a caller such as NMISNG::Node::new assigns encrypt()'s result
+		# straight back and persists it, so "" would wipe a stored secret. The
+		# value is already plaintext at rest, so returning it unchanged adds no
+		# new exposure while leaving encryption enabled.
 		return $password;
 	}
 

@@ -64,8 +64,10 @@ is(scalar(@writes), 0, "decrypt of plaintext attempted no config write");
 
 # --- encrypt ---
 @writes = ();
-is(NMISNG::Util::encrypt('secretplaintext'), "",
-	"encrypt of a plaintext value returns '' when crypto is unavailable");
+is(NMISNG::Util::encrypt('secretplaintext'), 'secretplaintext',
+	"encrypt of a plaintext value returns it unchanged when crypto is unavailable (never wipes it)");
+isnt(NMISNG::Util::encrypt('secretplaintext'), "",
+	"encrypt never returns empty for a real plaintext secret (guards the NMISNG::Node::new assign-and-save wipe)");
 is(scalar(@writes), 0, "encrypt attempted no config write");
 
 @writes = ();
