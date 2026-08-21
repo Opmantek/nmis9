@@ -3967,6 +3967,10 @@ LABEL_ESC:
 				"stateless event $event_data->{event} has exceeded dampening time of $stateless_event_dampening seconds."
 			);
 			$event_obj->delete();
+			# BR-06 (OMK-12780): stop processing this now-deleted event. Without this,
+			# the loop continues on the dead object and the tail save(update => 1)
+			# re-inserts it active. The sibling deletes in this loop also next LABEL_ESC.
+			next LABEL_ESC;
 		}
 
 		# set event control to policy or default=enabled.
