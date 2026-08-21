@@ -4950,29 +4950,10 @@ sub encrypt {
 		_make_seed($seedfile, $logger);
 	}
 
-	# Passed already encrypted string.
+	# Passed an already-encrypted string. encrypt never decrypts a stored value,
+	# never emits cleartext, and never writes the config (OMK-12827 item 8).
+	# Hand the ciphertext back unchanged, regardless of the flag.
 	if (substr($password, 0, 2) eq "!!") {
-		# Encryption is disabled, decrypt whatever we encounter and return that.
-		if (!$encryption_enabled && !$force) {
-			# If we have an encrypted password in the configuration file, then we decrypt it.
-			my $decrypted_pw = decrypt($password);
-			# If the 'section and 'keyword' arguments are passed, it means we are
-			# dealing with the configuration file, so we we decrypt it in the file.
-			if (defined($section) && defined($keyword) && $section ne '' && $keyword ne '') {
-				# Get the non-flattened raw hash
-				my ($fullConfig,undef) = getConfDeep(only_local => 1);
-				$logger->debug9(sub {"Config '" .  Dumper($fullConfig) . "'."});
-				if ($fullConfig->{$section}{$keyword} ne $decrypted_pw) {
-					$logger->debug3(sub {"Decrypting the password for Section: '$section' Field: '$keyword'"});
-					$fullConfig->{$section}{$keyword} = $decrypted_pw;
-					$logger->debug9(sub {"Config '" .  Dumper($fullConfig) . "'."});
-					writeConfData(data=>$fullConfig);
-				}
-			}
-			return $decrypted_pw;
-		} else {
-			$logger->debug9(sub {"Encryption is enabled."});
-		}
 		return $password;
 	}
 
