@@ -1164,19 +1164,16 @@ $flip_node->configuration($flip_cfg);
 ($op, $err) = $flip_node->save();
 ok(!$err, "flip-node saved after removing SNMP credentials") or diag("Save error: $err");
 
-# Monkey-patch NMISNG::WMI::new and NMISNG::Snmp::new so the real update()/collect()
-# orchestration below never attempts a real network connection for either source.
+# Monkey-patch NMISNG::WMI::new so the real update()/collect() orchestration
+# below never attempts a real network connection. SNMP credentials are blank
+# on this node, so Sys::init never constructs an SNMP accessor at all here -
+# no NMISNG::Snmp::new mock is needed for this case.
 my $orig_wmi_new_flip = \&NMISNG::WMI::new;
-my $orig_snmp_new_flip = \&NMISNG::Snmp::new;
 {
 	no warnings 'redefine';
 	*NMISNG::WMI::new = sub {
 		my ($class, %args) = @_;
 		return NMISNG::WMI::Mock->new(wmi_data => {}, host => $args{host}, username => $args{username});
-	};
-	*NMISNG::Snmp::new = sub {
-		my ($class, %args) = @_;
-		return NMISNG::Snmp::Mock->new(nmisng => $args{nmisng}, name => $args{name}, walk_data => \%snmp_walk);
 	};
 }
 
@@ -1193,7 +1190,6 @@ ok(!$flip_collect_result->{error}, "collect() ran for flip-node without force")
 {
 	no warnings 'redefine';
 	*NMISNG::WMI::new  = $orig_wmi_new_flip;
-	*NMISNG::Snmp::new = $orig_snmp_new_flip;
 }
 
 my ($flip_catchall_after, $flip_err_after) = $flip_node->inventory(concept => "catchall");
@@ -1204,6 +1200,63 @@ is($flip_cd_after->{snmpdown}, 'false',
 	"snmpdown flag cleared by a normal (non-force) poll once SNMP credentials are removed");
 ok(!$flip_node->eventExist("SNMP Down"),
 	"'SNMP Down' event cleared by a normal (non-force) poll once SNMP credentials are removed");
+
+# ============================================================
+# Phase 11d: SNMP credentials still present, but a WMI-only collect cycle
+# (wantsnmp=>0, eg. the scheduler decided SNMP isn't due this cycle while WMI
+# is) must NOT clear a genuinely active "SNMP Down" event/flag. snmp_enabled
+# is false in both this case and the "really unconfigured" case above, but
+# they are not the same thing - only the latter should be cleared.
+# ============================================================
+diag("=== Phase 11d: WMI-only collect must not clear a real SNMP Down (SNMP still configured) ===");
+
+my $stay_node = NMISNG::Node->new(uuid => NMISNG::Util::getUUID(), nmisng => $nmisng);
+$stay_node->cluster_id($C->{cluster_id});
+$stay_node->name("test_snmp_stays_down_node");
+$stay_node->configuration({
+	host        => "127.0.0.6",
+	group       => "TestGroup",
+	netType     => "default",
+	roleType    => "default",
+	threshold   => 1,
+	model       => "TestSnmp",
+	collect     => "true",
+	ping        => "false",
+	community   => "public",
+	version     => "snmpv2c",
+	wmiusername => "testuser",
+	wmipassword => "testpass",
+});
+($op, $err) = $stay_node->save();
+ok(!$err, "SNMP+WMI stay-node saved") or diag("Save error: $err");
+
+my ($stay_catchall_inv, $stay_cinv_err) = $stay_node->inventory(concept => "catchall", model_class => "system");
+ok(!$stay_cinv_err, "stay-node catchall inventory created") or diag("Error: $stay_cinv_err");
+
+my $stay_S = setup_snmp_sys(node => $stay_node, update => 1, catchall_inventory => $stay_catchall_inv);
+$stay_node->handle_down(sys => $stay_S, type => "snmp", details => "genuine snmp failure", catchall_inventory => $stay_catchall_inv);
+
+my $stay_cd = $stay_catchall_inv->data();
+is($stay_cd->{snmpdown}, 'true', "precondition: snmpdown flag is 'true' (SNMP credentials remain configured)");
+ok($stay_node->eventExist("SNMP Down"), "precondition: 'SNMP Down' event is active (SNMP credentials remain configured)");
+
+$stay_cd = $stay_catchall_inv->data_live();
+$stay_cd->{last_update} = time - 3600;    # so collect() doesn't redirect into update()
+$stay_catchall_inv->save(node => $stay_node);
+
+# WMI-only cycle: SNMP simply isn't due this poll, credentials are untouched.
+my $stay_collect_result = $stay_node->collect(wantsnmp => 0, wantwmi => 1);
+ok(!$stay_collect_result->{error}, "collect(wantsnmp=>0) ran for stay-node")
+	or diag("collect error: " . ($stay_collect_result->{error} // 'none'));
+
+my ($stay_catchall_after, $stay_err_after) = $stay_node->inventory(concept => "catchall");
+ok(!$stay_err_after, "stay-node catchall re-read after collect");
+my $stay_cd_after = $stay_catchall_after->data();
+
+is($stay_cd_after->{snmpdown}, 'true',
+	"snmpdown flag preserved by a WMI-only collect cycle when SNMP credentials remain configured");
+ok($stay_node->eventExist("SNMP Down"),
+	"'SNMP Down' event preserved by a WMI-only collect cycle when SNMP credentials remain configured");
 
 # ============================================================
 # Phase 12: Cleanup

@@ -9881,7 +9881,15 @@ sub collect
 			$self->handle_down(sys => $S, type => "snmp", up => 1, details => "snmp ok", catchall_inventory => $catchall_inventory)
 					if ($candosnmp);
 		}
-		elsif ( NMISNG::Util::getbool( $catchall_data->{snmpdown} ) )
+		# note: snmp_enabled is false here both when SNMP is genuinely
+		# unconfigured AND whenever this poll simply didn't request SNMP
+		# (wantsnmp=>0, eg. a WMI-only cycle on a node with distinct snmp/wmi
+		# polling intervals) - so this can't key off snmp_enabled the way the
+		# up=>1 case above does. Check the actual credentials instead, the
+		# same test Sys::init uses to decide whether to create the accessor.
+		elsif ( NMISNG::Util::getbool( $catchall_data->{snmpdown} )
+						and ($self->configuration->{username} // "") eq ""
+						and ($self->configuration->{community} // "") eq "" )
 		{
 			# SNMP is no longer configured for this node (eg. credentials were
 			# removed) - clear the stale marker/event now instead of waiting
