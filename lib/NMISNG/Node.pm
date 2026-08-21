@@ -7604,6 +7604,13 @@ sub update
 			$self->handle_down(sys => $S, type => "snmp", up => 1, details => "snmp ok", catchall_inventory => $catchall_inventory)
 					if ($candosnmp);
 		}
+		elsif ( NMISNG::Util::getbool( $catchall_data->{snmpdown} ) )
+		{
+			# SNMP is no longer configured for this node (eg. credentials were
+			# removed) - clear the stale marker/event now instead of waiting
+			# for a force update to wipe the whole catchall.
+			$self->handle_down(sys => $S, type => "snmp", up => 1, details => "snmp not configured", catchall_inventory => $catchall_inventory);
+		}
 
 		# this will try all enabled sources, 0 only if none worked
 		# it also disables sys sources that don't work!
@@ -9873,6 +9880,13 @@ sub collect
 			}
 			$self->handle_down(sys => $S, type => "snmp", up => 1, details => "snmp ok", catchall_inventory => $catchall_inventory)
 					if ($candosnmp);
+		}
+		elsif ( NMISNG::Util::getbool( $catchall_data->{snmpdown} ) )
+		{
+			# SNMP is no longer configured for this node (eg. credentials were
+			# removed) - clear the stale marker/event now instead of waiting
+			# for a force update to wipe the whole catchall.
+			$self->handle_down(sys => $S, type => "snmp", up => 1, details => "snmp not configured", catchall_inventory => $catchall_inventory);
 		}
 
 		# returns 1 if one or more sources have worked,
