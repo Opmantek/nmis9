@@ -34,6 +34,7 @@ use Fcntl qw(:DEFAULT :flock);    # Imports the LOCK_ *constants (eg. LOCK_UN, L
 use Data::Dumper;
 
 use NMISNG::Event;
+use Time::Moment;    # BSON date type for TTL expire_at (see cleanNodeEvents)
 
 our $VERSION = "1.0.0";
 
@@ -84,12 +85,19 @@ sub cleanNodeEvents
 	}
 	if ( $eventsmodel->count > 0 )
 	{
-		my $expire_at = time + $C->{purge_event_after} // 86400;
+		# BR-07 (OMK-12781): parenthesise so the // 86400 fallback applies to the
+		# config value (not to time+..., which is always truthy), and use a
+		# Time::Moment so expire_at is a BSON date the TTL index can actually delete
+		# (an epoch int is never expired by the TTL monitor).
+		my $expire_at = $C->{purge_event_after} // 86400;
+		$expire_at = Time::Moment->from_epoch( time + $expire_at );
 
-		# update all records for this node to be inactive and expire
+		# update the node's active events to be inactive and expire. Scope to
+		# historic => 0 so we do not overwrite the valid expire_at on events that
+		# were already closed (BR-07); the fetch above used the same filter.
 		my $dbres = NMISNG::DB::update(
 			collection => $self->nmisng->events_collection(),
-			query      => {node_uuid => $node->uuid},
+			query      => {node_uuid => $node->uuid, historic => 0},
 			record     => {'$set' => {active => 0, historic => 1, expire_at => $expire_at, lastupdate => time}},
 			freeform   => 1,
 			multiple   => 1
