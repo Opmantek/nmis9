@@ -37,6 +37,8 @@ working_tests=(
     t_clear_active_queue.pl
     # OMK-12776 / BR-02: service inventories must get distinct uuids
     t_service_inventory_uuid.pl
+    # OMK-12779 / BR-05: escalation must not be suppressed by an inactive depend Node Down
+    t_escalation_depend_suppression.pl
 )
 
 for i in "${working_tests[@]}"; do

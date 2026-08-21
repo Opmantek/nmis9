@@ -4075,12 +4075,12 @@ LABEL_ESC:
 
 					if (ref($node_depend_obj) eq "NMISNG::Node" && $node_depend_obj->activated->{NMIS})
 					{
-						my ( $error, $erec ) = $self->events->eventLoad(
-							node_uuid => $node_depend_obj->uuid,
-							event     => "Node Down",
-							active    => 1
-						);
-						if ( !$error ) # don't need to check the type, error should tell us all we need
+						# BR-05 (OMK-12779): only an ACTIVE, non-historic Node Down on the
+						# depend node should suppress escalation. eventExist checks that the
+						# event both exists AND is active; the previous eventLoad path used
+						# ignore_active, so !$error also fired for an inactive - or even
+						# absent - Node Down doc, wrongly suppressing notifications.
+						if ( $node_depend_obj->eventExist("Node Down") )
 						{
 							$self->log->debug2(
 								"NOT escalating $event_data->{node_name} $event_data->{event} as depending on $node_depend, which is reported as down"
