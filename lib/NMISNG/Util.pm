@@ -4554,11 +4554,9 @@ sub verifyNMISEncryption {
 		$logger->debug9(sub {"Config '" .  Dumper($fullConfig) . "'."});
 		if ($nmis_encryption_enabled)
 		{
-			$logger->error("ERROR: The configuration option 'global_enable_password_encryption' is set to 'true'!");
-			$logger->error("Disabling Encryption of secrets.");
-			$fullConfig->{globals}{global_enable_password_encryption} = "false";
-			$logger->debug9(sub {"Config '" .  Dumper($fullConfig) . "'."});
-			writeConfData(data=>$fullConfig);
+			my $msg = "Encryption of secrets is enabled but the required Perl modules Crypt::CBC, Crypt::Cipher::AES and Math::Random::Secure are not installed. Install them (Debian: libcrypt-cbc-perl libcryptx-perl libmath-random-secure-perl. RedHat: perl-Crypt-CBC perl-CryptX perl-Math-Random-Secure). Encryption has NOT been changed.";
+			$logger->error("ERROR: $msg");
+			print("ERROR: $msg\n");
 			return(1);
 		}
 		else
@@ -4799,17 +4797,15 @@ sub decrypt {
 		$logger->error("ERROR: Password encryption cannot be enabled!");
 		if ($encryption_enabled)
 		{
-			$logger->error("ERROR: The configuration option 'global_enable_password_encryption' is set to 'true'!");
-			$logger->error("Disabling Encryption of secrets.");
-			my ($fullConfig,undef) = getConfDeep(only_local => 1);
-			$fullConfig->{globals}{global_enable_password_encryption} = "false";
-			writeConfData(data=>$fullConfig);
-			return $password;
+			$logger->error("ERROR: 'global_enable_password_encryption' is 'true' but the crypto modules are missing. Encryption stays enabled and secrets cannot be decrypted. Install the packages above. NMIS will not disable encryption for you.");
+			# Fail closed. Never rewrite the flag. Return "" for a value we
+			# cannot decrypt, and pass a non-encrypted value through unchanged.
+			return (substr($password, 0, 2) eq "!!") ? "" : $password;
 		}
 	}
 
 	$logger->debug("Encryption is '" . $encryption_enabled . "'.");
-	
+
 	# We create seed file in ./installer_hooks/20-postcopy-user as installer always runs with root permissions:
 	my $seedfile           = '/usr/local/etc/firstwave/master.key';
 	my $strLen             = "";
@@ -4931,13 +4927,14 @@ sub encrypt {
 	{
 		$logger->error("ERROR: 'Crypt::CBC' and 'Crypt::Cipher::AES', and 'Math::Random::Secure' must be installed in order to enable password encryption!");
 		$logger->error("ERROR: Password encryption cannot be enabled!");
-		if ($encryption_enabled && !$force)
+		if ($encryption_enabled || $force)
 		{
-			$logger->error("ERROR: The configuration option 'global_enable_password_encryption' is set to 'true'!");
-			$logger->error("Disabling Encryption of secrets.");
-			my ($fullConfig,undef) = getConfDeep(only_local => 1);
-			$fullConfig->{globals}{global_enable_password_encryption} = "false";
-			writeConfData(data=>$fullConfig);
+			$logger->error("ERROR: encryption was requested but the crypto modules are missing. The flag is left unchanged. Install the packages above.")
+				if ($encryption_enabled);
+			# Fail closed. Never rewrite the flag. A "!!" value is already
+			# encrypted so hand it back untouched; a plaintext value cannot be
+			# encrypted so return "" (the existing encryption-failure sentinel).
+			return (substr($password, 0, 2) eq "!!") ? $password : "";
 		}
 		return $password;
 	}
