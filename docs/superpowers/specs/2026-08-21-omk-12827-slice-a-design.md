@@ -78,7 +78,7 @@ Behaviour when the crypto modules cannot load. "enabled" means `global_enable_pa
 
 In every row the on-disk value of `global_enable_password_encryption` is unchanged by the call.
 
-`encrypt` returns the value unchanged rather than `""` for the plaintext case because `NMISNG::Node::new` (`lib/NMISNG/Node.pm:105-145`) assigns `encrypt`'s result straight back to each stored device secret and calls `save`, with no guard, so `""` would wipe the credential the first time a node loads with encryption enabled and the modules missing. That unguarded assign-and-save in `Node::new` is a fragility of its own, flagged as a follow-up for a later slice, since Slice A does not touch `Node.pm`.
+`encrypt` returns the value unchanged rather than `""` for the plaintext case because `NMISNG::Node::new` (`lib/NMISNG/Node.pm:105-145`) assigns `encrypt`'s result straight back to each stored device secret and calls `save`, with no guard, so `""` would wipe the credential the first time a node loads with encryption enabled and the modules missing. That unguarded assign-and-save in `Node::new` is a fragility of its own, flagged as a follow-up for a later slice, since Slice A does not touch `Node.pm`. The no-wipe guarantee covers the missing-modules case only. `encrypt` still returns `""` on a seed or cipher failure with the modules present (`Util.pm:4990`, `:4996`), so that residual wipe path through the same `Node::new` assign-and-save belongs to the same follow-up.
 
 ## Explicitly not touched
 
