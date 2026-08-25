@@ -52,11 +52,51 @@ You should now be able to access $PRODUCT at
 
     http://<HOSTNAME_OR_IP>/nmis9/
 
-If your browser is running on the same machine as $PRODUCT was 
+If your browser is running on the same machine as $PRODUCT was
 installed onto, this would be
 
     http://localhost/nmis9/
 
 EOF
+
+# repeated from the seeding banner on purpose: that one scrolls off long before
+# the install ends, and this is the block people actually read.
+PWFILE="${NMIS_INITIAL_PASSWORD_FILE:-/usr/local/etc/firstwave/nmis-initial-password}"
+if [ -f "$PWFILE" ]; then
+		cat <<EOF
+The default user for NMIS is nmis.
+To find the nmis password:
+
+    sudo cat $PWFILE
+
+Record it now. That file is removed automatically within an hour of the
+first GUI login, so it will not be there later.
+
+To change the password later:
+
+    sudo $TARGETDIR/bin/nmis-cli act=set-htpasswd-password user=nmis
+
+More on logging in:
+
+    $TARGETDIR/README.md, section 'Initial NMIS administrator login'
+    https://docs.community.firstwave.com/wiki/spaces/NMIS/pages/3165688289
+
+EOF
+else
+		# no file: the password was supplied in the environment, or it already
+		# had one, so there is nothing to read out.
+		cat <<EOF
+The default user for NMIS is nmis.
+To set or change nmis password:
+
+    sudo $TARGETDIR/bin/nmis-cli act=set-htpasswd-password user=nmis
+
+More on logging in:
+
+    $TARGETDIR/README.md, section 'Initial NMIS administrator login'
+    https://docs.community.firstwave.com/wiki/spaces/NMIS/pages/3165688289
+
+EOF
+fi
 
 exit 0

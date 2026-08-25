@@ -1991,11 +1991,15 @@ sub _write_initial_password_file
 		my $pfh;
 		sysopen($pfh, $pwfile, O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW, 0600)
 			or die "open $pwfile: $!\n";
+		# the removal warning belongs here too, not only in the installer banner:
+		# by the time anyone reads this file the banner has long scrolled away.
 		print $pfh <<"FILE" or die "write $pwfile: $!\n";
 NMIS initial administrator login
 username: $user
 password: $password
 
+This file is removed automatically within an hour of the first GUI login,
+so record this password now.
 Delete this file once you have recorded the password.
 FILE
 		close $pfh or die "close $pwfile: $!\n";
@@ -2144,40 +2148,51 @@ sub seed_htpasswd_password
 			." password for user $user");
 	print STDERR "WARNING: could not write audit log: $audit_err\n" if ($audit_err);
 
+	# '+' rules rather than '=', to match the installer's printBanner in
+	# installer_hooks/common_functions.sh. 99-postinstall-welcome repeats this.
+	my $nmisdir = dirname($FindBin::Bin);
 	my @banner;
-	push @banner, "========================================================================";
-	push @banner, " NMIS initial administrator password";
+	push @banner, "";
+	push @banner, "++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++";
+	push @banner, "+ NMIS initial administrator password";
+	push @banner, "++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++";
+	push @banner, "";
+	push @banner, "The default user for NMIS is $user.";
 	if (defined $supplied)
 	{
 		# nothing to record and nothing to retrieve: they chose it.
-		push @banner, " The password supplied in the environment has been set for the";
-		push @banner, " '$user' web login.";
-		push @banner, " Change it later with: bin/nmis-cli act=set-htpasswd-password user=$user";
-		push @banner, "========================================================================";
-		print "$_\n" for @banner;
-		return;
+		push @banner, "The password supplied in the environment has been set for the $user user.";
 	}
-	push @banner, " A random password has been set for the '$user' web login.";
-	if (!$pwerr)
+	elsif (!$pwerr)
 	{
-		push @banner, " It has been saved to a root-only file:";
-		push @banner, "     $pwfile";
-		push @banner, " Record it now. That file is removed automatically within an";
-		push @banner, " hour of the first GUI login, so it will not be there later.";
+		push @banner, "To find the $user password:";
+		push @banner, "";
+		push @banner, "    sudo cat $pwfile";
+		push @banner, "";
+		push @banner, "Record it now. That file is removed automatically within an hour of";
+		push @banner, "the first GUI login, so it will not be there later.";
 	}
 	else
 	{
-		push @banner, " WARNING: it could NOT be saved to $pwfile.";
-		push @banner, " Record the password shown below now; it is not stored anywhere.";
+		push @banner, "A random password has been set for the nmis user, but it could NOT be saved to";
+		push @banner, "$pwfile. Record the password shown below now, it is not stored anywhere.";
 	}
 	if ($show)
 	{
 		push @banner, "";
-		push @banner, "     username: $user";
-		push @banner, "     password: $password";
+		push @banner, "    username: $user";
+		push @banner, "    password: $password";
 	}
-	push @banner, " To change it later: bin/nmis-cli act=set-htpasswd-password user=$user";
-	push @banner, "========================================================================";
+	push @banner, "";
+	push @banner, "To change the password later:";
+	push @banner, "";
+	push @banner, "    sudo $nmisdir/bin/nmis-cli act=set-htpasswd-password user=$user";
+	push @banner, "";
+	push @banner, "More on logging in:";
+	push @banner, "";
+	push @banner, "    $nmisdir/README.md, section 'Initial NMIS administrator login'";
+	push @banner, "    https://docs.community.firstwave.com/wiki/spaces/NMIS/pages/3165688289";
+	push @banner, "";
 	print "$_\n" for @banner;
 	return;
 }
