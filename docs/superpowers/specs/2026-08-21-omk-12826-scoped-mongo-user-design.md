@@ -51,9 +51,10 @@ The original OMK-12709 fix, "generate a random `db_password`", was rejected beca
 
 - `db_username => 'nmis9RW'`.
 - `db_password => '<placeholder>'` (non-working, recognized by the default-password check).
-- add `db_auth_source => 'nmisng'`.
 
-`conf-default/` ships these for fresh installs. Existing installs keep their `conf/Config.nmis` untouched until `setup_mongodb.pl` runs, which is what makes the rollout phased.
+`db_auth_source` is deliberately NOT shipped in `conf-default`. The installer's `updateconfig.pl` conf-merge (`10-postcopy-confmerges`) adds any missing `conf-default` key into a live `conf/` on upgrade, and it runs before `setup_mongodb.pl`, so shipping `db_auth_source=nmisng` would flip an existing install's authSource before migration and defeat the phased rollout. `setup_mongodb.pl` is the sole writer of `db_auth_source` into `conf/`. Fresh installs get it when setup runs, and the Docker path supplies it via the `NMIS_DB_AUTH_SOURCE` env.
+
+`conf-default/` ships the username and placeholder for fresh installs. The conf-merge adds only genuinely missing keys, so an existing install's real `db_username` and `db_password` are left untouched. The rollout stays phased because setup, not the shipped config, is what switches an install to the scoped user and authSource.
 
 ## Runtime change (`lib/NMISNG/DB.pm`)
 

@@ -15,7 +15,7 @@
 - The runtime must never authenticate as MongoDB `root`. It authenticates as a user scoped to `nmisng` via authSource.
 - NMIS must never `createUser`, `updateUser`, or `grantRolesToUser` on `opUserRW`, and never grant the `root` role to anyone.
 - `db_password` is generated per install and must never ship as a working default. `conf-default` ships a non-working placeholder recognized by the default-password check.
-- authSource is phased: `db_auth_source` absent or empty means authenticate against `admin` (today's behaviour). `conf-default` ships it set to `nmisng`. `setup_mongodb.pl` writes it into `conf/` only when it has successfully provisioned the scoped user. A failed setup never rewrites `conf/`.
+- authSource is phased: `db_auth_source` absent or empty means authenticate against `admin` (today's behaviour). `conf-default` does NOT ship `db_auth_source`, because the installer's `updateconfig.pl` conf-merge (`10-postcopy-confmerges`) auto-adds any missing `conf-default` key into a live `conf/` on upgrade, which would flip authSource before migration. `setup_mongodb.pl` is the sole writer of `db_auth_source` into `conf/`, and only after it has successfully provisioned the scoped user. A failed setup never rewrites `conf/`. Docker supplies it at runtime via `NMIS_DB_AUTH_SOURCE` env.
 - Default app username is `nmis9RW`. On upgrade, an existing `db_username` of `opUserRW` migrates to `nmis9RW`; any other existing value is kept.
 - The admin/bootstrap credential is separate from `db_username`/`db_password`: `NMIS_DB_ADMIN_USERNAME` / `NMIS_DB_ADMIN_PASSWORD` env, else the existing interactive prompt, defaulting to `opUserRW` and the current admin password.
 - The default-password check is detect-only. It never rotates a password.
@@ -29,8 +29,7 @@
 - `test/t_common_dbpassword.t` — create. Drives the helper's shell functions.
 - `lib/NMISNG/DB.pm` — modify. Add the authSource client arg via a small pure helper.
 - `test/t_db_auth_source.t` — create. Unit-tests the authSource decision without Mongo.
-- `conf-default/Config.nmis` — modify. `db_username`, `db_password` placeholder, `db_auth_source`.
-- `conf-default/docker/Config.nmis.docker` — modify. `db_auth_source`.
+- `conf-default/Config.nmis` — modify. `db_username`, `db_password` placeholder. (Not `db_auth_source` — setup writes that; see Task 3.)
 - `admin/setup_mongodb.pl` — modify. Separate admin credential, provision the scoped user, generate + write the password and authSource, stop managing `opUserRW`, never grant root.
 - `test/t_setup_mongodb_scoped_user.t` — create. Mongo-backed behavioural test.
 - `docker-dev/compose-dev.yaml`, `docker-dev/.env-dev` — modify. Provision and use the scoped user + authSource; keep the root user as admin bootstrap.
@@ -203,30 +202,20 @@ git commit -m "sec: OMK-12826 authenticate against db_auth_source when set"
 
 **Files:**
 - Modify: `conf-default/Config.nmis` (database block, lines 2-10)
-- Modify: `conf-default/docker/Config.nmis.docker` (database block)
 
 **Interfaces:**
-- Produces: shipped defaults `db_username => 'nmis9RW'`, `db_password => 'CHANGE_ME_RUN_setup_mongodb'`, `db_auth_source => 'nmisng'`. The placeholder must satisfy `nmis_dbpassword_is_insecure` from Task 1 (its `CHANGE_ME*` case matches).
+- Produces: shipped defaults `db_username => 'nmis9RW'`, `db_password => 'CHANGE_ME_RUN_setup_mongodb'`. The placeholder must satisfy `nmis_dbpassword_is_insecure` from Task 1 (its `CHANGE_ME*` case matches). `db_auth_source` is deliberately NOT shipped here; `setup_mongodb.pl` (Task 4) is its sole writer into `conf/`.
 
 - [ ] **Step 1: Edit `conf-default/Config.nmis`**
 
-In the `'database'` block change:
+In the `'database'` block change `db_password` and `db_username` to:
 ```perl
 	'db_password' => 'CHANGE_ME_RUN_setup_mongodb',
 	'db_username' => 'nmis9RW',
-	'db_auth_source' => 'nmisng',
 ```
-(Keep `db_name`, `db_port`, `db_server`, `db_query_timeout`, `db_never_remove_indices` as they are.)
+Do NOT add `db_auth_source` here. The installer's `updateconfig.pl` conf-merge (`10-postcopy-confmerges`) adds any missing `conf-default` key into a live `conf/` on upgrade, and it runs before `setup_mongodb.pl`, so shipping `db_auth_source=nmisng` would flip an existing install's authSource to `nmisng` before migration. `setup_mongodb.pl` writes `db_auth_source` instead (Task 4). Keep `db_name`, `db_port`, `db_server`, `db_query_timeout`, `db_never_remove_indices` as they are. (`db_username`/`db_password` already exist in an upgraded `conf/`, so the conf-merge leaves those untouched; only genuinely new keys are added, which is why the placeholder never overwrites a real password.)
 
-- [ ] **Step 2: Edit `conf-default/docker/Config.nmis.docker`**
-
-In its `'database'` block add:
-```perl
-    'db_auth_source' => 'nmisng',
-```
-(The docker config sets no `db_username`/`db_password`; those arrive via `NMIS_DB_*` env. Task 5 sets the env.)
-
-- [ ] **Step 3: Verify the placeholder is recognized and configs still load**
+- [ ] **Step 2: Verify the placeholder is recognized and the config still loads**
 
 Run:
 ```bash
@@ -235,11 +224,11 @@ docker exec nmis9-12826-test bash -c "cd /usr/local/nmis9 && perl -Ilib -e 'use 
 ```
 Expected: `rc=0` (placeholder recognized as insecure) and `loads ok`.
 
-- [ ] **Step 4: Commit**
+- [ ] **Step 3: Commit**
 
 ```bash
-git add conf-default/Config.nmis conf-default/docker/Config.nmis.docker
-git commit -m "sec: OMK-12826 ship scoped db_username, placeholder db_password, db_auth_source"
+git add conf-default/Config.nmis
+git commit -m "sec: OMK-12826 ship scoped db_username and placeholder db_password"
 ```
 
 ---
