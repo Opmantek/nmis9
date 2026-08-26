@@ -489,6 +489,9 @@ sub check_outages
 	# get the data for selectors: node object links to nmisng, has global config;
 	# node object has own config, and catchall inventory has the nodeModel.
 	my $globalconfig = $nmisng? $nmisng->config : $node->nmisng->config;
+	# BR-03 (OMK-12777): a logger so a malformed record can be skipped and logged
+	# instead of aborting the whole outage check for the node.
+	my $lognmisng = $nmisng // ($node? $node->nmisng : undef);
 	my ($nodeconfig, $nodemodel);
 
 	if ($node)
@@ -669,14 +672,21 @@ sub check_outages
 			my $start = _abs_time(relative => $maybeout->{start},
 														frequency => $maybeout->{frequency},
 														base => $when);
-			return { error => "outage \"$outid\" has invalid start \"$maybeout->{start}\"!" }
-			if (!defined $start);
+			if (!defined $start)
+			{
+				# BR-03: skip this malformed recurring record, do not abort the whole check
+				$lognmisng->log->warn("check_outages: skipping outage \"$outid\": invalid start \"$maybeout->{start}\"") if ($lognmisng);
+				next;
+			}
 
 			my $end = _abs_time(relative => $maybeout->{end},
 													frequency => $maybeout->{frequency},
 													base => $when);
-			return { error => "outage \"$outid\" has invalid end \"$maybeout->{end}\"!" }
-			if (!defined $end);
+			if (!defined $end)
+			{
+				$lognmisng->log->warn("check_outages: skipping outage \"$outid\": invalid end \"$maybeout->{end}\"") if ($lognmisng);
+				next;
+			}
 
 			# start after end? (e.g. daily, start 1400, end 0200) -> start must go back one interval
 			# (or end would have to go forward one)
@@ -731,7 +741,8 @@ sub check_outages
 		}
 		else
 		{
-			return { error => "outage \"$outid\" has invalid frequency!" };
+			$lognmisng->log->warn("check_outages: skipping outage \"$outid\": invalid frequency \"".($maybeout->{frequency} // '')."\"") if ($lognmisng);
+			next;
 		}
 
 		next if (!$intime);

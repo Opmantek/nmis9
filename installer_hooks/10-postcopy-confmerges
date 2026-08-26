@@ -15,6 +15,15 @@ printBanner "Config file updates"
 # main config first...
 execPrint $TARGETDIR/admin/updateconfig.pl $TARGETDIR/conf-default/Config.nmis $TARGETDIR/conf/Config.nmis
 
+# ...then Events.nmis, but only if the site already has its own copy. A
+# site with none reads conf-default/Events.nmis live on every load, so
+# merging unconditionally would auto-create a full copy and silently
+# freeze that site at today's defaults forever after. Only a site that
+# already customized Events.nmis needs the additive merge.
+if [ -f "$TARGETDIR/conf/Events.nmis" ]; then
+		execPrint $TARGETDIR/admin/updateconfig.pl $TARGETDIR/conf-default/Events.nmis $TARGETDIR/conf/Events.nmis
+fi
+
 # ...then the crucial auth-related files (if changed ones exist)
 for i in POSSIBLE in Users.nmis Access.nmis PrivMap.nmis; do
 		if [ -f "$TARGETDIR/conf/$POSSIBLE" ]; then

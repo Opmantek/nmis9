@@ -54,6 +54,7 @@ use NMISNG::Sys;
 use NMISNG::rrdfunc;
 use NMISNG::Notify;
 use NMISNG::Outage;
+use NMISNG::Status;
 
 # this is a compatibility helper to quickly gain access
 # to ONE persistent/shared nmisng object
@@ -2205,9 +2206,27 @@ sub checkEvent
 
 	# only take the missing data from the db, that way our new details/level will
 	# be used instead of what is in the db
-	return $event->check( sys => $S,
+	my $checkresult = $event->check( sys => $S,
 												details => $args{details}, level => $args{level},
 												upevent => $upevent );
+
+	# only report "ok" once the close has actually happened (or there was
+	# nothing active to close) - check() returns false on its two
+	# early-bailout cases (Proactive dampening, the OMK-12622 duplicate-key
+	# case), so a still-active down event can't end up behind a false "ok".
+	NMISNG::Status::save_operational_status(
+		nmisng       => $S->nmisng,
+		node         => $S->nmisng_node,
+		event        => $args{event},
+		element      => $args{element},
+		status       => "ok",
+		level        => "Normal",
+		details      => $args{details},
+		context      => $args{context},
+		inventory_id => $args{inventory_id},
+	) if ($checkresult);
+
+	return $checkresult;
 };
 
 # notify creates new events
@@ -2310,7 +2329,9 @@ sub notify
 		($level,$log,$syslog) = $event_obj->getLogLevel(sys=>$S);
 		$event_obj->level($level);
 
-		my $is_stateless = ($C->{non_stateful_events} !~ /$event/
+		# escape the event name before it hits this regex - an unescaped
+		# metacharacter (e.g. an unbalanced paren) would otherwise die here.
+		my $is_stateless = ($C->{non_stateful_events} !~ /\Q$event\E/
 												or NMISNG::Util::getbool($thisevent_control->{Stateful}))? 0: 1;
 		$event_obj->stateless($is_stateless);
 
@@ -2320,8 +2341,9 @@ sub notify
 			$event_obj->details( $details );
 		}
 
+		# same die risk as the stateless check above.
 		if (NMISNG::Util::getbool($C->{log_node_configuration_events})
-				and $C->{node_configuration_events} =~ /$event/
+				and $C->{node_configuration_events} =~ /\Q$event\E/
 				and NMISNG::Util::getbool($thisevent_control->{Log}))
 		{
 			my $error = logConfigEvent(dir => $C->{config_logs}, node_name=>$nodename, node_uuid=>$nodeuuid, event=>$event, level=>$level,
@@ -2376,6 +2398,21 @@ sub notify
 		$S->nmisng->log->error("sendSyslog failed: $error") if ($error);
 
 	}
+	# maintain the operational status doc for this event (OMK-12605);
+	# threshold/alert/stateless/untracked events are gated inside the helper
+	NMISNG::Status::save_operational_status(
+		nmisng        => $S->nmisng,
+		node          => $node,
+		event         => $event_obj->event,
+		element       => $event_obj->element,
+		status        => "error",
+		level         => $event_obj->level,
+		details       => $event_obj->details,
+		context       => $event_obj->context // $args{context},
+		inventory_id  => $event_obj->inventory_id,
+		events_config => $events_config,
+	);
+
 	return $event_obj;
 	$S->nmisng->log->debug2(sub {"Notify Finished"});
 }
