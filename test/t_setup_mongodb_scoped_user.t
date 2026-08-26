@@ -8,12 +8,17 @@
 # a throwaway conf dir seeded with the legacy db_username=opUserRW, and then
 # asserts against the Mongo server and the resulting conf file:
 #
-#   1. nmisng.nmis9RW exists with role dbOwner on nmisng, and no user anywhere
-#      holds root.
+#   1. nmisng.nmis9RW exists with role dbOwner on nmisng, and nmis9RW itself
+#      holds no root role (this asserts only about nmis9RW, not "every user").
 #   2. the conf now has db_username=nmis9RW, a 64-hex-char db_password, and
 #      db_auth_source=nmisng.
 #   3. opUserRW in admin was not created or modified by the run (before/after
 #      snapshot compared).
+#   4. a re-run against the now-migrated conf is idempotent and does not error
+#      (already-migrated upgrade path, OMK-12826).
+#   5. when admin.opUserRW is seeded BEFORE the run, it survives with the SAME
+#      roles -- the central "NMIS never touches opUserRW" guard, proven by
+#      presence, not only by absence.
 #
 # Requires a real, disposable MongoDB (auth optional; the fixture below copes
 # with either). BAIL_OUT, never skip, if none is configured: a silent skip
@@ -35,6 +40,7 @@ use File::Temp qw(tempdir);
 use File::Copy;
 use IPC::Open3;
 use Symbol qw(gensym);
+use Tie::IxHash;
 
 use MongoDB;
 use NMISNG::DB;
@@ -149,11 +155,23 @@ close($pfh);
 
 # ---------------------------------------------------------------------------
 # Run the real script.
+#
+# Scrub NMIS_DB_* from the child's environment for every setup invocation: in a
+# real dev container those are set and, via loadConfTable layer 4, would override
+# the throwaway conf -- pointing setup at the LIVE mongo and skipping the
+# opUserRW->nmis9RW migration path we are here to exercise. NMIS_TEST_MONGO_URI
+# is not an NMIS_DB_* var, so the disposable-mongo fixture is preserved.
 # ---------------------------------------------------------------------------
-my ($rc, $out, $err) = run_cmd($^X, "$repo_root/admin/setup_mongodb.pl",
-	"dir=$conf_dir", "preseed=$preseed_file");
+sub run_setup
+{
+	my ($cdir) = @_;
+	local %ENV = %ENV;
+	delete @ENV{ grep { /^NMIS_DB_/ } keys %ENV };
+	return run_cmd($^X, "$repo_root/admin/setup_mongodb.pl",
+		"dir=$cdir", "preseed=$preseed_file");
+}
 
-unlink($mongod_conf) if ($created_mongod_conf_stub);
+my ($rc, $out, $err) = run_setup($conf_dir);
 
 is($rc, 0, "setup_mongodb.pl exits 0")
 	or diag("setup_mongodb.pl stdout:\n$out\nstderr:\n$err");
@@ -205,5 +223,85 @@ is(scalar(@before_opuserrw), 0, "opUserRW did not exist before the run (fresh di
 is(scalar(@after_opuserrw), 0, "opUserRW was not created by the run");
 is_deeply(\@after_opuserrw, \@before_opuserrw,
 	"opUserRW in admin is byte-for-byte unchanged by the run (before/after)");
+
+# ---------------------------------------------------------------------------
+# 4. already-migrated re-run: running setup again against the now-migrated conf
+#    (db_auth_source is set, db_password holds the app secret) must be a clean
+#    no-op, not an error. Regression guard for the misleading "could not
+#    determine server version" death on an unattended re-run.
+# ---------------------------------------------------------------------------
+my ($rc2, $out2, $err2) = run_setup($conf_dir);
+is($rc2, 0, "setup_mongodb.pl re-run against the migrated conf exits 0 (idempotent)")
+	or diag("re-run stdout:\n$out2\nstderr:\n$err2");
+
+my $after_conf2 = slurp_conf($configfile);
+like($after_conf2, qr/'db_username'\s*=>\s*'nmis9RW'/, "re-run leaves db_username=nmis9RW");
+like($after_conf2, qr/'db_auth_source'\s*=>\s*'nmisng'/, "re-run leaves db_auth_source=nmisng");
+
+# ---------------------------------------------------------------------------
+# 5. seeded opUserRW survives untouched. Prove the "NMIS never touches opUserRW"
+#    guarantee by PRESENCE, not only absence: create admin.opUserRW with known
+#    roles before a run, then assert it still exists with the SAME roles
+#    afterwards (not deleted, not re-roled).
+# ---------------------------------------------------------------------------
+{
+	my $admindb = $conn->get_database("admin");
+
+	# start from a known state: drop our fixture user if a prior aborted run left it
+	if (users_info("admin", "opUserRW"))
+	{
+		NMISNG::DB::run_command(db => $admindb, command => { "dropUser" => "opUserRW" });
+	}
+
+	my $seed_roles = [ { role => 'readWrite', db => 'seeded_probe_db' } ];
+	my $cr = NMISNG::DB::run_command(db => $admindb,
+		command => Tie::IxHash->new(
+			"createUser" => "opUserRW",
+			"pwd"        => "seeded-known-password-not-the-app-secret",
+			"roles"      => $seed_roles));
+	ok((ref($cr) eq 'HASH' && $cr->{ok}), "seeded admin.opUserRW fixture created")
+		or diag("createUser opUserRW: " . (ref($cr) eq 'HASH' ? ($cr->{errmsg} // '') : $cr));
+
+	my @seeded_before = users_info("admin", "opUserRW");
+	is(scalar(@seeded_before), 1, "seeded opUserRW exists before the run");
+	my $roles_before = @seeded_before
+		? [ sort { "$a->{db}.$a->{role}" cmp "$b->{db}.$b->{role}" } @{ $seeded_before[0]->{roles} || [] } ]
+		: [];
+
+	# fresh throwaway conf dir seeded with the legacy opUserRW values
+	my $conf_dir2 = "$tmproot/conf2";
+	mkdir($conf_dir2) or BAIL_OUT("mkdir $conf_dir2: $!");
+	copy("$repo_root/conf-default/Config.nmis", "$conf_dir2/Config.nmis")
+		or BAIL_OUT("copy Config.nmis into conf2: $!");
+	my $configfile2 = "$conf_dir2/Config.nmis";
+	my ($sprc, $spout, $sperr) = run_cmd($^X, "$repo_root/admin/patch_config.pl", $configfile2,
+		"/database/db_username=opUserRW",
+		"/database/db_password=op42flow42",
+		"/database/db_server=$dbserver",
+		"/database/db_port=$dbport");
+	is($sprc, 0, "seeded conf2 with legacy db_username=opUserRW")
+		or diag("patch_config stdout:\n$spout\nstderr:\n$sperr");
+
+	my ($rc3, $out3, $err3) = run_setup($conf_dir2);
+	is($rc3, 0, "setup_mongodb.pl exits 0 with a pre-existing admin.opUserRW")
+		or diag("stdout:\n$out3\nstderr:\n$err3");
+
+	my @seeded_after = users_info("admin", "opUserRW");
+	is(scalar(@seeded_after), 1, "seeded opUserRW STILL exists after the run (not deleted)");
+	my $roles_after = @seeded_after
+		? [ sort { "$a->{db}.$a->{role}" cmp "$b->{db}.$b->{role}" } @{ $seeded_after[0]->{roles} || [] } ]
+		: [];
+	is_deeply($roles_after, $roles_before,
+		"seeded opUserRW roles are unchanged by the run (not re-roled)");
+
+	# the migrated app user still landed correctly in conf2
+	my $after_conf3 = slurp_conf($configfile2);
+	like($after_conf3, qr/'db_username'\s*=>\s*'nmis9RW'/, "conf2 db_username migrated to nmis9RW");
+
+	# tidy our fixture user out of the disposable Mongo
+	NMISNG::DB::run_command(db => $admindb, command => { "dropUser" => "opUserRW" });
+}
+
+unlink($mongod_conf) if ($created_mongod_conf_stub);
 
 done_testing();

@@ -75,7 +75,11 @@ working_tests=(
     t_mongo_exposure.t
     t_common_dbpassword.t
     t_db_auth_source.t
-    t_setup_mongodb_scoped_user.t
+    t_patch_config_stdin.t
+    # t_setup_mongodb_scoped_user.t is NOT registered here: it BAIL_OUTs unless
+    # NMIS_TEST_MONGO_URI points at a disposable Mongo, which CI does not yet set,
+    # so registering it would abort the whole suite. Pending CI-fixture wiring
+    # (a throwaway Mongo + NMIS_TEST_MONGO_URI) as a follow-up.
     t_csrf.t
     t_csrf_cgi.t
     t_ci_perl_tests.t

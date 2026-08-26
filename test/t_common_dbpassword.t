@@ -19,6 +19,7 @@ ok(sh_is_insecure('op42flow42'),  "the shipped default op42flow42 is insecure");
 ok(sh_is_insecure('example'),     "the docker default example is insecure");
 ok(sh_is_insecure('password'),    "password is insecure");
 ok(sh_is_insecure(''),            "empty is insecure");
+ok(sh_is_insecure('CHANGE_ME_x'), "CHANGE_ME* is insecure");
 ok(!sh_is_insecure('a-real-generated-9f3c2a1b'), "a generated value is not flagged");
 
 # advice mentions the migration path and the username
