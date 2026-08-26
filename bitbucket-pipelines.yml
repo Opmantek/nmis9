@@ -38,7 +38,7 @@ pipelines:
             # it. Wait until the app can actually authenticate before proceeding.
             - |
               for i in $(seq 1 48); do
-                if docker exec nmis bash -c '/usr/local/nmis9/admin/node_admin.pl act=list >/dev/null 2>&1'; then
+                if docker exec nmis bash -c 'mongosh "mongodb://$NMIS_DB_USERNAME:$NMIS_DB_PASSWORD@$NMIS_DB_SERVER:$NMIS_DB_PORT/?authSource=$NMIS_DB_AUTH_SOURCE" --quiet --eval "db.runCommand({ping:1})" >/dev/null 2>&1'; then
                   echo "nmis scoped DB user ready after ~$((i*5))s"; ready=1; break
                 fi
                 echo "waiting for nmis DB provisioning ($i)..."; sleep 5
