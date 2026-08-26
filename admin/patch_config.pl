@@ -77,6 +77,14 @@ E.g. Add element to array: patch_config.pl Config.nmis /new/key+=value
 E.g. Set empty existing array: patch_config.pl -af Config.nmis /new/key=
 \n\n";
 
+# --value-stdin: read the (secret) value for a single key from STDIN instead of
+# argv, so it never appears in /proc/<pid>/cmdline. The key is given WITHOUT an
+# '=value' suffix; the value is the whole of STDIN with at most one trailing
+# newline stripped. Only a scalar overwrite (op '=') is supported this way.
+# Strip the flag before getopts (Getopt::Std does not do long options).
+my $value_stdin = 0;
+@ARGV = grep { $_ eq '--value-stdin' ? do { $value_stdin = 1; 0 } : 1 } @ARGV;
+
 my %opts;
 die $usage if (!getopts("jfbnrRao",\%opts) or !@ARGV or !-f $ARGV[0]);
 
@@ -120,6 +128,23 @@ if ($opts{R})
 }
 
 my @patches;
+
+if ($value_stdin)
+{
+	die "--value-stdin takes exactly one key argument and cannot be combined with -r/-R\n"
+			if (@ARGV != 1 or $opts{r} or $opts{R});
+	my $key = $ARGV[0];
+	die "--value-stdin key \"$key\" must be a /section/... path\n"
+			if ($key !~ m!^/!);
+	# read the value from STDIN, never from argv, so it stays out of the process
+	# command line. Strip at most one trailing newline (from an echo/heredoc).
+	my $value = do { local $/; <STDIN> };
+	$value = '' if (!defined $value);
+	$value =~ s/\n\z//;
+	push @patches, [ $key, '=', $value ];
+}
+else
+{
 for my $token (@ARGV)
 {
 	if ($opts{r})
@@ -217,8 +242,9 @@ for my $token (@ARGV)
 			die "cannot parse patch expression \"$token\"!\n";
 		}
 	}
-	
+
 }
+} # end else (not --value-stdin)
 
 exit "No patches given!\n" if (!@patches && $opts{o});
 die "No patches given!\n" if (!@patches);
