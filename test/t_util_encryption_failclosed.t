@@ -6,9 +6,11 @@
 # With encryption enabled and Crypt::CBC/Crypt::Cipher::AES/Math::Random::Secure
 # forced absent, the old code logged, set global_enable_password_encryption to
 # "false", wrote the config back, and returned the input. The fix: never write
-# the flag. decrypt returns "" for a value it cannot decrypt;
-# encrypt returns the value unchanged, so an unguarded caller such as NMISNG::Node::new
-# cannot wipe a stored secret.
+# the flag, and fail closed without wiping. Both decrypt and encrypt return the
+# input value unchanged on this path, so an unguarded caller (NMISNG::Node::new)
+# or a decrypt-then-persist caller (cgi-bin/tables.pl doeditTable) cannot wipe a
+# stored secret. A '!!' value handed back unchanged still fails auth, so reads
+# stay fail closed.
 #
 # The flag is set via the NMIS_* env override (in memory, layer 4), so nothing
 # on disk changes. writeConfData is replaced by a spy, so the test proves no
@@ -54,15 +56,35 @@ my @writes;
 my $logger = NMISNG::Log->new(level => 'info', path => undef);
 
 # --- decrypt ---
+# Fail closed WITHOUT wiping: a '!!' value that cannot be decrypted comes back
+# unchanged, not "". Returning "" here is what let cgi-bin/tables.pl doeditTable
+# persist "" over a stored secret (PR #65 review, Critical). See the doeditTable
+# value-flow regression below.
 @writes = ();
-is(NMISNG::Util::decrypt('!!deadbeefciphertext'), "",
-	"decrypt of a '!!' value returns '' when crypto is unavailable");
+is(NMISNG::Util::decrypt('!!deadbeefciphertext'), '!!deadbeefciphertext',
+	"decrypt of a '!!' value returns it unchanged when crypto is unavailable (never '')");
 is(scalar(@writes), 0, "decrypt attempted no config write");
 
 @writes = ();
 is(NMISNG::Util::decrypt('plainvalue'), 'plainvalue',
 	"decrypt of a non-encrypted value passes it through unchanged");
 is(scalar(@writes), 0, "decrypt of plaintext attempted no config write");
+
+# --- doeditTable value-flow regression (PR #65 review, Critical) ---
+# The Nodes/table editor (cgi-bin/tables.pl doeditTable) pre-fills a password
+# field with the stored '!!' ciphertext, decrypts any submitted '!!' value for
+# validation (tables.pl:784), then re-encrypts and persists it (tables.pl:928-929).
+# The re-encrypt only runs for non-'!!' values, so if decrypt returns "", that ""
+# is persisted straight over the stored secret. Replay that exact value flow and
+# prove the ciphertext survives when crypto is unavailable.
+@writes = ();
+my $stored = '!!deadbeefciphertext';
+my $value  = $stored;
+$value = NMISNG::Util::decrypt($value) if (defined($value) && $value ne "" && substr($value, 0, 2) eq "!!");
+$value = NMISNG::Util::encrypt($value) if (defined($value) && $value ne "" && substr($value, 0, 2) ne "!!");
+is($value, $stored,
+	"doeditTable value flow preserves the stored secret when crypto is unavailable (no silent wipe)");
+is(scalar(@writes), 0, "doeditTable value flow attempted no config write");
 
 # --- encrypt ---
 @writes = ();

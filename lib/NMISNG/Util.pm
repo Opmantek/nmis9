@@ -4562,11 +4562,16 @@ sub enableEOS {
 }
 
 ########################################################################
-# verifyNMISEncryption - Verify Password encrypred strings.            #
-#                                                                      #
-# Returns:                                                             #
-#    0 - If nothing was changed.                                       #
-#    1 - If Encryption of secrets was reversed.                        #
+# verifyNMISEncryption - Verify Password encrypted strings.           #
+########################################################################
+# Returns:
+#    0 - Verification ran. Password fields may have been synced to match
+#        the encryption setting (encrypted when it is enabled, decrypted
+#        when it is disabled). The encryption setting itself is never
+#        changed here.
+#    1 - Verification could not run: encryption is enabled but the crypto
+#        modules are missing, or the self-test failed. Nothing was changed
+#        and no secret was touched (fail closed). Install the crypto modules.
 ########################################################################
 sub verifyNMISEncryption {
 	my (%args)   = @_;
@@ -4839,9 +4844,14 @@ sub decrypt {
 		if ($encryption_enabled)
 		{
 			$logger->error("ERROR: 'global_enable_password_encryption' is 'true' but the crypto modules are missing. Encryption stays enabled and secrets cannot be decrypted. NMIS will not disable encryption for you; install the modules named above.");
-			# Fail closed. Never rewrite the flag. Return "" for a value we
-			# cannot decrypt, and pass a non-encrypted value through unchanged.
-			return (substr($password, 0, 2) eq "!!") ? "" : $password;
+			# Fail closed WITHOUT wiping. Never rewrite the flag, and never
+			# return "" here: a decrypt-then-persist caller (NMISNG::Node::new,
+			# cgi-bin/tables.pl doeditTable) assigns decrypt's result straight
+			# back and saves, so "" would overwrite the stored secret. Return
+			# the value unchanged - a "!!" value handed back still fails auth, so
+			# reads stay fail closed, and re-persisting the same ciphertext is a
+			# no-op. This matches encrypt's fail-closed-without-wipe on this path.
+			return $password;
 		}
 	}
 
