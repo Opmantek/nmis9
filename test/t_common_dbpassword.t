@@ -61,8 +61,14 @@ sub run_classify
 	my $body = "cd '$dir/conf'; . '$helper'; nmis_dbpassword_classify '$dir'; "
 		. "printf '%s\\n%s\\n%s\\n' \"\$?\" \"\$NMIS_DBPASSWORD_USER\" \"\$NMIS_DBPASSWORD_FROM_ENV\" > '$outfile'";
 
+	# Scrub ALL NMIS_DB_* so an environment that sets them cannot override the
+	# throwaway conf through loadConfTable's env layer. CI runs the suite with
+	# NMIS_DB_AUTH_SOURCE / NMIS_DB_USERNAME / NMIS_DB_* set (the admin identity),
+	# which otherwise makes classify report db_username=root instead of the seeded
+	# value. Then set only the one variable under test. Mirrors the scrub in
+	# t_setup_mongodb_scoped_user.t.
 	local %ENV = %ENV;
-	delete $ENV{NMIS_DB_PASSWORD};
+	delete @ENV{ grep { /^NMIS_DB_/ } keys %ENV };
 	$ENV{NMIS_DB_PASSWORD} = $env_pw if (defined $env_pw);
 	system('/bin/sh', '-c', $body);
 
