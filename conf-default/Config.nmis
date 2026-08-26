@@ -2,11 +2,11 @@ my %hash = (
   'database' => {
 	'db_name' => 'nmisng',
 	'db_never_remove_indices' => [ 'nodes' ],
-	'db_password' => 'op42flow42',
+	'db_password' => 'CHANGE_ME_RUN_setup_mongodb',
 	'db_port' => '27017',
 	'db_query_timeout' => 5000,
 	'db_server' => 'localhost',
-	'db_username' => 'opUserRW'
+	'db_username' => 'nmis9RW'
   },
 
   'modules' => {
