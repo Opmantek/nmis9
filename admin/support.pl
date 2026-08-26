@@ -650,18 +650,16 @@ The support tool won't be able to collect database status information!\n");
 			print STDERR "nodes.json - complete\n";
 		}
 		
-		# Users
-		open(F, "$targetdir/conf/users.dat") or die "can't read config file: $!\n";
-		my @lines = <F>;
-		close (F);
-		for my $tbc (@lines)
+		# Users: users.dat AND its .bak, which holds the pre-upgrade hashes.
+		# fails closed, so an unredactable copy is dropped from the bundle.
+		if (my $rederr = NMISNG::Util::redact_htpasswd_files(dir => "$targetdir/conf"))
 		{
-			$tbc =~ s/(\w:)(.*)$/$1'_removed_',/g;
+			print STDERR "WARNING: $rederr\n";
 		}
-		open(F, ">$targetdir/conf/users.dat") or die "can't write config file: $!\n";
-		print F @lines;
-		print STDERR "users.dat - complete ";
-		close F;
+		else
+		{
+			print STDERR "users.dat redaction - complete\n";
+		}
 	}
 	return undef;
 }

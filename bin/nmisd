@@ -57,6 +57,7 @@ use POSIX;
 
 use NMISNG;
 use NMISNG::Util;
+use NMISNG::Auth;
 use NMISNG::Sys;
 use Compat::NMIS;
 
@@ -1468,6 +1469,21 @@ sub verbosity_signal_handler
 # EXIT_IMMEDIATELY if signalled TERM or if the  parent dies,
 # EXIT_IDLE if max_cycles was 1 and no jobs were handled,
 # EXIT_ERROR for anything else
+# how many session files are on disk. readdir stays cheap even on a directory
+# with tens of thousands of entries, it is the per-file open that does not, so
+# this counts and never reads. undef if the directory is not there.
+sub _count_session_files
+{
+	my ($config) = @_;
+	my $dir = $config->{session_dir}
+		|| $config->{'<nmis_var>'} . "/nmis_system/user_session";
+	opendir(my $D, $dir) or return undef;
+	my $n = 0;
+	while (defined(my $entry = readdir($D))) { $n++ if ($entry !~ /^\.\.?$/); }
+	closedir($D);
+	return $n;
+}
+
 sub worker_loop
 {
 	my (%args) = @_;
@@ -1731,8 +1747,50 @@ sub worker_loop
 																						 $outages_res->{message}, @{$outages_res->{info}}));
 
 					$state->{status} = $totalsuccess? "ok":"error";
-					$state->{details} => "completed"
-							.( $totalsuccess? " successfully" : "failed: $errors").$allinfos,
+					# = not =>, and ; not ,: as a fat comma this was a void-context
+					# expression, so details was never assigned and the purge job
+					# reported no detail at all.
+					$state->{details} = "completed"
+							.( $totalsuccess? " successfully" : "failed: $errors").$allinfos;
+
+					# OMK-12688: expire stale session files. Every login writes one and
+					# nothing removed them, so anything scanning them for a user got
+					# slower forever. Called for its SIDE EFFECT, the counts are
+					# discarded: it unlinks expired files as it walks. Background on
+					# purpose, this must not sit on a login or installer path.
+					eval {
+						my $before = _count_session_files($nmisng->config);
+						NMISNG::Auth->new(conf => $nmisng->config)->get_all_live_session_counter();
+						my $after = _count_session_files($nmisng->config);
+						$nmisng->log->info("expired ".($before - $after)." stale session files, "
+															 ."$after live")
+								if (defined($before) && defined($after) && $before > $after);
+						1;
+					} or $nmisng->log->warn("session file expiry failed: $@");
+
+					# OMK-12688: retire the initial-password file once anyone has logged
+					# in. The web server is not root, so it cannot. The stat keeps this
+					# free once the file is gone, which is the steady state.
+					# Path duplicated from nmis-cli::discard_initial_password, which owns
+					# the default; change both together.
+					my $initialpw = "/usr/local/etc/firstwave/nmis-initial-password";
+					if (-e $initialpw)
+					{
+						my $cli = $nmisng->config->{'<nmis_base>'}."/bin/nmis-cli";
+						my $cli_rc = system($cli, "act=discard-initial-password");
+						# deliberately not this job's status: purge is judged on
+						# purge_old_files and purge_outages, conflating them hides which failed.
+						if ($cli_rc != 0)
+						{
+							$nmisng->log->warn("discard-initial-password failed (exit "
+																 .($cli_rc >> 8)."), $initialpw left in place");
+						}
+						elsif (!-e $initialpw)
+						{
+							$nmisng->log->info("removed $initialpw, a GUI login means the "
+																 ."recorded initial password is no longer needed");
+						}
+					}
 				}
 				elsif ($ourjob->{type} eq "dbcleanup")
 				{

@@ -9,8 +9,11 @@
 # just keeps both sides. Two branches appending different tests is the case this
 # is for, and it resolves correctly. Two branches editing the SAME line (renaming
 # a test, say) leaves both versions in the array, and the stale filename then
-# fails the build loudly at `prove` under the script's `set -eu` rather than
-# passing silently. A duplicated entry merely runs one test twice. Both are
+# fails the build loudly rather than passing silently: `prove` errors on the
+# missing file, the script records it and exits non-zero with the name in its
+# FAILED summary (OMK-12829). Note this no longer aborts the run at the stale
+# entry, so the rest of the suite still reports. test/t_ci_perl_tests.t pins
+# both halves of that. A duplicated entry merely runs one test twice. Both are
 # acceptable because the array contains nothing but filenames. Do not extend
 # union to files where keeping both sides could be silently wrong.
 ci/scripts/perl_tests.sh merge=union

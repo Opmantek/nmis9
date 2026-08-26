@@ -64,11 +64,15 @@ if ($AU->Require) {
 	$user = $AU->{user};
 }
 
+# OMK-12699: write acts need POST and a valid CSRF token. Must sit after any act
+# rewriting and before dispatch.
+$AU->enforce_csrf($Q) or exit 0;
+
 # dispatch the request
 if ($Q->{act} eq 'menu_bar_site') {			menu_bar_site(); # vertical parent menu
 } elsif ($Q->{act} eq 'menu_bar_portal') {	menu_bar_portal(); # hr portal select
 } elsif ($Q->{act} eq 'menu_about_view') {	menu_about_view();
-} elsif ( exists ($Q->{POSTDATA}) ) {	save_window_state();
+} elsif ($Q->{act} eq 'menu_window_state') {	save_window_state();
 } else { notfound(); }
 
 sub notfound {
@@ -149,6 +153,10 @@ sub print_array_list {
 sub menu_bar_site {
 
 	print header({-type=>"text/html",-expires=>'now'});
+	# OMK-12699: the Save/Clear Windows items below are an AJAX POST with no form
+	# behind them, so the token travels in the menu markup that hosts them.
+	print qq|<input type="hidden" id="nmis_csrf_token" value="|
+			. escapeHTML($AU->mint_csrf_token) . qq|" />\n|;
 	print		$q->start_ul({ class=>"jd_menu"});
 	print_array_list( menu_site(), 1 , 0 );
 	print $q->end_ul();
@@ -483,7 +491,11 @@ EO_TEXT
 # read table of window states, update this user's entry, then write it
 # out again
 sub save_window_state {
-	my $data = $Q->{POSTDATA};
+	# OMK-12699: was a raw JSON body in POSTDATA, dispatched on the body existing
+	# rather than on an act, so no token could ride along and the guard could not
+	# see it. Now an ordinary form field beside act and csrf_token.
+	my $data = $Q->{windowdata};
+	return notfound() if (!defined $data or $data eq '');
 	$data = decode_entities($data);
 	my $windowData = decode_json($data);
 

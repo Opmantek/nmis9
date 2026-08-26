@@ -33,28 +33,6 @@
 # *****************************************************************************
 
 %hash = (
-  'apache_access_log' => {
-    'descr' => 'Permit Access to Logfile',
-    'group' => 'access',
-    'level0' => '1',
-    'level1' => '0',
-    'level2' => '1',
-    'level3' => '1',
-    'level4' => '0',
-    'level5' => '0',
-    'name' => 'Apache_Access_Log'
-  },
-  'apache_error_log' => {
-    'descr' => 'Permit Access to Logfile',
-    'group' => 'access',
-    'level0' => '1',
-    'level1' => '0',
-    'level2' => '1',
-    'level3' => '1',
-    'level4' => '0',
-    'level5' => '0',
-    'name' => 'Apache_Error_Log'
-  },
   'auth_log' => {
     'descr' => 'Access to Logfile',
     'group' => 'button',
@@ -430,17 +408,6 @@
     'level4' => '0',
     'level5' => '0',
     'name' => 'logxml'
-  },
-  'messages' => {
-    'descr' => 'Access to Logfile',
-    'group' => 'access',
-    'level0' => '1',
-    'level1' => '0',
-    'level2' => '0',
-    'level3' => '0',
-    'level4' => '0',
-    'level5' => '0',
-    'name' => 'Messages'
   },
   'module_opflow_admin' => {
     'descr' => 'Admin Access to opFlow',
@@ -1052,7 +1019,7 @@
     'descr' => 'Write access to table Logs',
     'group' => 'access',
     'level0' => '1',
-    'level1' => '1',
+    'level1' => '0',
     'level2' => '0',
     'level3' => '0',
     'level4' => '0',

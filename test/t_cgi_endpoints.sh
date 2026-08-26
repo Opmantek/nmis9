@@ -43,7 +43,22 @@ DEFAULT_HOST="http://localhost"
 CGI_BASE="/cgi-nmis9"
 STATIC_BASE="/nmis9"
 DEFAULT_USER="nmis"
-DEFAULT_PASS="nm1888"
+# the shipped default credential (nmis/nm1888) was removed (OMK-12688). do not
+# hardcode it here: use the generated initial password if it is still on disk,
+# otherwise the caller must pass --password.
+#
+# IMPORTANT: this file is transient by design. nmisd removes it within an hour
+# of ANY successful GUI login, including the one this script is about to make.
+# So reading it works on a fresh install and then stops working, permanently.
+# Treat --password as the supported way to run this repeatedly, and the file as
+# a first-run convenience only.
+PWFILE="/usr/local/etc/firstwave/nmis-initial-password"
+DEFAULT_PASS=""
+if [ -r "$PWFILE" ]; then
+	DEFAULT_PASS="$(sed -n 's/^password:[[:space:]]*//p' "$PWFILE" 2>/dev/null | head -n1)"
+	echo "NOTE: using the initial password from $PWFILE." >&2
+	echo "      Logging in retires that file, so pass --password on later runs." >&2
+fi
 
 HOST="$DEFAULT_HOST"
 AUTH_USER="$DEFAULT_USER"
@@ -73,7 +88,7 @@ Options:
                     (default: auto-discover an actively-polled node)
   --host URL        Base URL of the NMIS server (default: $DEFAULT_HOST)
   --user USER       Auth username (default: $DEFAULT_USER)
-  --password PASS   Auth password (default: $DEFAULT_PASS)
+  --password PASS   Auth password (default: read from $PWFILE if present)
   --save FILE       Save per-URL results (TSV) to FILE after the run.
                     Columns: URL<tab>HTTP_CODE<tab>KIND<tab>IMG_COUNT<tab>
                     IMG_OK<tab>IMG_FAIL. Rows are sorted by URL.
@@ -103,6 +118,14 @@ while [ $# -gt 0 ]; do
 		*)          echo "Unknown argument: $1" >&2; usage; exit 1 ;;
 	esac
 done
+
+if [ -z "$AUTH_PASS" ]; then
+	echo "ERROR: no password available. Pass --password." >&2
+	echo "  $PWFILE is absent or unreadable. That is expected once anyone has" >&2
+	echo "  logged into the GUI, because nmisd retires it (OMK-12688). Use" >&2
+	echo "  --password, or set one with 'bin/nmis-cli act=set-htpasswd-password'." >&2
+	exit 1
+fi
 
 # ----------------------------------------------------------------------------
 # Temp files and cleanup

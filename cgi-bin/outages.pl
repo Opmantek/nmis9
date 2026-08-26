@@ -79,6 +79,11 @@ my $wantwidget = $widget eq 'true';
 #======================================================================
 
 # select function
+
+# OMK-12699: write acts need POST and a valid CSRF token. Must sit after any act
+# rewriting and before dispatch.
+$AU->enforce_csrf($Q) or exit 0;
+
 if ($Q->{act} eq 'outage_table_view') {			viewOutage();
 } elsif ($Q->{act} eq 'outage_table_doadd') {	doaddOutage(); viewOutage();
 } elsif ($Q->{act} eq 'outage_table_dodelete') {	dodeleteOutage(); viewOutage();
@@ -119,20 +124,23 @@ sub viewOutage
 	my $S = NMISNG::Sys->new;
 	$S->init(name=>$node,snmp=>'false');
 
-	# start of form
-	print start_form(-id=>"nmisOutages", -href=>url(-absolute=>1)."?")
-			. hidden(-override => 1, -name => "conf", -value => $Q->{conf})
-			. hidden(-override => 1, -name => "act", -value => "outage_table_doadd")
-			. hidden(-override => 1, -name => "widget", -value => $widget);
-
 	# doesn't make sense to run the bar creator if it can't create any output anyway...
 	print Compat::NMIS::createHrButtons(node=>$node, system=>$S, refresh=>$Q->{refresh},
 																			widget=>$widget, conf => $Q->{conf}, AU => $AU)
 			if ($node);
 
-	print start_table;
-
+	# OMK-12699: the add form opens and closes around the add table only. The
+	# listing below renders one delete form per row, and a form nested inside
+	# another form is discarded by the browser, breaking both add and delete.
 	if ($AU->CheckAccess("Table_Outages_rw",'check')) {
+
+		print start_form(-id=>"nmisOutages", -href=>url(-absolute=>1)."?")
+				. hidden(-override => 1, -name => "conf", -value => $Q->{conf})
+				. hidden(-override => 1, -name => "act", -value => "outage_table_doadd")
+				. $AU->csrf_hidden_field
+				. hidden(-override => 1, -name => "widget", -value => $widget);
+
+		print start_table;
 
 		my $start = $time+300;
 		my $end = $time+3600;
@@ -183,11 +191,15 @@ sub viewOutage
 		if ($Q->{error} ne '') {
 			print Tr(td({class=>'error',colspan=>'3'},$Q->{error}));
 		}
+
+		print end_table;
+		print end_form;
 	}
 
-	print Tr(td({class=>'info',colspan=>'2'},'&nbsp;'));
-
 	#====
+
+	print start_table;
+	print Tr(td({class=>'info',colspan=>'2'},'&nbsp;'));
 
 	my $hd = ($node ne "") ? "Outage Table of Node $node" : "Outage Table";
 	print Tr(td({class=>'header',colspan=>'6'},$hd));
@@ -243,7 +255,19 @@ sub viewOutage
 
 			td({class=>'info',style=>NMISNG::Util::getBGColor($color)}, $outage->{change_id}),
 			td({class=>'info',style=>NMISNG::Util::getBGColor($color)}, $status),
-			td({class=>'info'},a({href=>url(-absolute=>1)."?act=outage_table_dodelete&id=$outage->{id}&widget=$widget"},'delete'))
+			# OMK-12699: was an <a href>, i.e. a tokenless GET. Now a POST form.
+			td({class=>'info'}, do {
+				my $fid = "outagedel_$outage->{id}";
+				start_form(-id => $fid, -href => url(-absolute=>1)."?",
+									 -action => url(-absolute=>1), -method => 'POST')
+						. hidden(-override => 1, -name => "act", -value => "outage_table_dodelete")
+						. $AU->csrf_hidden_field
+						. hidden(-override => 1, -name => "id", -value => $outage->{id})
+						. hidden(-override => 1, -name => "widget", -value => $widget)
+						. button(-name => "deletebutton", -value => 'delete',
+										 -onclick => ($wantwidget ? "get('$fid');" : "submit()"))
+						. end_form;
+			})
 			);
 	}
 
@@ -257,7 +281,6 @@ sub viewOutage
 	}
 
 	print end_table;
-	print end_form;
 
 	my $script = <<ENDS;
 

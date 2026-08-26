@@ -69,9 +69,11 @@ below — its default grant is tightened separately in PR #11, so it is not in
 the table above and this change only adds it to the guard. Services is included
 because a service definition can carry a service-check `Program` that executes
 (see C7 / OMK-12692), so writing it is a command surface.
+`table_logs_rw` (Logs) joined the same guard later, under OMK-12823; see that
+entry below for why.
 
 Plus code enforcement independent of the matrix: `CheckAccessCmd` and
-`CheckButton` deny these seven rights to any non-admin regardless of what the
+`CheckButton` deny these rights to any non-admin regardless of what the
 live `Access.nmis` says (needed because an upgraded install keeps its old,
 permissive `conf/Access.nmis`). A deny-by-default `TableRegistered()` allowlist
 was added to the table editor.
@@ -92,11 +94,11 @@ why the guard exists, and also why it needs the opt-out below.
 **Operator opt-out — `auth_lock_sensitive_tables`** (config, default `true`).
 The guard is gated by this flag. Default (or any value that is not an exact
 false token) keeps it enforced; setting it to an exact false token
-(`false`/`no`/`0`, any case, surrounding whitespace allowed) makes the seven
+(`false`/`no`/`0`, any case, surrounding whitespace allowed) makes the
 guarded rights defer to the Access matrix again — i.e. restores the pre-fix
 behaviour. This is the supported way for a customer who needs "the old way" to
 get it back, without a source edit. It is deliberately coarse and blunt:
-flipping it re-opens all seven rights at once, including the never-safe ones
+flipping it re-opens every guarded right at once, including the never-safe ones
 (editing the Access matrix itself, and Config while it still holds
 `auth_web_key`). It is an informed "I accept the risk" switch, not the safe way
 to restore delegation — for that see the mitigation notes below. The match is
@@ -139,6 +141,681 @@ enforced in `NMISNG::Auth::_lock_sensitive_tables`.
 - *Access matrix / PrivMap:* keep admin-only. Per-tenant role customization
   would be a larger redesign (per-tenant matrices), out of scope here.
 
+### H12 / OMK-12708 — MongoDB no longer published on every interface
+
+**Files:** `compose.yaml`, `conf-default/docker/compose.yaml`,
+`docker-dev/compose-dev.yaml`, `conf-default/docker/mongo/mongod.conf`, `.env`,
+`conf-default/docker/.env`, `docker-dev/.env-dev`
+
+**What changed**
+
+| Setting | Before | After |
+|---------|--------|-------|
+| Compose port publish (all three files) | `"27017:27017"` (every interface) | `"${MONGODB_BIND_ADDR:-127.0.0.1}:${MONGODB_HOST_PORT:-27017}:${MONGODB_PORT:-27017}"` |
+| `mongod.conf` `net.bindIp` | `0.0.0.0` | `localhost,mongo` |
+| `mongod` command line | no `--port` | `--port ${MONGODB_PORT:-27017}`, overriding `mongod.conf` |
+| `NMIS_DB_SERVER` (all three files) | hardcoded `mongo` | `${MONGODB_SERVER:-mongo}` |
+| `NMIS_DB_PORT` | passed by `compose.yaml` only, from a variable only `.env` defined | `${MONGODB_PORT:-27017}` in all three files |
+| `MONGODB_BIND_ADDR` (new) | did not exist | `127.0.0.1` in all three env files |
+| `MONGODB_HOST_PORT` (new) | did not exist | `27017` in all three env files |
+| `MONGODB_SERVER` (new) | did not exist | `mongo` in all three env files |
+| `MONGODB_PORT` (new) | did not exist | `27017` in all three env files |
+| `NMIS_DB_PORT` in `.env` | `27017` | removed, superseded by `MONGODB_PORT` |
+
+**Host side and container side are deliberately separate variables.**
+`MONGODB_BIND_ADDR` and `MONGODB_HOST_PORT` control only where the port is
+published on the host. `MONGODB_SERVER` and `MONGODB_PORT` control how the app
+reaches Mongo across `nmis_net`, and are fed to it as `NMIS_DB_SERVER` and
+`NMIS_DB_PORT`, since NMIS overrides any config key from `NMIS_<KEY>` in the
+environment (`NMISNG::Util::_apply_env_overrides`). Wiring `NMIS_DB_PORT` to `MONGODB_HOST_PORT` would
+be a defect: a non-default host port would leave the app dialling a port mongod
+is not listening on inside the network. The test asserts that mistake is not
+made, in both directions.
+
+`MONGODB_PORT` is the single source of truth for the container port and moves
+four things at once: `mongod --port`, the container side of the published
+mapping, the mongo healthcheck, and `NMIS_DB_PORT`. Before this, nothing tied the
+app's `db_port` to the port mongod actually used.
+
+**Not a hardening change, recorded only so this entry's variable list is not
+misleading.** The same pass made the remaining host-visible settings
+configurable, so more than one stack can run on a host:
+`NMIS_CONTAINER_NAME`, `MONGO_CONTAINER_NAME`, `NMIS_BIND_ADDR`,
+`NMIS_HTTP_PORT`, `NMIS_SNMP_PORT`, `NMIS_IMAGE` and `MONGO_IMAGE`, plus
+`COMPOSE_PROJECT_NAME` for volume and network isolation. Each env file ships
+only the variables its own compose reads: `conf-default/docker/.env` omits the
+container-name and SNMP variables, because the compose beside it pins no
+container names and publishes no SNMP port. **Every default is today's value,
+so no shipped default changed and nothing here tightens anything.** In particular the web UI and SNMP listener still publish on
+`0.0.0.0`, deliberately: narrowing the web tier belongs with H14 and H15
+(OMK-12710, OMK-12711), and doing it here would have buried a second
+behavioural change inside a database-exposure fix.
+
+**Why:** Docker publishes ports by writing its own NAT rules, which are
+evaluated *before* the host firewall. A port published on every interface is
+therefore reachable even on a host whose iptables or ufw policy denies it, so
+the shipped default put the database holding device data and stored credentials
+directly on the network. Auth was enabled (`--auth`), so the exposure was gated
+on credentials, which is exactly why this pairs with H13 (OMK-12709) and the
+shipped default database password.
+
+**Deliberate deviation from the ticket.** The ticket asked for mongod `bindIp`
+`127.0.0.1`. That would break every Docker deployment. Only one `mongod.conf`
+ships and it is the *container's*; the nmis container reaches the database at
+`mongo:27017` across the compose network, so a loopback-only mongod is
+unreachable to it. `localhost,mongo` instead binds loopback plus the container's
+own address on `nmis_net` — Docker's embedded DNS resolves the service name to
+that address, and mongod re-resolves at every start, so a changed container
+address is picked up automatically. Verified in an isolated stack: listeners are
+`127.0.0.1` and the bridge address with no `0.0.0.0`, the app container
+connects, and it survives restart and recreate.
+
+**Known sharp edge, already covered.** If the name fails to resolve at startup
+(a plausible race with embedded DNS on a cold boot) mongod starts anyway bound
+to loopback only, and logs nothing that names the problem. The shipped mongo
+healthcheck connects to `mongo:27017`, so it exercises the network listener
+rather than loopback: a loopback-only mongod fails it with `ECONNREFUSED` and
+exit 1, verified. So the failure surfaces as an unhealthy container rather than
+a silent outage. Do not "simplify" that healthcheck to `localhost`.
+
+**Functionality lost**
+
+- **Remote hosts can no longer reach the database.** Anything that connected to
+  `<host>:27017` from another machine stops working: an external backup job, a
+  BI or reporting tool, `mongosh` from an admin's laptop, or a remote poller in
+  a multi-server layout. This is the intended loss, and it is the one most
+  likely to surface as an upgrade complaint.
+- **Host-local access is retained**, so backups, `mongosh` on the box, and
+  host-side single-test runs that connect to `127.0.0.1:27017` all keep working.
+  Publishing was narrowed rather than removed for exactly this reason.
+- **Nothing is lost inside the compose stack.** The app has always reached Mongo
+  over `nmis_net` by service name, not via the published port.
+
+**Do not read the above as "unreachable" on Docker Engine older than 28.0.0.**
+Publishing to `127.0.0.1` is not a complete boundary on those engines. Docker's
+port-publishing documentation states, twice, that "In releases older than
+28.0.0, hosts within the same L2 segment (for example, hosts connected to the
+same network switch) can reach ports published to localhost" (moby/moby#45610,
+<https://docs.docker.com/engine/network/port-publishing/>). This repository sets
+no engine version floor, so on an older engine a residual same-segment exposure
+survives this change while the rest of this entry reads as though H12 were fully
+closed. A site on an engine below 28.0.0 should upgrade the engine, or firewall
+27017 at the network, and should not treat the loopback publish as sufficient on
+its own. Worth revisiting if a minimum engine version is ever declared.
+
+**Recovery for a site that genuinely needs remote access:** set
+`MONGODB_BIND_ADDR` to a specific address in the env file, and firewall that
+address at the network rather than trusting the host firewall, because Docker's
+NAT rules will still bypass it. `0.0.0.0` restores the old exposed behaviour and
+is documented in `.env` as something not to use. `MONGODB_HOST_PORT` also allows
+moving Mongo off the well-known port, or running two stacks on one host.
+
+**Mitigations to investigate (not implemented)**
+
+- *Remote access done properly:* TLS on the Mongo listener plus certificate
+  auth, so a multi-server deployment does not depend on an unencrypted port
+  being open. Related to the transport work in H14 (OMK-12710).
+- *Defence in depth on the app port:* the nmis container still publishes `8080`
+  on every interface. Deliberately out of scope here, since it is the web tier
+  and belongs with H14/H15 (OMK-12710, OMK-12711), but it is the same class of
+  mistake and should not be forgotten.
+- *Credential strength:* this change reduces the exposure but the shipped
+  default database password is what makes it dangerous. Tracked as H13
+  (OMK-12709).
+
+---
+
+### H12 / OMK-12697 — plugin loader permission guard
+
+**Files:** `lib/NMISNG.pm`, `lib/NMISNG/Util.pm`, `bin/nmis-cli`,
+`conf-default/plugins/README`, `test/t_plugin_loader_guard.t`,
+`ci/scripts/perl_tests.sh`
+
+**What changed**
+
+Before this change, NMIS loaded plugin files from `conf/plugins/` and
+`conf-default/plugins/` unconditionally — any file writable by the nmis
+group (mode 0660 or 0770) was loaded and executed as root via `require`.
+
+After this change, the plugin loader rejects any plugin directory or file
+that is group- or world-writable, owned by a UID other than root or
+`nmis_user`, or a symlink. `nmis-cli act=fixperms` now tightens plugin
+directories to configured `nmis_user:nmis_group go-w` after the existing broad fixperms passes.
+
+| Check | Before | After |
+|-------|--------|-------|
+| Plugin dir mode | not checked | rejected if `& 022` |
+| Plugin file mode | not checked | rejected if `& 022` |
+| Plugin file owner | not checked | rejected if not root or nmis_user |
+| Symlinked plugin | loaded | rejected |
+| fixperms covers plugins | no | yes (`chown nmis_user:nmis_group`, `chmod go-w`) |
+
+**Why:** a group-writable plugin directory allows any process running as
+the nmis group to plant or replace a `.pm` file that executes as root at
+the next collect/update cycle. The ticket's exact scenario was
+`conf/plugins/` at mode 0770 — shipped default before OMK-12697.
+
+**Scope and boundary:** this guard matches the trust model of `lib/` after
+`fixperms` (nmis-owned, not group-writable). It does not cover the broader
+code tree (`lib/`, `bin/`); root-owns-all-code hardening for the full
+installation is a deferred follow-up — a tracking ticket must be raised and
+its ID added here before this PR merges.
+
+**Migration for existing installs:**
+Installer-based upgrades run `fixperms` automatically via
+`installer_hooks/99-postcopy-fixperms` and self-heal. Git-pull or
+image-based deployments must run the following as root after updating:
+
+```
+/usr/local/nmis9/bin/nmis-cli act=fixperms
+```
+
+This resolves the correct owner and group from `Config.nmis` (`nmis_user`
+and `nmis_group`) and covers both configured plugin roots (`plugin_root`
+and `plugin_root_default`). The rejection log message names the affected
+directory and this command. There is deliberately no config off-switch for
+this guard. To disable all plugins, set `plugins_enabled => 0` in
+`Config.nmis`.
+
+**Functionality affected:** any plugin file or directory that does not
+meet the trust criteria is silently skipped (logged at error level). No
+plugins are disabled on a correctly permissioned install.
+
+---
+
+### H4 / OMK-12699 — anti-CSRF token and POST-only enforcement on the CGI GUI
+
+**Files:** `lib/NMISNG/Auth.pm`, every mutating script under `cgi-bin/`,
+`menu/js/commonv8.js`, `conf-default/Config.nmis`,
+`conf-default/docker/Config.nmis.docker`, `conf-default/Table-Config.nmis`
+
+**What changed**
+
+| Setting | Before | After |
+|---------|--------|-------|
+| Write acts under `cgi-bin` | reachable by GET, no token | POST only, and a valid `csrf_token` required |
+| Unknown or missing act | ran whatever the script dispatched | classified as a write, so refused unless it POSTs with a token |
+| `tools.pl?act=tool_system_collect` | GET ran the support-archive job | GET renders a confirmation, `tool_system_docollect` POSTs the job |
+| `menu.pl` window state | raw JSON body, dispatched on the body existing | `act=menu_window_state` with the payload in `windowdata` |
+| `auth_csrf_enforce` (new) | did not exist | `true` |
+
+**Why:** every state-changing action was a GET with no unguessable value in it,
+so any page an authenticated operator visited could drive one with an `<img>`
+tag or an auto-submitting form. The token is a stateless HMAC over the
+authenticated username and an expiry, keyed with the existing `auth_web_key`,
+so it needs no server-side session store and cannot be minted for another user.
+
+**Delegated functionality affected.** Anything that drove a write act by URL.
+In practice that means customer automation holding a session cookie and calling
+`cgi-bin` directly, and any bookmark or saved link that pointed at a write act.
+Both break on upgrade. Read acts, which are the overwhelming majority of the
+GUI, are untouched and still work by GET with no token.
+
+**Escape hatch: `auth_csrf_enforce`, default `true`.** Setting it to an explicit
+false token (`false`, `f`, `no`, `n`, `0`) makes the guard stand aside for the
+whole install. This exists for exactly one situation, an operator who finds
+their automation broken by the upgrade and needs it working again while they fix
+it. Turning it off is logged to the auth log for every write act the guard then
+stands aside for, naming the act and the script, so a silently disabled guard is
+not possible. The check sits after the read classification, so a disabled guard
+does not log on ordinary page loads. Anything other than a recognised false
+token leaves enforcement on, deliberately spelled out rather than passed to
+`getbool`, so a value like `falsey` cannot switch the guard off by prefix match.
+
+**Two carve-outs are not configurable, by design.** The guard stands aside off
+the CGI path, since a command-line invocation has no browser and no session to
+ride, matching what OMK-12686 did for the ISINDEX guard. It also stands aside
+when `auth_require` is off, because such an install never calls `loginout`, has
+no user to bind a token to and no session cookie for an attacker to use. Without
+that second carve-out an install with authentication disabled would lose every
+GUI write on upgrade, with no token obtainable to fix it.
+
+**Known gap, a stale browser cache breaks window-state saves quietly.** A cached
+pre-upgrade `commonv8.js` still posts the raw JSON body that `menu.pl` no longer
+dispatches on, so the upgraded server refuses the save with a 403, and
+`postWindowState` has no error handling to surface it. Window layout silently
+stops persisting until the browser picks up the new script.
+`nmis_common` (`conf-default/Config.nmis`) carries no cache-busting version
+parameter, so there is nothing to force that refresh. It self-heals on the next
+cache expiry or a hard reload, and it affects only the saved window layout, so
+this ships as a release note rather than a fix. Adding a version parameter to
+the script include is the real fix and is not implemented.
+
+**Mitigation to investigate.** Nothing here narrows the escape hatch to a
+subset of acts or a subset of clients. An install that needs tokenless writes
+for one automated caller has to disable the guard for every caller. A per-act or
+per-source allowance would be better and is not implemented.
+
+### H5 / OMK-12700 — SameSite and Secure on the session cookie
+
+**Files:** `lib/NMISNG/Auth.pm`, `conf-default/Config.nmis`,
+`conf-default/docker/Config.nmis.docker`, `conf-default/Table-Config.nmis`
+
+**What changed**
+
+| Setting | Before | After |
+|---------|--------|-------|
+| Session cookie `SameSite` | no attribute | `Lax` |
+| `auth_cookie_samesite` (new) | did not exist | `Lax` |
+| `auth_cookie_secure` (new) | did not exist | `false` |
+
+**Why:** `SameSite=Lax` stops the session cookie riding along on cross-site
+POSTs, which is the transport the CSRF work in H4 defends against. It is the
+browser-side half of the same fix, and useful on its own for any write path that
+predates or outlives the token.
+
+**Delegated functionality affected.** A cross-site POST that previously carried
+the session cookie no longer does. Anything embedding the NMIS GUI in a frame on
+another origin and posting into it is affected. `Secure` is off by default and
+only takes effect when an operator turns it on, so plain-HTTP installs are
+untouched.
+
+**Escape hatch: `auth_cookie_samesite = off`.** That is the only way back to a
+cookie with no `SameSite` attribute, which is what shipped before. Blank and
+unset still resolve to `Lax`, so an install that never set the key keeps the
+protection rather than silently losing it to an empty value in a config file.
+`None` is rejected rather than emitted: `CGI::Cookie` cannot produce it, and
+opmojo writes this same cookie, so accepting it would leave the two disagreeing
+about the cookie they share. An operator who genuinely needs `None` has to use
+`off` and set the attribute at the web server.
+
+**Known gap.** An old `CGI.pm` drops an unrecognised `-samesite` silently, so the
+cookie ships without the attribute and nothing appears to be wrong. This is
+detected and logged once per process rather than left invisible, but it is not
+fixed here, and the only fix is upgrading `CGI.pm`.
+
+---
+
+### H16 / OMK-12688 — the shipped administrator credential is no longer usable
+
+**Files:** `conf-default/users.dat`, `bin/nmis-cli`,
+`installer_hooks/05-postcopy-configfiles`, `docker-entrypoint.sh`,
+`docker-dev/docker-entrypoint-dev.sh`, `test/t_cgi_endpoints.sh`
+
+**What changed**
+
+| Thing | Before | After |
+|-------|--------|-------|
+| `conf-default/users.dat` `nmis` entry | `nmis:SG65RBEiLjd5U`, a live DES crypt of the published password `nm1888` | `nmis:*NMIS-UNSEEDED*`, a locked marker `crypt()` cannot produce, so nothing verifies against it |
+| Password on a fresh install | none set, the shipped hash *was* the login | random 20 characters from `/dev/urandom`, stored as sha512 crypt at 100000 rounds |
+| Where the first password comes from | published in the docs | `/usr/local/etc/firstwave/nmis-initial-password`, 0600 and root-owned, or printed once on an interactive console |
+| Setting a password | external `htpasswd` only, NMIS had no write path into the store | `bin/nmis-cli act=set-htpasswd-password`, plus `act=seed-htpasswd-password` for installers |
+
+`conf-default/Users.nmis` is unchanged. The `nmis` account still exists and is
+still `administrator` across all groups. Only its credential changed.
+
+**Why:** the shipped hash was a working password that has been public for years,
+and `installer_hooks/05-postcopy-configfiles` copied `users.dat` verbatim into
+live `conf/` on every fresh install. `dockerfile:159-161` copies the same file
+into the image. Nothing anywhere forced a change. That is anonymous
+administrator access on any default install. The hashing helpers it now uses
+(`generate_random_password`, `hash_password`) come from OMK-12705.
+
+**The seeding is idempotent, which is what makes it safe to call everywhere.**
+`act=seed-htpasswd-password` runs at installer hook 05, on upgrade, and on every
+container start. It classifies the stored entry first:
+
+| Stored `nmis` hash | What happens |
+|--------------------|--------------|
+| absent, or empty   | random password set |
+| exactly `*NMIS-UNSEEDED*`, the shipped marker | random password set |
+| verifies `nm1888` (des or apr1) | rotated |
+| any other lock (`*` or `!`) | left locked |
+| any other hash     | left alone |
+
+The classification is the same in all three callers, so none of them passes any
+context. A lock is ambiguous in principle, the shipped seed on a fresh install
+against a deliberate operator lockdown on an existing site, and the marker is
+what resolves it. Anything else beginning `*` or `!` is somebody's lockdown and
+is never re-enabled. This replaced an earlier `seed=t|f` flag that made each
+caller declare which situation it was in.
+
+**Delegated functionality lost:** there is no longer a first login anyone can
+know in advance. Scripted provisioning, demo images, documentation and CI that
+authenticated as `nmis`/`nm1888` must now read the initial-password file or set
+a password explicitly. `test/t_cgi_endpoints.sh` was changed for exactly this
+and now fails with a clear message instead of using a hardcoded password.
+
+**Recovery — how an operator gets in**
+
+- Interactive install: the password is printed once at the end of the install.
+- Unattended host install: read it from
+  `/usr/local/etc/firstwave/nmis-initial-password`.
+- Containers: there is nothing to read. They never invent a password and never
+  create that file, so the password is the one you supplied through
+  `NMIS_ADMIN_PASSWORD`. If you have lost it, reset with
+  `docker exec <container> /usr/local/nmis9/bin/nmis-cli act=set-htpasswd-password user=nmis`.
+- The path is overridable with `NMIS_INITIAL_PASSWORD_FILE`.
+- Lost it, or want a different one:
+  `bin/nmis-cli act=set-htpasswd-password user=nmis`. This works inside the
+  container too, where `htpasswd` (`apache2-utils`) is not installed.
+- **Record it promptly. The file is removed automatically**, see below.
+
+**Containers never invent a password, so they never create the file.** The
+operator supplies it, `NMIS9_ADMIN_PASSWORD` or `NMIS9_ADMIN_PASSWORD_FILE` in
+the service environment, fed from `NMIS_ADMIN_PASSWORD` in `.env`. Both
+entrypoints pass `generate-password=f`, so if a password has to be set and none
+was supplied the container refuses to start rather than inventing one.
+
+That is not a preference, it is forced by the privilege model.
+`nmis_frontend` in `docker-entrypoint.sh` `su`'s nmisd to `${NMIS_USER}`, while
+an invented password has to be recorded in a root-owned 0600 file inside a
+root-owned 0700 directory. The container's own nmisd could neither read that
+file nor remove it once it was spent, so the file would be created and then
+never retired for the life of the container. Supplying the password removes the
+file from the container story altogether, which is a better answer than adding a
+privileged process to clean up after one.
+
+Three details keep this from becoming a new `nm1888`:
+
+- The shipped `.env` carries the key **empty**. A value there would be the same
+  known password on every deployment, which is the hole this whole entry closes.
+  `test/t_nmis_cli_seed_password.t` asserts it stays empty.
+- The container-side name deliberately avoids the `NMIS_` prefix.
+  `_apply_env_overrides` maps `NMIS_<KEY>` onto config key `lc(<KEY>)` and can
+  add new keys, so `NMIS_ADMIN_PASSWORD` would put the plaintext into the config
+  surface. The `.env` variable may use that name because compose substitution
+  happens on the host and never enters the container.
+- The `_FILE` form is supported, the same convention the postgres, mysql and
+  mongo images use, so the secret can live in a docker secret rather than in the
+  environment and in `docker inspect`.
+
+The password is read from the environment rather than argv, so it does not
+appear in `ps` or `docker top`, and a supplied password is never written to the
+initial-password file or echoed, because the operator already has it.
+
+**On host installs the file is still created, and retires itself once it is no
+longer needed.** `bin/nmis-cli act=discard-initial-password` removes it once
+*any* user has logged into the GUI. `bin/nmisd` runs it from the hourly purge
+job, so the file disappears within an hour of the first login. nmisd is root
+there, its systemd unit sets no `User=`.
+
+The GUI cannot do this itself. The file is 0600 and root-owned in a root-owned
+directory, and the web server runs as `apache` or `www-data`. Rather than grant
+the web user a way to remove it, which would mean a writable root config
+directory or a sudo rule, the unprivileged side keeps doing what it already did
+and root notices afterwards. `NMISNG::Auth::update_last_login` already records
+every successful login in `users_login.json`, so **no GUI-side code changed**.
+
+Any user counts, not just `nmis`. An LDAP or SSO site never logs in as the local
+`nmis` account, and a provisioned admin account can exist without an `nmis`
+login ever happening, so keying on `nmis` alone would strand the file forever on
+exactly the deployments most likely to be long-lived.
+
+The comparison is against the file's mtime rather than "has anyone ever logged
+in", so re-seeding is not immediately undone by a login that predates it.
+
+**Known limits, accepted deliberately**
+
+- If nobody ever logs into the GUI, the file stays indefinitely. There is no age
+  cap. This is interim: the structural fix is forcing a password change at first
+  login, which makes the contents worthless rather than merely short-lived, and
+  is tracked separately below.
+- A file relocated with `NMIS_INITIAL_PASSWORD_FILE` is never retired. nmisd
+  only knows the default path. Relocating it makes the file yours to manage.
+- The trigger is authenticated activity, not a fresh login.
+  `NMISNG::Auth::update_last_login` has a single caller, below the branch that
+  handles both the username and password path and the `# check cookie` path, so
+  an idle tab auto-refreshing on `page_refresh_time` or `widget_refresh_time`
+  stamps `users_login.json` too. Consequence: on an upgrade that rotates a
+  still-shipped `nm1888` default, somebody else's open session can retire the
+  new file before the operator reads it. Recovery is
+  `act=set-htpasswd-password` as root. This is currently masked, because the
+  same upgrade rotates an unset `auth_web_key` at
+  `installer_hooks/11-postcopy-authkey` and invalidates every cookie, but that
+  masking is incidental and expires: on later upgrades the key is already
+  unique, the hook changes nothing, and sessions survive. Keying on session
+  creation rather than activity is the fix. **Tracked as OMK-12854**, which also
+  records the five conditions this needs (host install, upgrade, an unconfigured
+  `nmis` entry, another user's live session, and the window before the key
+  rotates) and the two alignments that were rejected. Containers cannot hit it at
+  all, because they never create the file.
+- `users_login.json` is owned and written by the web user, so root is acting on
+  untrusted input. The blast radius is bounded: the path unlinked is fixed and
+  never derived from that file, nothing in it is executed, and every value is
+  rejected unless it is a plain timestamp. A compromised web process could cause
+  the password file to be deleted early, which costs the operator a recorded
+  convenience and gains the attacker nothing.
+- Removal is a plain `unlink`, with no attempt to overwrite the contents first.
+  Anyone able to read freed disk blocks could have read a 0600 root-owned file
+  directly, so scrubbing would defend against nobody and would imply a guarantee
+  that journaling, copy-on-write and SSD wear levelling cannot deliver.
+
+**Why the shipped marker is `*NMIS-UNSEEDED*` and not a bare `*`:** the seeder
+has to tell a never-seeded account from one an operator locked, and a bare `*`
+is both. Docker makes this concrete. It pre-fills a new named volume from the
+image content at the mount path (`dockerfile:159-162` copies the file into
+`${NMIS_HOME}/conf/`, `dockerfile:167` declares that path a `VOLUME`), so a
+fresh volume already holds the shipped store. While the default was briefly a
+bare `nmis:*` during this work, an operator who locked the account by writing the
+same thing looked exactly like a fresh volume and had their lock replaced with a
+working password on the next start. Never seeding a lock was not an option
+either, because it would leave every fresh container with an administrator
+account nobody can log into.
+
+A marker no operator would type removes the ambiguity outright, and
+`bin/nmis-cli::_is_shipped_seed` matches it exactly rather than by prefix. Both
+`nmis:*` and `nmis:!` are still locks everywhere it matters, `lib/NMISNG/Auth.pm`
+and `bin/nmis-cli` both test `/^[*!]/`, so `*NMIS-UNSEEDED*` cannot be
+authenticated against either.
+
+The invariant this rests on is that `conf-default/users.dat` holds exactly the
+marker `bin/nmis-cli` looks for. `test/t_seed_decision.t` asserts both halves,
+so changing one without the other fails the suite rather than silently reopening
+the gap.
+
+**Superseded within this work, never released:** an earlier revision had the
+callers derive a `seed=t|f` argument in shell, `install` unconditionally `t`,
+`upgrade` from whether `conf/users.dat` already existed, `container` by comparing
+`conf/users.dat` byte for byte against `conf-default/users.dat`. The marker makes
+the file self-describing, so the flag, `nmis_seed_decide`, and the ordering
+constraint that the upgrade check had to run above the noclobber `cp` are all
+gone. That emptied `installer_hooks/common_seedpw.sh` down to `nmis_seed_reveal`
+with one caller, so it was inlined into `installer_hooks/05-postcopy-configfiles`
+and the file removed.
+
+Recorded because the reasoning is worth keeping, not because anything has to
+migrate. `seed=` never reached a release, so no caller or runbook refers to it,
+and `nmis-cli` drops the unrecognised key silently rather than erroring. Against
+that earlier revision two behaviours are tighter. A store holding the marker
+alongside other users is now seeded, where the whole-file comparison did not
+recognise it and left the account permanently unusable. And nothing re-enables an
+operator lock any more, where `seed=t` did.
+
+**Mitigations to investigate (not implemented)**
+
+- *Force a change at first login:* nothing expires the seeded password or
+  requires rotation. `act=discard-initial-password` narrows this but does not
+  close it. The plaintext file now goes away once somebody logs in, so the
+  common case is bounded, but two gaps remain. An install nobody ever logs into
+  keeps the file indefinitely, and more importantly the seeded password itself
+  stays valid forever whether or not the file survives. Forcing a change at
+  first login is the fix that makes the recorded password worthless rather than
+  merely short-lived, and it is the reason no age cap was added here.
+- *Directory mode:* `make_path` applies `mode => 0700` only to a directory it
+  creates. A pre-existing, looser `/usr/local/etc/firstwave` keeps its own mode.
+  The file itself is 0600, so what leaks is the filename, not the password. This
+  is deliberate, not an oversight.
+- *Seed classification:* it lives once, in `bin/nmis-cli::seed_htpasswd_password`,
+  and every caller invokes it with no context beyond `reveal=`. Nothing
+  outstanding, listed so the next person changing the seeding behaviour knows
+  there is one place to change.
+- *`reveal=` derivation:* it lives inline at the top of
+  `installer_hooks/05-postcopy-configfiles`, the only caller that derives one.
+  Both entrypoints hardcode `reveal=none`. `test/t_seed_decision.t` lifts the
+  block out of the hook and runs it, rather than restating the logic, so the
+  hook stays the single source.
+
+### H17 / OMK-12824 — session-cached privileges bound to the authenticated user
+
+**Files:** `lib/NMISNG/Auth.pm`, `test/t_auth_session_privs.t`,
+`ci/scripts/perl_tests.sh`
+
+**What changed**
+
+| Behaviour | Before | After |
+|---------|--------|-------|
+| privileges cached in a session file | trusted from whatever session the request named | trusted only when the session names the authenticated user and carries an `auth_web_key` HMAC that NMIS wrote |
+| `privlevel` | taken from the session file | always re-derived from `PrivMap` |
+| `CGISESSID` as a request parameter | accepted in `SetUser` and `do_logout` | ignored, cookie only |
+| `do_logout` session delete | gated on `max_sessions_enabled`, which ships `false` | always, and only the logged-in user's own session |
+| `generate_session` | `CGI::Session->new(undef, undef, ...)`, which adopts the session the request's `CGISESSID` names | mints a fresh id regardless of the request |
+| `groups` session param | written, never read | no longer written |
+
+**Why:** `SetUser` took the username from the HMAC-signed auth cookie and the
+privileges from a session file the caller nominated, and never checked the two
+named the same user. Any authenticated low-privilege user who supplied a session
+id whose `priv` was `administrator` ran that request as an administrator, under
+their own username, so the audit trail stayed honest while authorisation was
+broken.
+
+Ownership alone was not enough to fix it. Because the per-request writeback is
+ungated (below), one escalated request rewrote the victim's session to name the
+attacker, leaving a file that a username-only check would trust forever. The
+same is true of a file planted by anyone who can write to `session_dir`, which
+is OMK-12811. Hence the signature: it does not attest that a privilege is
+correct, it attests that NMIS derived it, and NMIS only derives privileges from
+Users, PrivMap or LDAP.
+
+**This was default-on, not conditional.** Three gates on `max_sessions_enabled`
+exist and two are commented out, at `Auth.pm:2051` and `:2150`, so sessions
+are created on every login and rewritten on every authenticated request whatever
+the setting says. Only the `do_logout` gate was live, and
+`conf-default/Config.nmis:331` ships `'max_sessions_enabled' => 'false'`, so
+logout deleted nothing and privilege-bearing files accumulated. The cached path
+was therefore the normal path on a stock install, not an edge case.
+
+**Delegated functionality affected.** `CGISESSID` passed as a URL or form
+parameter stops working. Nothing in nmis9 or opmojo ever passed it, and the only
+in-repo mentions are `Auth.pm`'s own accessor and four test files, but an
+out-of-repo integration cannot be ruled out from the code. Logout now deletes the
+server-side session file on installs that leave `max_sessions_enabled` at
+`false`, which is the intended semantic and affects nothing that reads those
+files.
+
+An authenticated client that presents the auth cookie but never returns
+`CGISESSID`, such as scripted `cgi-bin` access, now gets a freshly minted session
+file per request, where the previous `load(undef, undef, ...)` produced an empty
+session that never reached disk. Each file is bounded by `auth_expire` and removed
+by the hourly `nmisd` purge, so this is churn in `session_dir` rather than growth,
+but `session_dir` is the group-writable directory this entry already flags as the
+remaining denial-of-service surface.
+
+**No migration.** Sessions written before this change carry no signature, so the
+first request on each falls through to `_GetPrivs` once and the writeback
+re-signs the file. For an LDAP-authorised install that is one directory lookup
+per existing session, once. Nothing is purged, and the hourly `nmisd` job
+already expires stale files.
+
+**Interaction with H16 / OMK-12688.** Session eviction on password change,
+`bin/nmis-cli:1887`, and the hourly purge, `bin/nmisd:1763`, both identify whose
+session a file is by its `username` field. Before this change the per-request
+writeback let an authenticated user rewrite that field on a file they named, so
+binding the writeback also protects eviction.
+
+**The signed layout is pinned by a test, not by a convention.** Each field is
+signed as `name=value`, so adding, removing, renaming or reordering one changes the
+signed bytes by itself. The parts are joined on NUL without escaping the separator
+or the `=`, so that guarantee holds for separator-free values, which is every value
+NMIS derives from Users, PrivMap or LDAP; a value containing a literal NUL followed
+by another field's name could still alias a boundary. Length-prefixing or escaping
+would remove the class, and is worth doing whenever the layout next changes, since
+that already forces a one-time re-sign. That also means a layout change expires every seal on disk without
+anyone having to mark a version, which costs one privilege recomputation per live
+session and is invisible to users. `test/t_auth_session_privs.t` case 22 holds a
+golden digest over a fixed session and key, so such a change fails a test rather
+than passing unnoticed.
+
+An earlier revision of this work carried a `nmis9-session-privs-v1` constant as the
+first signed part, for domain separation and versioning. It was removed. The
+`name=value` encoding does the versioning job without it, and the domain job was
+never reachable: a privileges string always contains a NUL and the CSRF string at
+`Auth.pm:487` never does, while the auth cookie MAC is `hmac_sha1_hex` and fails
+`_secure_compare` on length. A constant whose comment overstates what it defends is
+worse than no constant.
+
+**Known gap.** The cache is kept rather than removed, because `_GetPrivs` calls
+`_get_ldap_privs` for LDAP-authorised installs and removing the cache would put a
+directory round trip on every CGI request. `session_dir` also stays
+group-writable until OMK-12811, so someone who can write there can still delete
+or truncate other people's sessions, which is a denial of service. Neither is
+load-bearing for privilege forgery any more.
+
+---
+
+### OMK-12823 — the log viewer is confined to the nmis log directory
+
+**Files:** `cgi-bin/logs.pl`, `lib/NMISNG/Util.pm`, `conf-default/Logs.nmis`,
+`conf-default/Access.nmis`, `conf-default/Config.nmis`
+
+**What changed**
+
+| Setting | Before | After |
+|---------|--------|-------|
+| File named by a `Logs` entry | any path on the box | must resolve inside `<nmis_logs>`, with symlinks followed (`NMISNG::Util::confine_path_to_dir`) |
+| Shipped `Messages`, `Apache_Access_Log`, `Apache_Error_Log` | `/var/log/messages`, `/var/log/httpd/access_log`, `/var/log/httpd/error_log` | removed |
+| Access rights `messages`, `apache_access_log`, `apache_error_log` | granted | removed |
+| `table_logs_rw` (write the Logs table) | levels 0, 1 | 0, plus the `%admin_only_rights` code guard |
+
+**Why:** `table_logs_rw` was level1, so a manager could add or edit a `Logs`
+entry. `logs.pl` kept `logFileName` verbatim whenever it contained a `/`, then
+read and displayed the file, gated only by `CheckAccess($logName)` where
+`logName` came from the same manager-written entry. A manager could point an
+entry at `conf/Config.nmis` and read `auth_web_key`, or at any file the web
+server user can read. That is the same secret disclosure H11 closes for the
+Config table, reached through a sibling table and CGI. The fix sits at the sink,
+so it holds regardless of who planted the path, an administrator included.
+
+**Delegated functionality affected.** Adding a log from outside `<nmis_logs>` is
+no longer possible at any privilege level, administrator included, so viewing the
+system and Apache logs through NMIS is gone. There is no opt-out: to see an OS
+log in NMIS again, forward or copy it into `<nmis_logs>`. Curating the list at
+all is now an administrator task, see the table grant below. Refused entries
+list as `UA`, with the reason in the web server error log. Symlinking an outside
+file into the log directory does not restore it, because the check resolves the
+target rather than the name.
+
+**Upgrades.** An install that already has a `conf/Logs.nmis` keeps its own copy
+of the three removed entries, and they now list as `UA`. Only fresh installs
+pick up the trimmed default. Existing rows are not re-checked against anything
+but the confinement, so a `logName`/`logFileName` pairing a manager altered
+before the upgrade survives it; the code guard stops further edits, it does not
+undo past ones.
+
+**The table grant is now admin-only too.** The confinement alone closes the file
+read, so the grant was initially left at level1 to keep the curation capability
+above. That leaves the residual below reachable by any manager, so the grant was
+tightened as well: `conf-default/Access.nmis` sets `level1` to `0`, and
+`table_logs_rw` joins `%admin_only_rights` in `NMISNG::Auth`, which is what
+enforces it on an upgraded install whose live `conf/Access.nmis` still grants it
+(same reasoning as H11). OMK-12707 considered and declined this change, rightly,
+because it is redundant with the confinement for the *file read*. It is not
+redundant for the authorization binding, which is a separate defect and the
+reason it is done here. The cost is that a manager can no longer curate the
+viewer's log list at all, not even from inside `<nmis_logs>`. There is no
+narrower grant available, because the table editor authorizes per table rather
+than per field.
+
+**Known gaps.**
+
+- `logName` is chosen in the same entry as the file, so the per-log
+  `CheckAccess($logName)` check can be aimed at a right the writer already holds
+  in order to reach another log inside the directory. The binding is still wrong:
+  the check reads the entry's name while the content comes from the entry's file.
+  With `table_logs_rw` admin-only the only writer is an administrator, who holds
+  every log right anyway, so what remains is an administrator being able to
+  expose a restricted in-directory log (`auth.log`, say) to lower-privileged
+  users by repointing an entry whose name-right they do hold. Same standing as
+  the `os_cmd_read_file_reverse` residual below. The real fix is a `logs.pl`
+  authorization review that binds the required right to the resolved file rather
+  than to the entry's name. **Investigate.**
+- `loadLogFile` still assembles its read command as a string and runs it through
+  a shell (`open (DATA, "$readLogFile |")`). Both filenames reaching that string
+  are now confined, the entry's own and the rotations the glob finds beside it,
+  but `os_cmd_read_file_reverse` from the Config table is still interpolated
+  verbatim. H11 restricts that key to administrators. **Investigate** a
+  list-form open.
+
 ---
 
 ## Open threads to investigate (epic-wide, not tied to one change)
@@ -160,26 +837,12 @@ None are implemented.
   - Service-check `Program` running through a shell as root (C7 / OMK-12692) —
     already tracked; noted here because it is the "drop privileges on the exec
     path" half of the same problem.
-- **Arbitrary file read via the log viewer's `logFileName` (`cgi-bin/logs.pl`).**
-  Found in the OMK-12707 review. `table_logs_rw` is level1 (manager-writable)
-  and `Logs` is a registered table, so a manager can add or edit a Logs entry.
-  `logs.pl:188` keeps `logFileName` verbatim whenever it contains a `/`
-  (otherwise it prepends the nmis log dir), then `loadLogFile($logFileName)`
-  reads and displays it (`logs.pl:230`), gated only by `CheckAccess($logName)`
-  where `logName` is set by the same manager in the same entry. So a manager can
-  point `logFileName` at `conf/Config.nmis` (disclosing `auth_web_key` and other
-  secrets) or any file the web user can read. **The real bug is the missing path
-  confinement in `logs.pl`, not the table grant** — the read path is only ever
-  taken from the Logs table entry, but the fix belongs at the sink: confine
-  `logFileName` to the nmis log directory (reject `/` and `..`, resolve the
-  realpath and require it under `<nmis_logs>`). That closes it regardless of who
-  planted the path, including an admin. Adding `table_logs_rw` to
-  `%admin_only_rights` was considered and rejected for this PR: it would be
-  redundant with the confinement fix for the file-read, and would remove a
-  legitimate manager capability. Tracked as a follow-up (OMK-12823). A smaller
-  residual remains after confinement — a manager-chosen `logName` can still
-  subvert the per-log group-access check to view other in-directory logs — which
-  belongs to a proper `logs.pl` authorization review rather than this ticket.
+- **Log viewer authorization (`cgi-bin/logs.pl`).** The arbitrary file read found
+  in the OMK-12707 review is closed, see the OMK-12823 entry under
+  [Changes from former defaults](#changes-from-former-defaults). Its two
+  residuals are recorded there and neither is implemented, the
+  `CheckAccess($logName)` binding (admin-reachable only, since `table_logs_rw`
+  is now admin-only) and the shell pipe in `loadLogFile`.
 - **Multi-tenancy is not actually enforced by the role model.** Default
   `manager` has `groups => 'all'`. To be "fully multi-tenanted", a manager needs
   to be "admin *within a tenant*" — a tenant/group boundary enforced on every

@@ -212,6 +212,46 @@ sub is_safe_script_basename
 	return ($name =~ m{\A[A-Za-z0-9_.\-]+\z}) ? 1 : 0;
 }
 
+# True when $path resolves inside $dir. Symlinks are followed, so one planted in
+# $dir cannot point out of it, and a path that does not exist yet is judged on
+# its parent so a not-yet-created file still passes. is_safe_script_basename
+# keeps shell metacharacters out of callers that interpolate the result, and it
+# accepts '..', hence the explicit check (OMK-12823).
+sub path_inside_dir
+{
+	my ($path, $dir) = @_;
+	return 0 if (!defined($path) or $path eq '' or !defined($dir) or $dir eq '');
+
+	my ($base, $parent) = File::Basename::fileparse($path);
+	return 0 if ($base =~ /\A\.\.?\z/ or !is_safe_script_basename($base));
+
+	my $realdir = Cwd::abs_path($dir);
+	my $target = Cwd::abs_path(-e $path ? $path : $parent);
+	return 0 if (!defined($realdir) or !defined($target));
+
+	return ($target eq $realdir or index($target, "$realdir/") == 0) ? 1 : 0;
+}
+
+# Confine a caller-supplied filename to $dir: a bare name gets $dir prepended,
+# anything else has to resolve inside it. Returns the resolved absolute path, or
+# undef when refused, with the reason on stderr tagged $who (OMK-12823).
+sub confine_path_to_dir
+{
+	my ($fn, $dir, $who) = @_;
+	return undef if (!defined($fn) or $fn eq '' or !defined($dir) or $dir eq '');
+
+	my $candidate = ($fn =~ m!/!) ? $fn : "$dir/$fn";
+	if (path_inside_dir($candidate, $dir))
+	{
+		my ($base, $parent) = File::Basename::fileparse($candidate);
+		return Cwd::abs_path($parent) . "/$base";
+	}
+
+	warn returnTime() . " " . ($who // 'confine_path_to_dir')
+			. ", refusing file \"$fn\", outside $dir\n";
+	return undef;
+}
+
 # fixme9 move away
 sub getCGIForm {
 	my $buffer = shift;
@@ -1057,6 +1097,61 @@ sub _config_perms_error
 			. "; a world-writable config file is arbitrary code execution. Fix with 'chmod o-w'.";
 	}
 	return undef;
+}
+
+# plugin_file_safe: check that a plugin file is safe to load (OMK-12697).
+# Uses lstat() so the check applies to the path entry itself — a symlink to a
+# root-owned file must not bypass the guard. On Linux, symlinks always have mode
+# 0120777, so & 022 is non-zero and they are rejected before require follows them.
+# args: $pluginfile — path to check; $trusted_uid — UID trusted in addition to root
+#       (pass 0 for root-only)
+# returns: (1, 'ok') if safe, (0, reason-string) if rejected
+sub plugin_file_safe
+{
+	my ($pluginfile, $trusted_uid) = @_;
+	$trusted_uid //= 0;
+
+	my @fstat = CORE::lstat($pluginfile);
+	return (0, "cannot lstat: $!") if (!@fstat);
+
+	my ($file_mode, $file_uid) = @fstat[2, 4];
+
+	if ($file_mode & 022)
+	{
+		return (0, sprintf("group- or world-writable (mode %04o)", $file_mode & 07777));
+	}
+
+	if ($file_uid != 0 && $file_uid != $trusted_uid)
+	{
+		return (0, "owned by UID $file_uid, not root (0)"
+			. ($trusted_uid != 0 ? " or UID $trusted_uid (nmis_user)" : ""));
+	}
+
+	return (1, 'ok');
+}
+
+sub plugin_dir_safe
+{
+	my ($plugindir, $trusted_uid) = @_;
+	$trusted_uid //= 0;
+
+	my @dstat = CORE::lstat($plugindir);
+	return (0, "cannot lstat: $!") if (!@dstat);
+
+	my ($dir_mode, $dir_uid) = @dstat[2, 4];
+
+	if ($dir_mode & 022)
+	{
+		return (0, sprintf("group- or world-writable (mode %04o)", $dir_mode & 07777));
+	}
+
+	if ($dir_uid != 0 && $dir_uid != $trusted_uid)
+	{
+		return (0, "owned by UID $dir_uid, not root (0)"
+			. ($trusted_uid != 0 ? " or UID $trusted_uid (nmis_user)" : ""));
+	}
+
+	return (1, 'ok');
 }
 
 sub _load_and_flatten
@@ -2676,7 +2771,8 @@ sub selftest
 	my (%args) = @_;
 	my @details;
 
-	# bsts fallback is a bit ugly, also assumes caller has loaded compat::nmis
+	# bsts fallback is a bit ugly; require here avoids circular dep at compile time
+	require Compat::NMIS;
 	my $nmisng = $args{nmisng} || Compat::NMIS::new_nmisng();
 	my $config = $nmisng->config;
 
@@ -3564,11 +3660,14 @@ sub audit_log
 
 	my $auditlogfile = $C->{'<nmis_logs>'}."/audit.log";
 
-	# format is tab-delimited, any tabs in input are removed
+	# format is tab-delimited, one record per line, so tabs are removed from input
+	# and newlines are folded to a space. Without the newline fold a caller passing
+	# attacker-influenced text (a username, a filename) could forge extra records
+	# in this root-owned log, since readers split on newlines.
 	# order: ts, who, what, where, how, details
 	# time format same as NMISNG::Log/Mojo::Log
   my @output = ( '['. localtime($args{when}||time) .']',
-								 map { s/\t+//g; $_ } (@args{qw(who what where how details)}) );
+								 map { s/\t+//g; s/[\r\n]+/ /g; $_ } (@args{qw(who what where how details)}) );
 
 	open(F, ">>$auditlogfile") or return "cannot open $auditlogfile for writing: $!";
 	flock(F, LOCK_EX) or  return "cannot lock $auditlogfile: $!";
@@ -3619,6 +3718,7 @@ sub resolve_dns_name
 	my ($lookup) = @_;
 	my @results;
 
+	require Compat::NMIS;
 	my $nmisng = Compat::NMIS::new_nmisng();
 
 	$nmisng->log->debug2(sub {"resolve_dns_name($lookup)"});
@@ -3842,6 +3942,7 @@ sub array_diff(\@\@) {
 # @returns the number of moved files
 sub replace_files_recursive {
 	my ($path, $new, $old, $extension, $force) = @_;
+	require Compat::NMIS;
 	my $nmisng = Compat::NMIS::new_nmisng();
 	$nmisng->log->info("Replacing $new for $old in $path ");
 	my $C = $nmisng->config();
@@ -5000,6 +5101,231 @@ sub _make_seed {
 
 	return 0;
 }
+
+# generate_random_password: return a strong random password string.
+# reads the OS CSPRNG (/dev/urandom) directly, never the built-in rand().
+# input: optional length (default 20)
+# output: password string of the requested length, charset [A-Za-z0-9]
+sub generate_random_password
+{
+	my ($length) = @_;
+	$length = 20 if (!defined($length) || $length !~ /^\d+$/ || $length < 1);
+
+	my @charset = (('A'..'Z'), ('a'..'z'), (0..9));
+	my $range   = scalar(@charset);            # 62
+	my $limit   = 256 - (256 % $range);        # reject bytes >= limit to avoid modulo bias
+
+	# use the OS CSPRNG directly. NMIS is linux-only and every supported
+	# platform (bare metal and containers) provides /dev/urandom, so no perl
+	# module dependency is needed. die loudly rather than fall back to the
+	# non-cryptographic built-in rand().
+	open(my $ur, '<:raw', '/dev/urandom')
+		or die "generate_random_password: cannot open /dev/urandom: $!\n";
+
+	my $password = '';
+	while (length($password) < $length)
+	{
+		my $buf;
+		my $got = read($ur, $buf, ($length - length($password)) * 2 + 8);
+		die "generate_random_password: cannot read /dev/urandom: $!\n"
+			if (!defined($got) || $got <= 0);
+		for my $byte (unpack('C*', $buf))
+		{
+			next if ($byte >= $limit);         # drop biased tail
+			$password .= $charset[$byte % $range];
+			last if (length($password) >= $length);
+		}
+	}
+	close $ur;
+	return $password;
+}
+
+# hash_password: hash a plaintext password for storage in users.dat.
+# sha512 is the only scheme, deliberately: apr1 and des are what _file_verify
+# rewrites on login, so writing either would be undone at the next one.
+# input: plaintext, optional scheme (sha512), optional rounds
+# output: hash string verifiable by NMISNG::Auth::_file_verify
+sub hash_password
+{
+	my ($plain, $scheme, $rounds) = @_;
+	$scheme = "sha512" if (!defined($scheme) || $scheme eq '');
+	# crypt(3) returns the token *0 below 1000 rounds rather than clamping
+	$rounds = 100000 if (!defined($rounds) || $rounds !~ /^\d+$/ || $rounds < 1000);
+
+	die "hash_password: no plaintext supplied\n" if (!defined($plain) || $plain eq '');
+
+	if ($scheme eq "sha512")
+	{
+		# crypt re-derives the scheme from the salt prefix, so no module is needed
+		my $hash = crypt($plain, '$6$rounds=' . $rounds . '$'
+			. generate_random_password(16));
+		die "hash_password: this platform cannot produce sha512 crypt hashes\n"
+			if (!defined($hash) || $hash !~ /^\$6\$/);
+		return $hash;
+	}
+
+	die "hash_password: unknown scheme '$scheme'\n";
+}
+
+# the write step, in a package variable so tests can force a mid-write failure
+# and prove the .bak restore works. same seam as $_data_writer at Util.pm:1608.
+our $_htpasswd_writer = sub
+{
+	my ($fh, $content, $file) = @_;
+	return "cannot rewind $file: $!"   if (!seek($fh, 0, 0));
+	return "cannot truncate $file: $!" if (!truncate($fh, 0));
+	return "cannot write $file: $!"    if (!print $fh $content);
+	return "cannot flush $file: $!"    if (!$fh->flush);
+	return "cannot sync $file: $!"     if (!$fh->sync);
+	return undef;
+};
+
+# set_htpasswd_entry: rewrites one user's entry under an exclusive lock.
+# input: file, user, hash (undef deletes), retries (default 3).
+# output: undef, or an error message.
+sub set_htpasswd_entry
+{
+	my %args = @_;
+	my ($file, $user, $hash) = @args{qw(file user hash)};
+
+	return "set_htpasswd_entry: no file given" if (!defined($file) || $file eq '');
+	return "set_htpasswd_entry: no user given" if (!defined($user) || $user eq '');
+	return "set_htpasswd_entry: user may not contain a colon or newline"
+		if ($user =~ /[:\r\n]/);
+	return "set_htpasswd_entry: hash may not contain a colon or newline"
+		if (defined($hash) && $hash =~ /[:\r\n]/);
+
+	# optional compare-and-swap. the login upgrade passes the hash it verified,
+	# so a concurrent admin reset or delete is never undone.
+	my $expect = $args{expect};
+
+	open(my $fh, "+<", $file)
+		or return "set_htpasswd_entry: cannot open $file: $!";
+
+	# never block: this can run inside a login request. jitter the backoff,
+	# because a fixed interval keeps concurrent writers in lockstep colliding:
+	# measured, 3 fixed tries win the lock 38% of the time, 3 jittered ones 95%.
+	my $tries = (defined($args{retries}) && $args{retries} =~ /^\d+$/
+		&& $args{retries} > 0) ? $args{retries} : 3;
+	my $locked = 0;
+	for (1 .. $tries)
+	{
+		last if ($locked = flock($fh, LOCK_EX | LOCK_NB));
+		select(undef, undef, undef, 0.05 * (0.5 + rand()));
+	}
+	if (!$locked)
+	{
+		close $fh;
+		return "set_htpasswd_entry: cannot lock $file: $!";
+	}
+
+	my (@keep, $replaced, $current, $seen);
+	seek($fh, 0, 0);
+	while (my $line = <$fh>)
+	{
+		chomp $line;
+		my ($u, $h) = split(/:/, $line, 2);
+		if (defined($u) && $u eq $user)
+		{
+			# the first USABLE entry is what _file_verify authenticates against,
+			# so an empty or colon-less line must not become the CAS baseline
+			($current, $seen) = ($h, 1) if (!$seen && defined($h) && $h ne '');
+			# collapse duplicates: rewrite the first, drop the rest
+			next if ($replaced || !defined($hash));
+			push @keep, "$user:$hash";
+			$replaced = 1;
+			next;
+		}
+		push @keep, $line;
+	}
+
+	if (defined($expect) && (!$seen || !defined($current) || $current ne $expect))
+	{
+		close $fh;
+		return "set_htpasswd_entry: the stored entry for $user changed while we "
+			. "were working, nothing written";
+	}
+
+	push @keep, "$user:$hash" if (defined($hash) && !$replaced);
+	my $content = join('', map { "$_\n" } @keep);
+
+	# back up inside the lock: the truncate below has a crash window, and an
+	# empty users.dat locks every user out. backupFile uses File::Copy::cp,
+	# which preserves the mode, so the hashes are never briefly world-readable.
+	my $bak = "$file.bak";
+	# a previous writer may own this from a different uid, and cp cannot
+	# overwrite what it cannot open. both writers can create in conf/, so
+	# removing it first keeps the backup owned by whoever is writing now.
+	unlink($bak);
+	if (my $bakerr = backupFile(file => $file, backup => $bak))
+	{
+		close $fh;
+		return "set_htpasswd_entry: cannot back up $file: $bakerr";
+	}
+
+	my $err = $_htpasswd_writer->($fh, $content, $file);
+
+	if ($err)
+	{
+		# close BEFORE restoring. a failed write may still sit in perl's buffer,
+		# and closing afterwards would flush it back over the restored content.
+		close $fh;
+		my $restorefail = backupFile(file => $bak, backup => $file);
+		return "set_htpasswd_entry: $err, and restoring from $bak also failed "
+			. "($restorefail). $file may be truncated: recover it from $bak"
+			if ($restorefail);
+		return "set_htpasswd_entry: $err";
+	}
+	if (!close($fh))
+	{
+		return "set_htpasswd_entry: cannot close $file: $!, "
+			. "the previous content is in $bak";
+	}
+	# the backup exists only to survive a failed write. keeping it would leave
+	# the pre-upgrade weak hash readable in conf/ indefinitely.
+	unlink($bak);
+	return undef;
+}
+
+# redact_htpasswd_files: strip every hash from the users.dat* copies in a
+# support bundle. fails closed: a copy that cannot be rewritten is unlinked,
+# so an unredacted one never reaches the archive.
+# input: dir (the bundle's conf directory)
+# output: undef, or a description of what could not be redacted
+sub redact_htpasswd_files
+{
+	my %args = @_;
+	my $dir = $args{dir};
+	return "redact_htpasswd_files: no dir given" if (!defined($dir) || $dir eq '');
+
+	my @problems;
+	for my $uf (glob("$dir/users.dat*"))
+	{
+		next if (!-f $uf);
+		my $err = _redact_one_htpasswd($uf);
+		next if (!$err);
+		push @problems, (unlink($uf)
+			? "$uf could not be redacted ($err) and was removed from the bundle"
+			: "$uf could not be redacted ($err) and could not be removed either: $!");
+	}
+	return @problems ? join('; ', @problems) : undef;
+}
+
+# rewrite one htpasswd file with every hash replaced by a placeholder.
+# separate sub so the fail-closed path above has a seam the tests can force.
+sub _redact_one_htpasswd
+{
+	my ($file) = @_;
+	open(my $in, '<', $file) or return "cannot read: $!";
+	my @lines = <$in>;
+	close $in;
+	s/^([^:\r\n]*:).*$/${1}_removed_/ for (@lines);
+	open(my $out, '>', $file) or return "cannot rewrite: $!";
+	print $out @lines            or return "cannot write: $!";
+	close($out)                  or return "cannot close: $!";
+	return undef;
+}
+
 # take pregen'd sequence of fractions, returns percentile
 # input: percentile, sequence
 # output: the value

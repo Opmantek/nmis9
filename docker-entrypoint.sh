@@ -89,6 +89,18 @@ setup() {
 
   # Remove pid file that gets saved in /var mount, otherwise stops nmisd from running when starting the container
   rm -f "${NMIS_HOME}/var/nmis_system/nmisd.pid"
+
+  # generate-password=f: nmis_frontend below su's nmisd to ${NMIS_USER}, which
+  # could neither read nor remove an invented password's root-owned file. Refuse
+  # to start rather than strand one. Password arrives via env, so not in ps.
+  if ! /usr/local/nmis9/bin/nmis-cli act=seed-htpasswd-password user=nmis \
+      file="${NMIS_HOME}/conf/users.dat" reveal=none generate-password=f; then
+    echo "ERROR: no usable nmis administrator password." >&2
+    echo "  Set NMIS_ADMIN_PASSWORD in your .env (compose passes it in as" >&2
+    echo "  NMIS9_ADMIN_PASSWORD), or point NMIS9_ADMIN_PASSWORD_FILE at a" >&2
+    echo "  docker secret, then start again." >&2
+    exit 1
+  fi
 }
 
 nmis_frontend() {

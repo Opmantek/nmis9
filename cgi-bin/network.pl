@@ -138,6 +138,10 @@ my $GT = { map { $_ => $_ } (@groups) }; # backwards compat; hash assumption spr
 # select function
 my $select;
 
+# OMK-12699: write acts need POST and a valid CSRF token. Must sit after any act
+# rewriting and before dispatch.
+$AU->enforce_csrf($Q) or exit 0;
+
 if ( $Q->{act} eq 'network_summary_health' )
 {
 	$select = 'health';
@@ -503,11 +507,18 @@ sub selectMetrics
 						)
 					);
 				}
+				# OMK-12699: was an <a href>, i.e. a tokenless GET. Now a POST form.
 				print Tr(
 					td( {class => "info Major"},
-						a(  {href => url( -absolute => 1 ) . "?act=nmis_selftest_reset&widget=$widget"},
-							"Reset Selftest Status"
-						)
+						start_form(-id => "selftestreset_summary",
+											 -href => url(-absolute=>1)."?",
+											 -action => url(-absolute=>1), -method => 'POST')
+						. hidden(-override => 1, -name => "act", -value => "nmis_selftest_reset")
+						. $AU->csrf_hidden_field
+						. hidden(-override => 1, -name => "widget", -value => $widget)
+						. button(-name => "resetbutton", -value => "Reset Selftest Status",
+										 -onclick => ($wantwidget ? "get('selftestreset_summary');" : "submit()"))
+						. end_form
 					)
 				);
 				print end_table;
@@ -1794,11 +1805,18 @@ sub viewSelfTest
 			}
 			if ($anytrouble)
 			{
+				# OMK-12699: was an <a href>, i.e. a tokenless GET. Now a POST form.
 				print Tr(
 					td( {class => "info Major", colspan => 2},
-						a(  {href => url( -absolute => 1 ) . "?act=nmis_selftest_reset&widget=$widget"},
-							"Reset Selftest Status"
-						)
+						start_form(-id => "selftestreset_detail",
+											 -href => url(-absolute=>1)."?",
+											 -action => url(-absolute=>1), -method => 'POST')
+						. hidden(-override => 1, -name => "act", -value => "nmis_selftest_reset")
+						. $AU->csrf_hidden_field
+						. hidden(-override => 1, -name => "widget", -value => $widget)
+						. button(-name => "resetbutton", -value => "Reset Selftest Status",
+										 -onclick => ($wantwidget ? "get('selftestreset_detail');" : "submit()"))
+						. end_form
 					)
 				);
 			}
@@ -3522,6 +3540,7 @@ sub viewActivePort
 	print start_form( -id => "nmis", -href => url( -absolute => 1 ) . "?" )
 		. hidden( -override => 1, -name => "conf",   -value => $Q->{conf} )
 		. hidden( -override => 1, -name => "act",    -value => "network_port_view" )
+		. $AU->csrf_hidden_field
 		. hidden( -override => 1, -name => "widget", -value => $widget )
 		. hidden( -override => 1, -name => "node",   -value => $node );
 

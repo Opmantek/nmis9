@@ -29,6 +29,16 @@ setup() {
     cp "${NMIS_HOME}/conf-default/docker/Config.nmis.docker" "${NMIS_HOME}/conf/Config.nmis"
   fi
 
+  # after the Config.nmis copy above, so nmis-cli loads the container's config.
+  # generate-password=f for the same reason as the production entrypoint.
+  # .env-dev carries a value, so this normally just works.
+  if ! "${NMIS_HOME}/bin/nmis-cli" act=seed-htpasswd-password user=nmis \
+      file="${NMIS_HOME}/conf/users.dat" reveal=none generate-password=f; then
+    echo "ERROR: no usable nmis administrator password." >&2
+    echo "  Set NMIS_ADMIN_PASSWORD in docker-dev/.env-dev and start again." >&2
+    exit 1
+  fi
+
   # OMK-12687: containers never run installer_hooks, so generate a unique
   # auth_web_key on first boot. Idempotent: only placeholder/old-fallback/unset
   # keys are replaced, so a restart never rotates a good key (conf is a volume).

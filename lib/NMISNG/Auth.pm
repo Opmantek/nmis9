@@ -56,6 +56,7 @@ use NMISNG::Notify;											# for auth lockout emails
 
 use MIME::Base64;
 use Digest::SHA;								# for the HMAC-signed omk auth cookie
+use Fcntl qw(:flock);						# shared lock on the password file read
 use Data::Dumper;
 use CGI qw(:standard);					# needed for current url lookup, http header, plus td/tr/bla_field helpery
 use Time::ParseDate;
@@ -85,10 +86,12 @@ my @INSECURE_WEB_KEYS = (
 # what the Access table says: each of these guards a table whose contents
 # feed back into authentication or authorisation, so any write access is
 # equivalent to full admin (OMK-12707)
+# table_logs_rw joined for OMK-12823: a Logs entry names the file that a per-log
+# CheckAccess($logName) is applied to, so writing it re-aims the check.
 my %admin_only_rights = map { ($_ => 1) }
 		(qw(table_users_rw table_access_rw table_config_rw
 				table_authldapprivs_rw table_privmap_rw table_tables_rw
-				table_services_rw));
+				table_services_rw table_logs_rw));
 
 # whether the %admin_only_rights guard is active. Default on; an admin can
 # set config auth_lock_sensitive_tables to an explicit false token to defer
@@ -104,6 +107,52 @@ sub _lock_sensitive_tables
 	my $val = $self->{config}->{auth_lock_sensitive_tables};
 	return 0 if (defined($val) and $val =~ /^\s*(false|no|0)\s*$/i);
 	return 1;
+}
+
+# Secure attribute for the session cookie. Fails OPEN (default off): a Secure
+# cookie over plain http is dropped by the browser, so a wrong true is an
+# outage. Deliberately not getbool, which prefix-matches /^[yt1]/ and would
+# read "tls-later" as true. Token set matches NMISNG::Util::getbool_cli exactly,
+# minus the die: an unusable value must not take the web UI down.
+sub _cookie_secure
+{
+	my $self = shift;
+	my $val = $self->{config}->{auth_cookie_secure};
+	return 0 if (!defined($val) or $val !~ /\S/);
+	return 1 if ($val =~ /^\s*(true|t|yes|y|1)\s*$/i);
+	return 0 if ($val =~ /^\s*(false|f|no|n|0)\s*$/i);
+	NMISNG::Util::logAuth("Invalid auth_cookie_secure \"$val\", Secure stays off");
+	return 0;
+}
+
+# SameSite for the session cookie. CGI::Cookie emits only Strict and Lax and
+# discards anything else silently, so an unrecognised value is logged and
+# replaced with Lax rather than vanishing. None is rejected: opmojo writes this
+# same cookie and CGI cannot emit None, so the two would disagree.
+sub _cookie_samesite
+{
+	my $self = shift;
+	my $val = $self->{config}->{auth_cookie_samesite};
+	return 'Lax' if (!defined($val) or $val !~ /\S/);
+	$val =~ s/^\s+|\s+$//g;
+	# OMK-12700 escape hatch: "off" is the way back to the pre-upgrade cookie,
+	# which carried no SameSite at all. Blank still means Lax, so an install that
+	# never set the key keeps the protection.
+	return undef if ($val =~ /^off$/i);
+	return ucfirst(lc($val)) if ($val =~ /^(strict|lax)$/i);
+	NMISNG::Util::logAuth("Invalid auth_cookie_samesite \"$val\", using Lax");
+	return 'Lax';
+}
+
+# the -samesite argument for CGI::cookie, or nothing at all when the attribute
+# is switched off. Passing -samesite => undef would still hand CGI::Cookie a key
+# to act on, and would make _emit_cookie's drop detection read as a drop.
+sub _cookie_samesite_args
+{
+	my $self = shift;
+
+	my $val = $self->_cookie_samesite;
+	return defined($val) ? (-samesite => $val) : ();
 }
 
 # record non-standard "conf" ONLY if confname is given as argument
@@ -283,6 +332,402 @@ sub _secure_compare
 	return $diff == 0;
 }
 
+# _cookie_signatures: the two acceptable HMAC signatures for a signed-cookie
+# value, keyed by Mojolicious signed-cookie generation. nmis9 shares one signed
+# session cookie with the OMK apps (opmojo4), which use Mojolicious's own
+# signed_cookie. Mojolicious changed the MAC at 9.0: 8.x is HMAC-SHA1 over the
+# value alone, 9.x is HMAC-SHA256 over "name=value". nmis9 tracks neither
+# release, so it must speak both forms to keep NMIS<->OMK SSO working across an
+# opmojo4 8.x -> 9.x upgrade (OMK-12902). This is the single definition of the
+# two forms; both verify_id and generate_cookie derive from it so they cannot
+# drift apart. Returns a list suitable for a hash:
+#   mojo8 => hmac_sha1_hex(value)            # Mojolicious < 9
+#   mojo9 => hmac_sha256_hex("name=value")   # Mojolicious >= 9
+sub _cookie_signatures
+{
+	my ($name, $value, $web_key) = @_;
+	return (
+		mojo8 => Digest::SHA::hmac_sha1_hex($value, $web_key),
+		mojo9 => Digest::SHA::hmac_sha256_hex("$name=$value", $web_key),
+	);
+}
+
+# _cookie_sign_format: which Mojolicious signed-cookie form generate_cookie
+# emits, chosen by the auth_sso_cookie_format config key. Defaults to 'mojo8'
+# (today's form, matching an OMK app on Mojolicious 8.x) so nothing on the wire
+# changes until an operator opts in. Set 'mojo9' once the peer OMK app has moved
+# to Mojolicious 9.x. verify_id accepts BOTH forms regardless of this setting,
+# so only the outbound NMIS->OMK direction depends on it (OMK-12902). Any
+# unrecognised value keeps the safe mojo8 default, loudly.
+sub _cookie_sign_format
+{
+	my $self = shift;
+	my $fmt = $self->{config}->{auth_sso_cookie_format};
+	return 'mojo8' if (!defined $fmt or $fmt eq '');
+	$fmt = lc $fmt;
+	return $fmt if ($fmt eq 'mojo8' or $fmt eq 'mojo9');
+	NMISNG::Util::logAuth("WARN auth_sso_cookie_format '$fmt' is not recognised; "
+			. "signing auth cookies in the default 'mojo8' form. Use 'mojo8' or 'mojo9'.");
+	return 'mojo8';
+}
+
+#----------------------------------
+# OMK-12824: the privileges cached in a session file are signed with
+# auth_web_key, so a planted or edited file cannot supply any.
+sub _session_privs_signature
+{
+	my ($self, $session) = @_;
+
+	my $web_key = $self->_auth_web_key;
+	return undef if (!defined $web_key or !defined $session or !defined $session->id);
+
+	# name=value, so adding, removing, renaming or reordering a field changes these
+	# bytes on its own, which invalidates every seal already on disk. That is safe,
+	# an invalid seal recomputes from _GetPrivs. Golden digest pins it in the tests.
+	my @parts = ("sid=".$session->id,
+			"username=".lc($session->param('username') // ''),
+			map { "$_=".($session->param($_) // '') } qw(priv privlevel rawgroups auth dn));
+	return Digest::SHA::hmac_sha256_hex(join("\0", @parts), $web_key);
+}
+
+# an unsigned session is the upgrade case, not an attack, so it is not logged as
+# one. A wrong signature is.
+sub _session_privs_trusted
+{
+	my ($self, $session) = @_;
+
+	my $stored = $session->param('privs_sig');
+	return '' if (!defined $stored or $stored eq '');
+	my $expected = $self->_session_privs_signature($session);
+	return '' if (!defined $expected);
+	return 1 if (_secure_compare($expected, $stored));
+
+	NMISNG::Util::logAuth("SECURITY session ".$session->id
+			." carries privileges that auth_web_key did not sign; ignoring them");
+	return '';
+}
+
+# OMK-12824: returns the session named by the CGISESSID cookie only if it belongs
+# to $args{user}, else nothing. Sole decider of "whose session is this".
+sub _load_owned_session
+{
+	my ($self, %args) = @_;
+
+	my $owner = $args{user};
+	return undef if (!defined $owner or $owner eq '');
+
+	# never from param(): an id accepted from a request can be planted by a link
+	# and leaks through referer headers and proxy logs
+	my $cgi = new CGI;
+	my $sid = $cgi->cookie($self->get_session_cookie_name());
+	return undef if (!defined $sid or $sid !~ /^[a-f0-9]{32}$/i);
+
+	my $session_dir = $self->{config}->{'session_dir'}
+			// $self->{config}->{'<nmis_var>'}."/nmis_system/user_session";
+	my $session = CGI::Session->load(undef, $sid, { Directory => $session_dir });
+	return undef if (!$session);
+
+	# an expired session is emptied by load(), which is normal, not an attack
+	if ($session->is_empty or $session->is_expired)
+	{
+		NMISNG::Util::logAuth("DEBUG Auth::_load_owned_session, session $sid is empty or expired")
+				if ($self->{debug});
+		return undef;
+	}
+
+	my $sessionuser = $session->param('username');
+	if (!defined $sessionuser or $sessionuser eq '')
+	{
+		NMISNG::Util::logAuth("DEBUG Auth::_load_owned_session, session $sid names no user")
+				if ($self->{debug});
+		return undef;
+	}
+	if (lc($sessionuser) ne lc($owner))
+	{
+		NMISNG::Util::logAuth("SECURITY session $sid is not owned by \"$owner\", it belongs to "
+				."\"$sessionuser\"; ignoring it");
+		return undef;
+	}
+	return $session;
+}
+
+# OMK-12824: the session this request's privileges may be written into. Ours if
+# the cookie names one, a fresh one otherwise, never somebody else's.
+sub _writeback_session
+{
+	my ($self, %args) = @_;
+
+	my $user = $args{user};
+	return undef if (!defined $user or $user eq '');
+	return $self->_load_owned_session(user => $user)
+			|| $self->generate_session(user_name => $user);
+}
+
+# OMK-12824: sole writer of the cached privileges. Signs them, so the reader can
+# tell NMIS wrote them; clears the signature when no key is available to sign.
+sub _store_session_privs
+{
+	my ($self, $session) = @_;
+	return undef if (!$session);
+
+	$session->param('auth',      $self->{auth});
+	$session->param('username',  $self->{user});
+	$session->param('dn',        $self->{dn});
+	$session->param('priv',      $self->{priv});
+	$session->param('privlevel', $self->{privlevel});
+	$session->param('rawgroups', $self->{rawgroups});
+	$session->clear(['groups']);   # nothing reads it, and it would be unsigned
+
+	my $sig = $self->_session_privs_signature($session);
+	if (defined $sig) { $session->param('privs_sig', $sig); }
+	else              { $session->clear(['privs_sig']); }
+	return 1;
+}
+
+# OMK-12824: the level always comes from PrivMap, never from the session, so a
+# PrivMap edit takes effect on sessions signed before it.
+sub _privlevel_for
+{
+	my ($self, $priv) = @_;
+	return undef if (!defined $priv or $priv eq '');
+
+	my $PMT = Compat::NMIS::loadGenericTable("PrivMap");
+	return undef if (ref($PMT) ne "HASH" or !exists $PMT->{$priv});
+	my $level = $PMT->{$priv}{level};
+	return undef if (!defined $level or $level eq '');
+	return $level;
+}
+
+#----------------------------------
+# OMK-12699 anti-CSRF token, formatted "<expiry_ts>--<hmac_sha256_hex>". The MAC
+# covers the authenticated username and the expiry, not a session id, so two
+# concurrent sessions of one user hold interchangeable tokens.
+# Shipped behaviour: docs/security-hardening-register.md, entries H4 and H5.
+#----------------------------------
+
+# token life in seconds, from auth_expire, so it expires with the session that
+# owns it. Same unit set as generate_cookie, same '+60min' fallback.
+sub _csrf_lifetime
+{
+	my $self = shift;
+
+	my %factors = ( s => 1, m => 60, 'min' => 60, h => 3600,
+					d => 86400, w => 604800, M => 31 * 86400, y => 365 * 86400 );
+	my $expires = $self->{config}->{auth_expire} || '+60min';
+
+	return $1 * $factors{$2} if ($expires =~ /^\+?(\d+)\s*(min|s|m|h|d|w|M|y)$/);
+	return 3600;
+}
+
+# the single place the token is constructed. mint, verify and t_csrf.t all go
+# through it, so the wire format cannot drift between them.
+sub _csrf_format
+{
+	my ($user, $expiry, $key) = @_;
+
+	return "$expiry--" . Digest::SHA::hmac_sha256_hex("$user:$expiry", $key);
+}
+
+sub mint_csrf_token
+{
+	my $self = shift;
+
+	my $web_key = $self->_auth_web_key;
+	return '' unless defined $web_key;
+
+	# no user means nothing to bind to, and two anonymous sessions would then
+	# agree on the same MAC
+	my $user = $self->{user};
+	return '' if (!defined $user or $user eq '');
+
+	return _csrf_format($user, time + $self->_csrf_lifetime, $web_key);
+}
+
+# verify_csrf: true when the token was minted for the currently authenticated
+# user and has not expired. Constant-time on the digest comparison.
+sub verify_csrf
+{
+	my ($self, $token) = @_;
+
+	my $web_key = $self->_auth_web_key;
+	return '' unless defined $web_key;
+
+	my $user = $self->{user};
+	return '' if (!defined $user or $user eq '');
+
+	my ($expiry) = ($token // '') =~ /^(\d+)--[0-9a-f]+$/;
+	return '' if (!defined $expiry);
+	return '' if ($expiry < time);
+
+	# recomputed over the CURRENTLY authenticated user, which is what stops an
+	# attacker's token validating in a victim's session
+	return _secure_compare(_csrf_format($user, $expiry, $web_key), $token);
+}
+
+# Every act in cgi-bin, classified read or write. Central so the write surface can
+# be audited in one place; t_csrf.t fails if any dispatch chain grows an act that
+# is not listed here. Anything unlisted is treated as a write at runtime.
+our %CSRF_ACT_CLASS = (
+	'tables.pl' => {
+		config_table_doadd    => 'write', config_table_doedit => 'write',
+		config_table_dodelete => 'write',
+		map { $_ => 'read' } qw(config_table_menu config_table_add config_table_view
+								config_table_show config_table_edit config_table_delete),
+	},
+	'config.pl' => {
+		config_nmis_doadd    => 'write', config_nmis_doedit => 'write',
+		config_nmis_dodelete => 'write',
+		map { $_ => 'read' } qw(config_nmis_menu config_nmis_add config_nmis_edit
+								config_nmis_delete),
+	},
+	'models.pl' => {
+		config_model_doadd    => 'write', config_model_doedit => 'write',
+		config_model_dodelete => 'write',
+		map { $_ => 'read' } qw(config_model_menu config_model_add config_model_edit
+								config_model_delete),
+	},
+	'outages.pl' => {
+		outage_table_doadd => 'write', outage_table_dodelete => 'write',
+		outage_table_view  => 'read',
+	},
+	'view-event.pl' => {
+		event_database_dodelete => 'write',
+		map { $_ => 'read' } qw(event_database_view event_database_list
+								event_database_delete event_flow_view),
+	},
+	'events.pl' => {
+		event_table_update => 'write',
+		map { $_ => 'read' } qw(event_table_view event_table_list),
+	},
+	'nodeconf.pl' => {
+		config_nodeconf_update => 'write', config_nodeconf_view => 'read',
+	},
+	'model_policy.pl' => { update => 'write', status => 'read' },
+	'menu.pl' => {
+		menu_window_state => 'write',
+		map { $_ => 'read' } qw(menu_about_view menu_bar_portal menu_bar_site),
+	},
+	# every tool reads except docollect, which execs admin/support.pl and writes a
+	# support archive. collect is the read-only confirmation that fronts it.
+	'tools.pl' => {
+		tool_system_docollect => 'write',
+		map { $_ => 'read' } qw(tool_system tool_system_collect tool_system_hostinfo
+			tool_system_ping tool_system_trace tool_system_nslookup tool_system_finger
+			tool_system_who tool_system_man tool_system_mank tool_system_ps
+			tool_system_iostat tool_system_vmstat tool_system_date tool_system_df
+			tool_system_dns tool_system_lft tool_system_mtr tool_system_snmp),
+	},
+	'setup.pl'        => { setup_doedit => 'write', setup_menu => 'read' },
+	'network.pl' => {
+		nmis_selftest_reset => 'write',
+		map { $_ => 'read' } qw(network_cpu_list network_interface_overview
+			network_interface_view network_interface_view_act network_interface_view_all
+			network_metrics_graph network_node_view network_port_view network_service_list
+			network_service_view network_status_view network_storage_view
+			network_summary_allgroups network_summary_business network_summary_customer
+			network_summary_group network_summary_health network_summary_large
+			network_summary_metrics network_summary_small network_summary_view
+			network_system_health_view network_top10_view nmis_polling_summary
+			nmis_runtime_view nmis_selftest_view node_admin_summary),
+	},
+
+	# read-only scripts. Listed so the completeness check covers the whole tree
+	# and a write act cannot be added to one of them unnoticed.
+	'access.pl'   => { access_menu_load => 'read' },
+	'find.pl'     => { map { $_ => 'read' } qw(find_interface_menu find_interface_view
+											   find_node_menu find_node_view) },
+	'logs.pl'     => { map { $_ => 'read' } qw(log_file_summary log_file_view log_list_view) },
+	'node.pl'     => { map { $_ => 'read' } qw(network_export network_export_options
+											   network_graph_view network_stats) },
+	'reports.pl'  => { map { $_ => 'read' } qw(report_csv_nodedetails report_dynamic_avail
+			report_dynamic_health report_dynamic_outage report_dynamic_port
+			report_dynamic_response report_dynamic_times report_dynamic_top10
+			report_stored_avail report_stored_file report_stored_health
+			report_stored_outage report_stored_port report_stored_response
+			report_stored_times report_stored_top10) },
+	'rrddraw.pl'  => { draw_graph_view => 'read' },
+	'services.pl' => { map { $_ => 'read' } qw(details overview) },
+	'snmp.pl'     => { snmp_var_menu => 'read' },
+	'ip.pl'       => { tool_ip_menu => 'read' },
+);
+
+# enforce_csrf: called by each mutating CGI after loginout and before its dispatch
+# chain. Reads pass through; writes require POST and a valid token.
+# Returns true to continue, false after sending a 403.
+sub enforce_csrf
+{
+	my ($self, $Q) = @_;
+
+	# command-line invocation has no browser and no session, so nothing to forge.
+	# Matches the carve-out OMK-12686 established for the ISINDEX guard.
+	return 1 if (!$ENV{GATEWAY_INTERFACE});
+
+	# auth_require off means the CGIs never call loginout, so there is no session
+	# cookie to ride and no user to bind a token to. Enforcing here would refuse
+	# every write on such an install, since mint_csrf_token cannot produce a token
+	# without a user either.
+	return 1 if (!$self->Require);
+
+	my $script = File::Basename::basename($ENV{SCRIPT_NAME} // $0);
+	my $act    = $Q->{act} // '';
+
+	# unlisted acts are treated as writes, so a new act fails closed rather than
+	# shipping unprotected while nobody notices. The ||{} matters: a nested lookup
+	# would autovivify the script key and grow the registry on every unknown hit.
+	my $class = ($CSRF_ACT_CLASS{$script} || {})->{$act} // 'write';
+	return 1 if ($class eq 'read');
+
+	# OMK-12699 escape hatch, for automation that drives write acts with a session
+	# cookie and no token and would otherwise break on upgrade. Only an explicit
+	# false token disables it, spelled out rather than passed to getbool so that
+	# "falsey" or "no_thanks" cannot switch the guard off by prefix match. Checked
+	# after the read short-circuit so a disabled guard logs once per write, not on
+	# every page load, but still logs, so it stays visible in the auth log.
+	my $enforce = $self->{config}->{auth_csrf_enforce};
+	if (defined($enforce) and $enforce =~ /^\s*(false|f|no|n|0)\s*$/i)
+	{
+		NMISNG::Util::logAuth("SECURITY: CSRF enforcement is off for act=$act on $script, "
+													."auth_csrf_enforce is \"$enforce\"");
+		return 1;
+	}
+
+	my $method = $ENV{REQUEST_METHOD} // '';
+	if ($method ne 'POST')
+	{
+		return $self->_csrf_refuse("act=$act on $script requires POST, got $method");
+	}
+	if (!$self->verify_csrf($Q->{csrf_token}))
+	{
+		return $self->_csrf_refuse("act=$act on $script has a missing or invalid CSRF token");
+	}
+	return 1;
+}
+
+# log the refusal and send a 403. Split out so both refusal paths stay one line.
+sub _csrf_refuse
+{
+	my ($self, $why) = @_;
+
+	NMISNG::Util::logAuth("SECURITY: CSRF check failed, $why");
+	print CGI::header(-status => '403 Forbidden', -type => 'text/plain'),
+		  "403 Forbidden: this request failed its CSRF check.\n",
+		  "If you were filling in a form, reload the page and submit it again. "
+		  ."A form left open longer than the session lifetime carries an expired token.\n";
+	return '';
+}
+
+# the ready-made hidden input, so no CGI needs to know the field name or format.
+# Empty when no token can be minted, rather than a blank value that looks like one.
+sub csrf_hidden_field
+{
+	my $self = shift;
+
+	my $token = $self->mint_csrf_token;
+	return '' if (!$token);
+
+	return CGI::hidden(-name => 'csrf_token', -value => $token, -override => 1);
+}
+
 # returns the configured ssh domain (if any), or a blank string
 sub get_cookie_domain
 {
@@ -336,12 +781,19 @@ sub verify_id
 	my $web_key = $self->_auth_web_key;
 	return '' unless defined $web_key;
 
-	# first, compare the checksum from cookie with a new one generated from cookie value
-	my $expected = Digest::SHA::hmac_sha1_hex($sessiondata, $web_key);
-	if (!_secure_compare($expected, $signature))
+	# compare the cookie signature against both acceptable Mojolicious forms: the
+	# 8.x MAC (HMAC-SHA1 over the value) and the 9.x MAC (HMAC-SHA256 over
+	# "name=value"). The OMK apps share this cookie and their MAC form follows
+	# their Mojolicious version, so nmis9 must accept either to survive an
+	# opmojo4 8.x -> 9.x upgrade (OMK-12902). Both comparisons are constant-time;
+	# a length mismatch (sha1 40 vs sha256 64 hex chars) fails the length guard
+	# in _secure_compare without a byte scan.
+	my %expected = _cookie_signatures($self->get_cookie_name(), $sessiondata, $web_key);
+	if (!_secure_compare($expected{mojo8}, $signature)
+		&& !_secure_compare($expected{mojo9}, $signature))
 	{
 		NMISNG::Util::logAuth('OMK cookie did not validate correctly!'
-						.($self->{debug}? " expected $expected but cookie had $signature" : ""));
+						.($self->{debug}? " expected $expected{mojo8} (mojo8) or $expected{mojo9} (mojo9) but cookie had $signature" : ""));
 		return '';
 	}
 	# only then decode and json-parse the structure
@@ -372,6 +824,24 @@ sub verify_id
 }
 
 
+# CGI::Cookie drops a -samesite it does not recognise without erroring or
+# changing its return value, so on a CGI.pm too old for SameSite the attribute
+# never ships and nothing says so. Warn once per process (OMK-12700).
+our $samesite_drop_logged = 0;
+sub _emit_cookie
+{
+	my ($self, $args) = @_;
+	my $cookie = CGI::cookie($args);
+	if (defined($args->{-samesite}) and $cookie !~ /;\s*SameSite=/i
+			and !$samesite_drop_logged)
+	{
+		$samesite_drop_logged = 1;
+		NMISNG::Util::logAuth("CGI.pm $CGI::VERSION dropped SameSite=$args->{-samesite} from the "
+													."session cookie, so it ships without SameSite. Upgrade CGI.pm.");
+	}
+	return $cookie;
+}
+
 # generate_cookie creates a cookie string
 # based on given username, sso domain and expiration
 # args: user_name (required);
@@ -393,9 +863,11 @@ sub generate_cookie
 	# a stale cookie be cleared while authentication is disabled.
 	if (exists($args{value}))
 	{
-		return CGI::cookie( { -name => $name,
+		return $self->_emit_cookie( { -name => $name,
 							  -domain => $cookiedomain,
 							  -httponly => 1,
+							  $self->_cookie_samesite_args,
+							  -secure => $self->_cookie_secure,
 							  -value => $args{value},
 							  -expires => $expires } );
 	}
@@ -429,16 +901,23 @@ sub generate_cookie
 	$value =~ y/=/-/;
 	my $web_key = $self->_auth_web_key;
 	return '' unless defined $web_key;
-	my $signature = Digest::SHA::hmac_sha1_hex($value, $web_key);
+	# sign in the Mojolicious form selected by auth_sso_cookie_format (default
+	# mojo8 = HMAC-SHA1 over the value; mojo9 = HMAC-SHA256 over "name=value").
+	# verify_id accepts both forms, so this only governs the NMIS->OMK direction
+	# (OMK-12902). Both forms come from the one _cookie_signatures definition.
+	my %sigs = _cookie_signatures($name, $value, $web_key);
+	my $signature = $sigs{$self->_cookie_sign_format};
 
 	NMISNG::Util::logAuth("generated OMK cookie for $authuser: $value--$signature")
 			if ($self->{debug});
 
 	# an explicit value was already returned early above, so at this point the
 	# cookie always carries the freshly signed value.
-	return CGI::cookie( { -name => $name,
+	return $self->_emit_cookie( { -name => $name,
 						  -domain => $cookiedomain,
 						  -httponly => 1,
+						  $self->_cookie_samesite_args,
+						  -secure => $self->_cookie_secure,
 						  -value => "$value--$signature",
 						  -expires => $expires } );
 
@@ -477,7 +956,7 @@ sub user_verify {
 			if($ENV{'REMOTE_USER'} ne "") { $exit=1; }
 			else { $exit=0; }
 		} elsif ( $auth eq "htpasswd" ) {
-			$exit = $self->_file_verify($self->{config}->{auth_htpasswd_file},$u,$p,$self->{config}->{auth_htpasswd_encrypt});
+			$exit = $self->_file_verify($self->{config}->{auth_htpasswd_file},$u,$p);
 		} elsif ( $auth eq "radius" ) {
 			$exit = $self->_radius_verify($u,$p,$auth);
 		} elsif ( $auth eq "tacacs" ) {
@@ -516,24 +995,38 @@ sub user_verify {
 
 #----------------------------------
 
-# verify against a password file:   username:password
-# both unix-std crypt and apache-specific md5 password hashing are tried.
-# encmode == plaintext means plaintext passwords are also allowed
+# _hash_scheme: name the stored hash's scheme, for the upgrade decision only.
+# only des and apr1 are ever rewritten. everything else, including $6$ and
+# whatever crypt can verify but we do not name, is left exactly as it is.
+sub _hash_scheme
+{
+	my ($h) = @_;
+	return 'sha512' if ($h =~ /^\$6\$/);
+	return 'apr1'   if ($h =~ /^\$apr1\$/);
+	return 'des'    if ($h =~ m{^[./0-9A-Za-z]{13}$});
+	return 'other';
+}
+
+# verify against a password file:   username:hash
+# the hash function is chosen from the stored prefix. a weak stored hash is
+# rewritten after a successful login. plaintext storage is not supported.
 sub _file_verify {
 	my $self = shift;
-	my($pwfile,$u,$p,$encmode) = @_;
+	my($pwfile,$u,$p) = @_;
 
-	NMISNG::Util::logAuth("DEBUG: _file_verify($pwfile,$u,$encmode)") if $self->{debug};
-
-	my $allowplaintext = ($encmode eq "plaintext");
-	# the other encmode parameters are ignored.
+	NMISNG::Util::logAuth("DEBUG: _file_verify($pwfile,$u)") if $self->{debug};
 
 	my $havematch=-1;
+	# an empty submitted password can never be correct
+	return 0 if (!defined($p) || $p eq '');
 	if (!open(PW,"<$pwfile"))
 	{
 		NMISNG::Util::logAuth("ERROR: Cannot open password file $pwfile: $!");
 		return 0;
 	}
+	# set_htpasswd_entry rewrites in place, so an unlocked read can see a
+	# truncated file. blocking is safe: writers hold LOCK_EX for microseconds.
+	flock(PW, LOCK_SH);
 
 	while(<PW>)
 	{
@@ -541,11 +1034,50 @@ sub _file_verify {
 		my ($user,$crypted) = split(/:/,$_,2);
 		next if ($user ne $u or $crypted eq '');
 
-		# try all types in sequence: crypt first, apache-md5 second
-		# plaintext if and only if explicitely enabled
-		$havematch = (crypt($p,$crypted) eq $crypted
-									or apache_md5_crypt($p,$crypted) eq $crypted
-									or ($allowplaintext && $p eq $crypted));
+		# a locked account never matches, whatever was submitted
+		if ($crypted =~ /^[*!]/)
+		{
+			NMISNG::Util::logAuth("INFO account $u is locked");
+			$havematch = 0;
+			last;
+		}
+
+		my $scheme = _hash_scheme($crypted);
+		if ($scheme eq 'apr1')
+		{
+			$havematch = (apache_md5_crypt($p, $crypted) eq $crypted) ? 1 : 0;
+		}
+		else
+		{
+			# crypt returns undef or a * token when libcrypt cannot handle the
+			# stored prefix. that is a platform problem, not a wrong password.
+			my $c = crypt($p, $crypted);
+			if (!defined($c) or $c =~ /^\*/)
+			{
+				NMISNG::Util::logAuth("ERROR cannot verify the stored password hash "
+					. "for user $u in $pwfile: scheme not supported by this platform");
+				$havematch = 0;
+				last;
+			}
+			$havematch = ($c eq $crypted) ? 1 : 0;
+		}
+
+		# upgrade a weak stored hash, but never fail the login over it. only des
+		# and apr1 are rewritten: $6$ and anything from an external htpasswd are
+		# left exactly as they are.
+		if ($havematch && ($scheme eq 'des' or $scheme eq 'apr1'))
+		{
+			# drop the read lock first: flock conflicts per open file description,
+			# so our own LOCK_SH would refuse the writer's LOCK_EX.
+			flock(PW, LOCK_UN);
+			my $err = eval {
+				NMISNG::Util::set_htpasswd_entry(file => $pwfile, user => $user,
+					expect => $crypted, hash => NMISNG::Util::hash_password($p));
+			};
+			$err = $@ if ($@);
+			NMISNG::Util::logAuth("WARNING could not upgrade the password hash "
+				. "for $u: $err") if ($err);
+		}
 		last;
 	}
 	close PW;
@@ -1148,8 +1680,7 @@ sub do_logout {
 
 	# that's the NAME not the config data
 	my $config = $args{conf} || $self->{confname};
-	my $max_sessions_enabled = NMISNG::Util::getbool($self->{config}->{max_sessions_enabled});
-	
+
 	# Javascript that sets window.location to login URL
 	### fixing the logout so it can be reverse proxied
 	CGI::delete('auth_type'); 		# but don't keep that one
@@ -1157,17 +1688,13 @@ sub do_logout {
 	my $url = CGI::url(-full=>1);
 	$url =~ s!^[^:]+://!//!;
 
-	if ($max_sessions_enabled)
-	{
-		# Remove session
-		my $cgi = new CGI;  
-		my $session_dir = $self->{config}->{'session_dir'} // $self->{config}->{'<nmis_var>'}."/nmis_system/user_session";
-		my $sid = $cgi->cookie($self->get_session_cookie_name()) || $cgi->param($self->get_session_cookie_name()) || undef;
-		my $session = load CGI::Session(undef, $sid, {Directory=>$session_dir});
-		if ($session) {
-			$session->delete();
-			$session->flush();
-		}
+	# OMK-12824: only our own session, and always, not just when
+	# max_sessions_enabled is on: sessions are created either way, so a gated
+	# delete just leaks privilege-bearing files.
+	my $session = $self->_load_owned_session(user => $self->{user});
+	if ($session) {
+		$session->delete();
+		$session->flush();
 	}
 	
 	my $javascript = "function redir() { window.location = '" . NMISNG::Util::escape_js_string($url) . "'; }";
@@ -1473,7 +2000,6 @@ sub loginout {
 	my $headeropts = $args{headeropts};
 	my @cookies = ();
 	my $session;
-	my $session_dir = $self->{config}->{'session_dir'} // $self->{config}->{'<nmis_var>'}."/nmis_system/user_session";
 	my $last_login_dir = $self->{config}->{'last_login_dir'} // $self->{config}->{'<nmis_var>'}."/nmis_system";
 		
 	NMISNG::Util::logAuth("DEBUG: loginout, Type=$type Username=$username")
@@ -1586,13 +2112,7 @@ sub loginout {
 				}	
 				if ($session) {
 					NMISNG::Util::logAuth("DEBUG: loginout, Created a new session.") if $self->{debug};
-					$session->param('auth',                $self->{auth});
-					$session->param('username',            $self->{user});
-					$session->param('dn',                  $self->{dn});
-					$session->param('priv',                $self->{priv});
-					$session->param('privlevel',           $self->{privlevel});
-					$session->param('groups',              $self->{groups});
-					$session->param('rawgroups',           $self->{rawgroups});
+					$self->_store_session_privs($session);
 				} else {
 					NMISNG::Util::logAuth("DEBUG: loginout, Unable to create a new session.") if $self->{debug};
 				}
@@ -1682,21 +2202,16 @@ To re-enable this account visit $self->{config}->{nmis_host_protocol}://$self->{
 	if ($self->{user}) {
 #		if ($max_sessions_enabled)
 #		{
-			# Load session
+			# OMK-12824: load(undef,undef) took the id from the cookie OR the query
+			# string, and any session it found might be someone else's.
 			if (!$session) {
-				$session = CGI::Session->load(undef, undef, {Directory=>$session_dir});
+				$session = $self->_writeback_session(user => $self->{user});
 			}
 			
 			# This is the session cookie
 			if ($session) {
 				NMISNG::Util::logAuth("DEBUG: loginout, Found an existing session.") if $self->{debug};
-				$session->param('auth',                $self->{auth});
-				$session->param('username',            $self->{user});
-				$session->param('dn',                  $self->{dn});
-				$session->param('priv',                $self->{priv});
-				$session->param('privlevel',           $self->{privlevel});
-				$session->param('groups',              $self->{groups});
-				$session->param('rawgroups',           $self->{rawgroups});
+				$self->_store_session_privs($session);
 				my $cookie = $self->generate_cookie(user_name => $self->{user}, name => $session->name, value => $session->id);
 				push @cookies, $cookie;
 				NMISNG::Util::logAuth("DEBUG: loginout made Session cookie $cookies[0]") if $self->{debug};
@@ -1820,23 +2335,27 @@ sub SetUser {
 	{
 		# Determine if we are already logged in.
 		NMISNG::Util::logAuth("DEBUG Auth::SetUser, verifying user '$user'.") if $self->{debug};
-		my $testCookie = $self->verify_id();
-		if( $testCookie ne '' ) { # Found valid cookie
-			NMISNG::Util::logAuth("DEBUG Auth::SetUser, user '$user' verified.") if $self->{debug};
-			my $cgi = new CGI;
-			my $session_dir = $self->{config}->{'session_dir'} // $self->{config}->{'<nmis_var>'}."/nmis_system/user_session";
-			my $sid = $cgi->cookie($self->get_session_cookie_name()) || $cgi->param($self->get_session_cookie_name()) || undef;
-			my $session = load CGI::Session(undef, $sid, {Directory=>$session_dir});
-			if ($session && $session->param('priv')) {
-				NMISNG::Util::logAuth("DEBUG Auth::SetUser, User '$user' found cached priveleges.") if $self->{debug};
-				$self->{user}      = $user;
-				$self->{auth}      = $session->param('auth');
-				$self->{dn}        = $session->param('dn');
-				$self->{priv}      = $session->param('priv');
-				$self->{privlevel} = $session->param('privlevel');
-				$self->{rawgroups} = $session->param('rawgroups');
-				$self->SetGroups( rawgroups => $self->{rawgroups} );
-				return 1;
+		my $authuser = $self->verify_id();
+		# OMK-12824: the cookie says who is authenticated, so the argument must be
+		# that same user, and the session must be theirs and signed by us.
+		if ($authuser ne '' and lc($authuser) eq lc($user))
+		{
+			my $session = $self->_load_owned_session(user => $authuser);
+			if ($session and $session->param('priv') and $self->_session_privs_trusted($session))
+			{
+				my $privlevel = $self->_privlevel_for($session->param('priv'));
+				if (defined $privlevel)
+				{
+					NMISNG::Util::logAuth("DEBUG Auth::SetUser, User '$user' found cached privileges.") if $self->{debug};
+					$self->{user}      = $user;
+					$self->{auth}      = $session->param('auth');
+					$self->{dn}        = $session->param('dn');
+					$self->{priv}      = $session->param('priv');
+					$self->{privlevel} = $privlevel;
+					$self->{rawgroups} = $session->param('rawgroups');
+					$self->SetGroups( rawgroups => $self->{rawgroups} );
+					return 1;
+				}
 			}
 		}
 		$self->{user} = $user; # username
@@ -2045,6 +2564,15 @@ sub TableRegistered {
 	return (ref($registry) eq "HASH" and exists($registry->{$table})) ? 1 : 0;
 }
 
+# CGI::Session::load asks its query object for the claimed session id via
+# cookie() then param(). Answering undef to both is what forces a fresh id.
+{
+	package NMISNG::Auth::_FreshSessionQuery;
+	sub new    { return bless({}, shift); }
+	sub cookie { return undef; }
+	sub param  { return undef; }
+}
+
 # Generate a session to track user login state in the server side
 sub generate_session {
 	
@@ -2056,8 +2584,11 @@ sub generate_session {
 	my $expires = ($args{expires} // $self->{config}->{auth_expire}) || '+60min';
 	my $cookiedomain = $self->get_cookie_domain;
 
-	# Generate session; CGI::Session creates its own unpredictable id
-	my $session = CGI::Session->new(undef, undef, {Directory=>$session_dir});
+	# OMK-12824: new(undef,undef) adopts the session the request's CGISESSID names,
+	# data and all, so a caller could choose the id. The stub query hides the
+	# request's id and makes CGI::Session generate its own.
+	my $session = CGI::Session->new(undef, NMISNG::Auth::_FreshSessionQuery->new,
+			{Directory=>$session_dir});
 	NMISNG::Util::logAuth("INFO Generating session $name for user $user") if ($self->{debug});
 	
 	$session->param('username', $user);
@@ -2114,8 +2645,12 @@ sub read_session_fields
 }
 
 # returns the current session counter for the given user
-# args: user, required.
+# args: user, required. "ALL" matches every user. remove_all, optional.
 # returns: (undef,counter) or error message
+#
+# ALSO DELETES, intentionally: expired session files for that user are unlinked
+# as it walks. remove_all unlinks that user's sessions whether expired or not,
+# which is how a password change evicts them (bin/nmis-cli::_evict_sessions).
 sub get_live_session_counter
 {
 	my ($self, %args) = @_;
@@ -2163,9 +2698,15 @@ sub get_live_session_counter
 	return (undef, $count);
 }
 
-# returns the current session counter for the given user
-# args: user, required.
-# returns: (undef,counter) or error message
+# live session counts for every user.
+# args: none. returns: hashref of { user => { sessions => n } }, undef if the
+# session dir cannot be opened.
+#
+# ALSO A GARBAGE COLLECTOR, intentionally: every expired session file it walks
+# past is unlinked. Nothing else removes them, so bin/nmisd's purge job calls
+# this hourly purely for that side effect and discards the counts. Without it the
+# directory grows without bound and anything scanning it for a user gets slower
+# forever.
 sub get_all_live_session_counter
 {
 	my ($self, %args) = @_;

@@ -1,8 +1,14 @@
 #!/usr/bin/env bash
 set -eu
 
-nmis_home="/usr/local/nmis9"
+# The defaults are the CI container's layout. They are overridable so the
+# behaviour of this script can itself be tested (test/t_ci_perl_tests.t drives
+# the real file with a stub prove), and so it can be run against a checkout
+# outside the container. CI sets none of these.
+nmis_home="${NMIS_HOME:-/usr/local/nmis9}"
 nmis_tests="$nmis_home/test"
+prove_bin="${PROVE:-/usr/bin/prove}"
+yes_bin="${YES:-/usr/bin/yes}"
 
 working_tests=(
     uuid.t
@@ -32,6 +38,7 @@ working_tests=(
     t_report_filename.t
     t_isindex_guard.t
     t_rrddraw_filename.t
+    t_logs_file_confinement.t
     t_auth_graph_refusal.t
     t_graph_authz.t
     t_setup_mongodb_shell.t
@@ -39,8 +46,11 @@ working_tests=(
     t_authkey_recovery.t
     t_authkey_env.t
     t_auth_cookie_flavour.t
+    t_auth_cookie_flags.t
     t_auth_sso_shared_key.t
+    t_auth_mojo9_cookie.t
     t_auth_session_no_eval.pl
+    t_plugin_loader_guard.t
     notify_depend.t
     t_nmisng_node_nomodel.pl
     t_util_escape.pl
@@ -53,12 +63,35 @@ working_tests=(
     t_tests_snmp_injection.t
     t_http_security_headers.t
     t_config_load_perms.pl
+    t_htpasswd_store.t
+    t_auth_password_rehash.t
+    t_nmis_cli_htpasswd.t
+    t_nmis_cli_seed_password.t
+    t_nmis_cli_discard_password.t
+    t_seed_decision.t
+    t_session_expiry.t
+    t_auth_session_privs.t
     t_access_policy.pl
     t_cgi_tables_secret_passthrough.t
+    t_mongo_exposure.t
+    t_csrf.t
+    t_csrf_cgi.t
+    t_ci_perl_tests.t
 )
 
+# run every file even when one fails, so a failure early in the list does not
+# hide the state of everything after it. set -e would abort the loop otherwise.
+status=0
+failed=()
 for i in "${working_tests[@]}"; do
-    /usr/bin/yes n | /usr/bin/prove "$nmis_tests/$i"
+    if ! "$yes_bin" n | "$prove_bin" "$nmis_tests/$i"; then
+        status=1
+        failed+=("$i")
+    fi
 done
 
-exit 0
+if [ "$status" -ne 0 ]; then
+    echo "FAILED: ${failed[*]}" >&2
+fi
+
+exit $status

@@ -36,6 +36,7 @@ use lib "$FindBin::Bin/../lib";
 
 use POSIX qw();
 use File::Basename;
+use File::Path qw(make_path);
 use Getopt::Long;
 use File::Spec;
 use Data::Dumper;
@@ -45,6 +46,7 @@ use Time::HiRes;
 
 # this imports the LOCK_ *constants (eg. LOCK_UN, LOCK_EX), also the stat modes
 use Fcntl qw(:DEFAULT :flock :mode);
+use JSON::XS;
 use Errno qw(EAGAIN ESRCH EPERM);
 
 use NMISNG;
@@ -130,7 +132,13 @@ my $usage       = "Usage: $PROGNAME [option=value...] <act=command>
  act=get-sessions user=<username>
  act=set-last-login user=<username> last_login=<last_login>
  act=unlock-user user=<username>
- 
+
+ act=set-htpasswd-password user=<username> [password=<pass>] [file=<path>]
+ act=seed-htpasswd-password user=<username> [file=<path>] [reveal=auto|show|none]
+ act=list-htpasswd [file=<path>]
+ act=delete-htpasswd-user user=<username> [file=<path>]
+ act=discard-initial-password
+
  act=notify event=<event> <node|uuid>=<instance> [element=<element> details=<details> level=<level>]
  
  \033[1m For additional information run '$PROGNAME -h' \033[0m
@@ -338,14 +346,51 @@ my $tmp = NMISNG::Util::getTmpDir();
 # Run the above two actions BEFORE getting a database connection #
 ##################################################################
 
+# for audit logging
+my ($thislogin) = getpwuid($<); # only first field is of interest
+
+# htpasswd administration needs no database, and must not require one: the
+# installer seeds a password at hook 05, long before mongodb is set up at
+# hook 24. dispatch here and exit, above the connection below.
+if ($Q->{act} =~ /^set[-_]htpasswd[-_]password$/)
+{
+	set_htpasswd_password(user => $Q->{user}, password => $Q->{password},
+		file => _resolve_htpasswd_file($Q->{file}));
+	exit 0;
+}
+elsif ($Q->{act} =~ /^seed[-_]htpasswd[-_]password$/)
+{
+	seed_htpasswd_password(user => $Q->{user},
+		file   => _resolve_htpasswd_file($Q->{file}),
+		reveal => $Q->{reveal},
+		# defaults to FALSE: inventing a password is only safe where something can
+		# retrieve it and later remove the file, which the caller knows and we do
+		# not. So the unsafe direction is the one you opt into.
+		generate_password => NMISNG::Util::getbool_cli("generate-password",
+			$Q->{'generate-password'} // $Q->{generate_password}, 0));
+	exit 0;
+}
+elsif ($Q->{act} =~ /^list[-_]htpasswd$/)
+{
+	list_htpasswd(file => _resolve_htpasswd_file($Q->{file}));
+	exit 0;
+}
+elsif ($Q->{act} =~ /^delete[-_]htpasswd[-_]user$/)
+{
+	delete_htpasswd_user(user => $Q->{user}, file => _resolve_htpasswd_file($Q->{file}));
+	exit 0;
+}
+elsif ($Q->{act} =~ /^discard[-_]initial[-_]password$/)
+{
+	discard_initial_password();
+	exit 0;
+}
+
 # this opens a database connection
 my $nmisng = NMISNG->new(
 	config => $C,
        log => $logger,
 );
-
-# for audit logging
-my ($thislogin) = getpwuid($<); # only first field is of interest
 
 ##if ($Q->{act} =~ /^decrypt[-_]password$/)
 ##{
@@ -1080,15 +1125,25 @@ elsif ($Q->{act} eq "fixperms")
 	}
 	else
 	{
-		system("chown","-R","$C->{nmis_user}:$C->{nmis_group}", $C->{'<nmis_base>'});
-		system("chmod","-R","g+rw", $C->{'<nmis_base>'});
+		if (system("chown", "-R", "$C->{nmis_user}:$C->{nmis_group}", $C->{'<nmis_base>'}) != 0)
+		{
+			warn "fixperms: chown -R on $C->{'<nmis_base>'} failed (exit " . ($? >> 8) . ")\n";
+		}
+		if (system("chmod", "-R", "g+rw", $C->{'<nmis_base>'}) != 0)
+		{
+			warn "fixperms: chmod -R g+rw on $C->{'<nmis_base>'} failed (exit " . ($? >> 8) . ")\n";
+		}
 
 		if ( $C->{'<nmis_base>'} ne $C->{'<nmis_data>'} )
 		{
-			system("chown","-R", "$C->{nmis_user}:$C->{nmis_group}",
-						 $C->{'<nmis_data>'});
-
-			system("chmod","-R","g+rw", $C->{'<nmis_data>'});
+			if (system("chown", "-R", "$C->{nmis_user}:$C->{nmis_group}", $C->{'<nmis_data>'}) != 0)
+			{
+				warn "fixperms: chown -R on $C->{'<nmis_data>'} failed (exit " . ($? >> 8) . ")\n";
+			}
+			if (system("chmod", "-R", "g+rw", $C->{'<nmis_data>'}) != 0)
+			{
+				warn "fixperms: chmod -R g+rw on $C->{'<nmis_data>'} failed (exit " . ($? >> 8) . ")\n";
+			}
 		}
 	}
 
@@ -1141,6 +1196,32 @@ elsif ($Q->{act} eq "fixperms")
 		NMISNG::Util::setFileProtDirectory($location, "true");
 
 		$done{$location} = 1;
+	}
+
+	# Tighten plugin directories (OMK-12697): runs after all setFileProtDirectory passes
+	# so the generic single-depth loop cannot re-loosen plugin_root back to nmis:nmis 0770.
+	# Avoid running fixperms during active polling cycles; nmisd workers forked in the
+	# brief window between the broad g+rw and this block may reject plugins.
+	if ($< == 0)
+	{
+		my $powner = "$C->{nmis_user}:$C->{nmis_group}";
+		for my $plugindir ($C->{plugin_root}, $C->{plugin_root_default})
+		{
+			next if (!defined $plugindir || !-d $plugindir);
+
+			if (system("chown", "-R", $powner, $plugindir) != 0)
+			{
+				warn "fixperms: chown -R $powner $plugindir failed (exit " . ($? >> 8) . ") — run as root\n";
+				next;
+			}
+			if (system("chmod", "-R", "go-w", $plugindir) != 0)
+			{
+				warn "fixperms: chmod -R go-w $plugindir failed (exit " . ($? >> 8) . ")\n";
+				next;
+			}
+			print "Tightened plugin directory $plugindir ($powner, group-write removed)\n"
+					if ($verbose);
+		}
 	}
 
 	# remove the selftest cache file to ensure it's regenerated;
@@ -1746,9 +1827,630 @@ sub unlock_user
 		}
 		
 	} else {
-		print "unlock_user $user. Done \n"; 
+		print "unlock_user $user. Done \n";
 	}
-	
+
+}
+
+# htpasswd password administration.
+# passwords only. privileges and roles live in conf/Users.nmis and are not
+# managed here. act=seed-htpasswd-password below is the install-time seeder,
+# which never overwrites a password that is already set, and never re-enables an
+# account an operator locked.
+
+# drop every live session for $user after their password changed. A session
+# established with the old password must not outlive it, which is the whole
+# point of a rotation (OWASP ASVS V3.3.3). Scoped to this account on purpose:
+# nobody else's credential changed.
+#
+# NMISNG::Auth->new needs config only, no database. That matters here, because
+# the seeder runs at installer hook 05 and mongodb is not set up until hook 24.
+# Best effort: a rotation that succeeded must not be reported as failed just
+# because the session directory was unreadable.
+# the operator-supplied admin password, from the environment so it stays out of
+# argv. NOT an NMIS_ name: _apply_env_overrides maps NMIS_<KEY> onto config key
+# lc(<KEY>), which would expose the plaintext in the config.
+# returns ($password, $error); undef password and no error means none supplied.
+sub _supplied_admin_password
+{
+	my $direct = $ENV{NMIS9_ADMIN_PASSWORD};
+	my $file   = $ENV{NMIS9_ADMIN_PASSWORD_FILE};
+	# empty is "not supplied": the shipped .env carries the key with no value, so
+	# that there is never a default password anyone could leave in place.
+	undef $direct if (defined($direct) && $direct eq '');
+	undef $file   if (defined($file) && $file eq '');
+
+	return (undef, "NMIS9_ADMIN_PASSWORD and NMIS9_ADMIN_PASSWORD_FILE are both "
+		. "set, use one or the other") if (defined($direct) && defined($file));
+	return ($direct, undef) if (defined $direct);
+	return (undef, undef)   if (!defined $file);
+
+	# the _FILE form is the docker-secret convention the postgres, mysql and
+	# mongo images use, so the secret can live outside the environment.
+	# O_NOFOLLOW for parity with _write_initial_password_file: this reads as root
+	# from an operator-named path, so a planted symlink must fail rather than
+	# redirect the read.
+	sysopen(my $fh, $file, O_RDONLY | O_NOFOLLOW)
+		or return (undef, "cannot read NMIS9_ADMIN_PASSWORD_FILE $file: $!");
+	my $pw = <$fh>;
+	close $fh;
+	$pw = '' if (!defined $pw);
+	$pw =~ s/\r?\n\z//;    # trailing newline is an artefact of writing the file
+	return (undef, "NMIS9_ADMIN_PASSWORD_FILE $file is empty") if ($pw eq '');
+	return ($pw, undef);
+}
+
+# sessions are files with no index by user, so finding one account's means
+# opening every file. Count first: readdir stays cheap where opens do not.
+my $EVICT_NOTICE_THRESHOLD = 1000;
+
+sub _evict_sessions
+{
+	my ($user) = @_;
+
+	my $dir = $C->{session_dir} || $C->{'<nmis_var>'} . "/nmis_system/user_session";
+	my $count = 0;
+	if (opendir(my $D, $dir))
+	{
+		while (defined(my $entry = readdir($D))) { $count++ if ($entry !~ /^\.\.?$/); }
+		closedir($D);
+	}
+	# a fresh install takes this path, so it never pays for a pointless scan
+	return if (!$count);
+
+	# an installer that goes quiet for minutes looks hung, so say what it is doing
+	# $count is every user's files, not $user's: it is the scan cost, not the
+	# number that will be evicted.
+	print STDERR "Scanning $count session files for $user's sessions, this may "
+		. "take a moment.\n" if ($count >= $EVICT_NOTICE_THRESHOLD);
+
+	my ($err) = eval {
+		NMISNG::Auth->new(conf => $C)
+			->get_live_session_counter(user => $user, remove_all => 1);
+	};
+	$err = $@ if ($@);
+	print STDERR "WARNING: password changed but could not clear existing "
+		. "sessions for $user: $err\n" if ($err);
+	return;
+}
+
+sub _resolve_htpasswd_file
+{
+	my ($given) = @_;
+	my $file = (defined($given) && $given ne '') ? $given : $C->{auth_htpasswd_file};
+	if (!defined($file) || $file eq '')
+	{
+		print STDERR "ERROR: no htpasswd file given and auth_htpasswd_file is not set\n";
+		exit 2;
+	}
+	return $file;
+}
+
+# true when $hash validates a password NMIS shipped as the default 'nmis'
+# credential. checks the same schemes NMISNG::Auth does (des crypt, then apache
+# apr1), so it catches the shipped hash and any salt variant but never a real
+# password. the list is inside the sub deliberately: this is called from the
+# pre-database dispatch, above any file-scope 'my' this far down the script.
+sub _verifies_known_default
+{
+	my ($hash) = @_;
+	return 0 if (!defined($hash) || $hash eq '');
+
+	my @known     = ('nm1888');
+	my $have_apr1 = eval { require Crypt::PasswdMD5; 1; };
+	for my $pw (@known)
+	{
+		my $c = eval { crypt($pw, $hash); };
+		return 1 if (defined($c) && $c eq $hash);
+		return 1 if ($have_apr1
+			&& Crypt::PasswdMD5::apache_md5_crypt($pw, $hash) eq $hash);
+	}
+	return 0;
+}
+
+# true when $hash is the never-seeded marker conf-default/users.dat ships. no
+# operator would type it, so any other lock is a deliberate lockdown. exact
+# match, and t_seed_decision.t pins the shipped file to the same string.
+sub _is_shipped_seed
+{
+	my ($hash) = @_;
+	return (defined($hash) && $hash eq '*NMIS-UNSEEDED*') ? 1 : 0;
+}
+
+# the first non-empty hash for $user, matching NMISNG::Auth::_file_verify which
+# skips empty lines and stops at the first usable match. undef means no usable
+# line, which includes a file that does not exist.
+sub _first_usable_hash
+{
+	my ($file, $user) = @_;
+	open(my $fh, '<', $file) or return undef;
+	while (my $line = <$fh>)
+	{
+		chomp $line;
+		my ($u, $h) = split(/:/, $line, 2);
+		next if (!defined($u) || $u ne $user);
+		next if (!defined($h) || $h eq '');
+		close $fh;
+		return $h;
+	}
+	close $fh;
+	return undef;
+}
+
+# record the password in a root-only file, so an unattended install can retrieve
+# it later. unlink first to clear any planted symlink, then O_EXCL|O_NOFOLLOW so
+# a symlink winning the race fails the open (CWE-59) and 0600 is guaranteed ours.
+sub _write_initial_password_file
+{
+	my ($pwfile, $user, $password) = @_;
+	my $err;
+	eval {
+		my $pwdir = dirname($pwfile);
+		make_path($pwdir, { mode => 0700 }) if (!-d $pwdir);
+		unlink($pwfile);
+		my $pfh;
+		sysopen($pfh, $pwfile, O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW, 0600)
+			or die "open $pwfile: $!\n";
+		# the removal warning belongs here too, not only in the installer banner:
+		# by the time anyone reads this file the banner has long scrolled away.		
+		print $pfh <<"FILE" or die "write $pwfile: $!\n";
+NMIS initial administrator login
+username: $user
+password: $password
+
+
+This file is removed automatically within an hour of the first GUI login,
+so record this password now.
+Delete this file once you have recorded the password.
+FILE
+		close $pfh or die "close $pwfile: $!\n";
+		chown(0, -1, $pwfile);    # best effort, needs root
+		1;
+	} or do { $err = $@ || "unknown error"; };
+	return $err;
+}
+
+# seed a random password for $user, but only when the account is not genuinely
+# configured. safe to call on every install, upgrade and container start.
+sub seed_htpasswd_password
+{
+	my %args = @_;
+	my ($user, $file, $reveal, $generate_password)
+		= @args{qw(user file reveal generate_password)};
+	$reveal = 'auto' if (!defined($reveal) || $reveal eq '');
+	if ($reveal !~ /^(auto|show|none)$/)
+	{
+		print STDERR "ERROR: reveal= must be auto, show or none\n";
+		exit 1;
+	}
+	if (!defined($user) || $user eq '')
+	{
+		print STDERR "ERROR: act=seed-htpasswd-password needs user=<name>\n";
+		exit 1;
+	}
+
+	my $current = _first_usable_hash($file, $user);
+
+	# the shipped marker says "never seeded" and is replaced. any other lock is
+	# an operator lockdown and is left alone, so an install, an upgrade and a
+	# container restart can all run this with no caller-supplied context.
+	my $missing_or_empty = !defined($current);
+	my $is_shipped_seed  = _is_shipped_seed($current);
+	my $is_known_default = defined($current) && _verifies_known_default($current);
+
+	exit 0 if (!($missing_or_empty || $is_shipped_seed || $is_known_default));
+
+	# preferred source is the operator, through the environment: they already know
+	# it, so nothing has to be written down for them to fetch later.
+	my ($supplied, $supplied_err) = _supplied_admin_password();
+	if ($supplied_err)
+	{
+		print STDERR "ERROR: $supplied_err\n";
+		exit 1;
+	}
+
+	# caller's policy, like reveal=, and not something we can see for ourselves:
+	# both cases are root writing the same file here. What differs is whether a
+	# later process can read and remove it. Defaults off, so it is opted into.
+	if (!defined($supplied) && !$generate_password)
+	{
+		print STDERR "ERROR: user $user needs a password set and none was supplied.\n"
+			. "  Either supply one, by setting NMIS9_ADMIN_PASSWORD or pointing\n"
+			. "  NMIS9_ADMIN_PASSWORD_FILE at a file holding it,\n"
+			. "  or pass generate-password=t to have one invented and written to\n"
+			. "  the initial-password file. Only do that where something can read\n"
+			. "  that file afterwards and remove it once it is spent.\n";
+		exit 2;
+	}
+
+	my ($password, $hash);
+	eval {
+		$password = defined($supplied) ? $supplied
+			: NMISNG::Util::generate_random_password();
+		$hash     = NMISNG::Util::hash_password($password);
+		1;
+	} or do {
+		print STDERR "ERROR: could not generate an administrator password: $@";
+		exit 2;
+	};
+
+	# an operator-supplied password needs no recording: they already have it.
+	# Only a password we invented has to be written down.
+	my $pwfile = $ENV{NMIS_INITIAL_PASSWORD_FILE}
+		|| "/usr/local/etc/firstwave/nmis-initial-password";
+	my $pwerr;
+	if (!defined($supplied))
+	{
+		# record the password BEFORE writing the store: if it can be neither saved
+		# nor shown we must not install a password nobody can retrieve.
+		$pwerr = _write_initial_password_file($pwfile, $user, $password);
+		print STDERR "WARNING: could not write $pwfile: $pwerr" if ($pwerr);
+	}
+
+	# never echo a password the operator handed us. They already have it, and
+	# printing it only widens where it has been.
+	my $show = !defined($supplied)
+		&& (($reveal eq 'show') || ($reveal eq 'auto' && $pwerr));
+	if ($pwerr && !$show)
+	{
+		print STDERR "ERROR: could not record the generated password in $pwfile "
+			. "and reveal=none forbids printing it; refusing to install an "
+			. "unrecoverable password. Fix the pwfile location and re-run.\n";
+		exit 2;
+	}
+
+	# set_htpasswd_entry opens '+<' and needs the file to exist. O_NOFOLLOW
+	# because conf/ is web-group writable and a planted symlink must fail.
+	# 0660 nmis-owned is the deployed norm, matching installer_hooks/20-postcopy-user.
+	if (!-e $file)
+	{
+		my $nfh;
+		sysopen($nfh, $file, O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW, 0660)
+			or do {
+				print STDERR "ERROR: cannot create $file: $!\n";
+				exit 2;
+			};
+		close $nfh;
+		# needs root, and skipped when there is no nmis user. best effort: a wrong
+		# owner is recoverable, so warn rather than fail the seeding.
+		my @nm = getpwnam('nmis');
+		if (@nm)
+		{
+			chown($nm[2], $nm[3], $file)
+				or print STDERR "WARNING: could not chown $file to nmis: $!\n";
+		}
+	}
+
+	# expect makes this a compare-and-swap when there was an entry, closing the
+	# window between the classification read above and the locked write here.
+	my $err = NMISNG::Util::set_htpasswd_entry(file => $file, user => $user,
+		hash => $hash, retries => 40,
+		(defined($current) ? (expect => $current) : ()));
+	if ($err)
+	{
+		print STDERR "ERROR: $err\n";
+		exit 2;
+	}
+
+	if (!_htpasswd_entry_matches($file, $user, $hash))
+	{
+		print STDERR "ERROR: the new password for $user is not in $file after "
+			. "writing. Another process (e.g. opmojo, or htpasswd) may have "
+			. "written the file at the same time. Re-run and check.\n";
+		exit 2;
+	}
+
+	_evict_sessions($user);
+
+	my $audit_err = NMISNG::Util::audit_log(who => $thislogin,
+		what => "seeded htpasswd password", where => $file, how => "nmis-cli",
+		when => time, details => "set "
+			.(defined($supplied)? "an operator-supplied" : "a random")
+			." password for user $user");
+	print STDERR "WARNING: could not write audit log: $audit_err\n" if ($audit_err);
+
+	# '+' rules rather than '=', to match the installer's printBanner in
+	# installer_hooks/common_functions.sh. 99-postinstall-welcome repeats this.
+	my $nmisdir = dirname($FindBin::Bin);
+	my @banner;
+	push @banner, "";
+	push @banner, "++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++";
+	push @banner, "+ NMIS initial administrator password";
+	push @banner, "++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++";
+	push @banner, "";
+	push @banner, "The default username for NMIS is $user.";
+	if (defined $supplied)
+	{
+		# nothing to record and nothing to retrieve: they chose it.
+		push @banner, "The password supplied in the environment has been set for the $user user.";
+	}
+	elsif (!$pwerr)
+	{
+		push @banner, "To find the $user password:";
+		push @banner, "";
+		push @banner, "    sudo cat $pwfile";
+		push @banner, "";
+		push @banner, "Record it now. That file is removed automatically within an hour of";
+		push @banner, "the first GUI login, so it will not be there later.";
+	}
+	else
+	{
+		push @banner, "A random password has been set for the nmis user, but it could NOT be saved to";
+		push @banner, "$pwfile. Record the password shown below now, it is not stored anywhere.";
+	}
+	if ($show)
+	{
+		push @banner, "";
+		push @banner, "    username: $user";
+		push @banner, "    password: $password";
+	}
+	push @banner, "";
+	push @banner, "To reset the $user password later:";
+	push @banner, "";
+	push @banner, "    sudo $nmisdir/bin/nmis-cli act=set-htpasswd-password user=$user";
+	push @banner, "";
+	push @banner, "More on logging in:";
+	push @banner, "";
+	push @banner, "    $nmisdir/README.md, section 'Initial NMIS administrator login'";
+	push @banner, "    NMIS 9 Installation Guide  https://docs.community.firstwave.com/wiki/x/4ZGwv";
+	push @banner, "";
+	print "$_\n" for @banner;
+	return;
+}
+
+# retire the initial-password file once anyone has logged into the GUI. ANY user,
+# because an LDAP or SSO site never logs in as nmis. Compared against the pwfile
+# mtime, so a re-seed is not retired by an older login. Fails closed throughout.
+#
+# NOTE: users_login.json records last ACTIVITY, not last login: update_last_login
+# fires on the cookie path too, so an idle auto-refreshing tab stamps it. Do not
+# build on it meaning a fresh login. See the known limits in the register.
+sub discard_initial_password
+{
+	my $pwfile = $ENV{NMIS_INITIAL_PASSWORD_FILE}
+		|| "/usr/local/etc/firstwave/nmis-initial-password";
+	return if (!-e $pwfile);
+	my $pwmtime = (stat(_))[9];
+
+	# same path as NMISNG::Auth::update_last_login, which writes it. || not // on
+	# purpose: Auth uses //, so a last_login_dir configured as '' would give it a
+	# broken '/users_login.json'. Falling back on any false value is the safer
+	# read, so this deliberately does not mirror Auth exactly.
+	my $logindir  = $C->{last_login_dir} || $C->{'<nmis_var>'} . "/nmis_system";
+	my $loginfile = "$logindir/users_login.json";
+	return if (!-e $loginfile);
+
+	my $raw;
+	if (open(my $fh, '<', $loginfile))
+	{
+		local $/;
+		$raw = <$fh>;
+		close $fh;
+	}
+	else
+	{
+		print STDERR "ERROR: cannot read $loginfile: $!\n";
+		exit 2;
+	}
+
+	my $logins = eval { JSON::XS->new->decode($raw) };
+	if ($@ || ref($logins) ne "HASH")
+	{
+		print STDERR "ERROR: cannot parse $loginfile, leaving $pwfile in place\n";
+		exit 2;
+	}
+
+	# newest login of any user. the file is written by the web user, so treat
+	# every value as untrusted and skip anything that is not a timestamp.
+	my ($who, $when);
+	for my $user (sort keys %$logins)
+	{
+		my $stamp = $logins->{$user};
+		next if (!defined($stamp) || $stamp !~ /^\d+$/);
+		($who, $when) = ($user, $stamp) if (!defined($when) || $stamp > $when);
+	}
+	return if (!defined($when) || $when < $pwmtime);
+
+	if (!unlink($pwfile))
+	{
+		print STDERR "ERROR: cannot remove $pwfile: $!\n";
+		exit 2;
+	}
+
+	# details name the login that retired it, never the file's contents
+	my $audit_err = NMISNG::Util::audit_log(who => $thislogin,
+		what => "discarded initial password", where => $pwfile, how => "nmis-cli",
+		# "authenticated activity", not "login": update_last_login also fires on the
+		# cookie path, so this may be an idle tab rather than a fresh login. The
+		# audit trail must not claim more than the trigger proves.
+		when => time, details => "removed after authenticated activity by user $who");
+	print STDERR "WARNING: could not write audit log: $audit_err\n" if ($audit_err);
+	return;
+}
+
+sub set_htpasswd_password
+{
+	my %args = @_;
+	my ($user, $password, $file) = @args{qw(user password file)};
+	if (!defined($user) || $user eq '')
+	{
+		print STDERR "ERROR: act=set-htpasswd-password needs user=<name>\n";
+		exit 1;
+	}
+	if (!-f $file)
+	{
+		print STDERR "ERROR: $file does not exist\n";
+		exit 2;
+	}
+
+	$password = prompt_password() if (!defined($password) || $password eq '');
+	if (!defined($password) || $password eq '')
+	{
+		print STDERR "ERROR: empty password, nothing written\n";
+		exit 1;
+	}
+
+	my $hash = eval { NMISNG::Util::hash_password($password) };
+	if (!defined($hash))
+	{
+		print STDERR "ERROR: cannot hash the password: $@";
+		exit 2;
+	}
+
+	# generous retries: a human is waiting, and unlike the re-hash on login a
+	# lost write here is not self-healing.
+	my $err = NMISNG::Util::set_htpasswd_entry(file => $file, user => $user,
+		hash => $hash, retries => 40);
+	if ($err)
+	{
+		print STDERR "ERROR: $err\n";
+		exit 2;
+	}
+
+	# read back: opmojo writes this same file with the external htpasswd, which
+	# ignores our lock and renames over it, so a write can be lost silently.
+	if (!_htpasswd_entry_matches($file, $user, $hash))
+	{
+		print STDERR "ERROR: the new password for $user is not in $file after "
+			. "writing. Another process (e.g. opmojo, or htpasswd) may have "
+			. "written the file at the same time. Re-run and check.\n";
+		exit 2;
+	}
+	_evict_sessions($user);
+
+	# audit the change. never record the password or the hash.
+	my $audit_err = NMISNG::Util::audit_log(who => $thislogin, what => "set htpasswd password",
+		where => $file, how => "nmis-cli", when => time,
+		details => "set password for user $user");
+	print STDERR "WARNING: could not write audit log: $audit_err\n" if ($audit_err);
+
+	print "Password updated for user $user in $file\n";
+	return;
+}
+
+# print user and stored scheme, never the hash itself
+sub list_htpasswd
+{
+	my %args = @_;
+	my $file = $args{file};
+	open(my $fh, '<', $file) or do {
+		print STDERR "ERROR: cannot read $file: $!\n";
+		exit 2;
+	};
+	printf("%-24s %s\n", 'USER', 'SCHEME');
+	while (my $line = <$fh>)
+	{
+		chomp $line;
+		next if ($line !~ /:/);
+		my ($u, $h) = split(/:/, $line, 2);
+		next if (!defined($u) || $u eq '');
+		printf("%-24s %s\n", $u, _htpasswd_scheme_label($h));
+	}
+	close $fh;
+	return;
+}
+
+# human-facing label: flag the weak schemes so an admin can find them.
+sub _htpasswd_scheme_label
+{
+	my ($h) = @_;
+	return 'none'   if (!defined($h) || $h eq '');
+	return 'locked' if ($h =~ /^[*!]/);
+	my $s = NMISNG::Auth::_hash_scheme($h);
+	return "$s (LEGACY)" if ($s eq 'des' or $s eq 'apr1');
+	return $s;
+}
+
+sub delete_htpasswd_user
+{
+	my %args = @_;
+	my ($user, $file) = @args{qw(user file)};
+	if (!defined($user) || $user eq '')
+	{
+		print STDERR "ERROR: act=delete-htpasswd-user needs user=<name>\n";
+		exit 1;
+	}
+	if (!-f $file)
+	{
+		print STDERR "ERROR: $file does not exist\n";
+		exit 2;
+	}
+	my $existed = _htpasswd_entry_matches($file, $user, undef) ? 0 : 1;
+	# retries => 40 for the same reason as set_htpasswd_password: a human is
+	# waiting and a lost delete is not self-healing.
+	my $err = NMISNG::Util::set_htpasswd_entry(file => $file, user => $user,
+		hash => undef, retries => 40);
+	if ($err)
+	{
+		print STDERR "ERROR: $err\n";
+		exit 2;
+	}
+
+	# read back. a lost delete is worse than a lost password change: the admin
+	# believes access is revoked while the account is still live.
+	if (!_htpasswd_entry_matches($file, $user, undef))
+	{
+		print STDERR "ERROR: $user is STILL PRESENT in $file after the delete. "
+			. "Another process (e.g. opmojo, or htpasswd) may have written the "
+			. "file at the same time. Access is NOT revoked. Re-run and check.\n";
+		exit 2;
+	}
+	my $audit_err = NMISNG::Util::audit_log(who => $thislogin, what => "deleted htpasswd user",
+		where => $file, how => "nmis-cli", when => time,
+		details => "removed user $user");
+	print STDERR "WARNING: could not write audit log: $audit_err\n" if ($audit_err);
+
+	print $existed ? "Removed user $user from $file\n"
+	               : "User $user was not present in $file, nothing to remove\n";
+	return;
+}
+
+# true when the user's first entry holds exactly this hash. with $hash undef it
+# means the opposite: true when the user has no entry, which is what a delete
+# needs to confirm.
+sub _htpasswd_entry_matches
+{
+	my ($file, $user, $hash) = @_;
+	open(my $fh, '<', $file) or return 0;
+	while (my $line = <$fh>)
+	{
+		chomp $line;
+		my ($u, $h) = split(/:/, $line, 2);
+		next if (!defined($u) || $u ne $user);
+		close $fh;
+		return 0 if (!defined($hash));            # wanted gone, still there
+		return (defined($h) && $h eq $hash) ? 1 : 0;
+	}
+	close $fh;
+	return defined($hash) ? 0 : 1;                # absent, which a delete wants
+}
+
+# read twice without echo, so the password never reaches the process list,
+# the shell history or the terminal
+sub prompt_password
+{
+	if (!-t STDIN)
+	{
+		print STDERR "ERROR: not a terminal, pass password=<pass> instead\n";
+		exit 1;
+	}
+	print "New password: ";
+	Term::ReadKey::ReadMode('noecho');
+	my $first = Term::ReadKey::ReadLine(0);
+	Term::ReadKey::ReadMode('restore');
+	print "\nConfirm password: ";
+	Term::ReadKey::ReadMode('noecho');
+	my $second = Term::ReadKey::ReadLine(0);
+	Term::ReadKey::ReadMode('restore');
+	print "\n";
+	chomp($first)  if (defined $first);
+	chomp($second) if (defined $second);
+	if (!defined($first) || !defined($second) || $first ne $second)
+	{
+		print STDERR "ERROR: passwords did not match\n";
+		exit 1;
+	}
+	return $first;
 }
 
 
@@ -2076,6 +2778,53 @@ sub help
    push(@lines, "     act=unlock-user user=<username>\n");
    push(@lines, "                      This action unlocks the specified user's account..\n");
    push(@lines, "                      The command sholuld be run as the 'root' user.\n");
+   push(@lines, "\n");
+   push(@lines, "  -- HTPASSWD ACTIONS --\n");
+   push(@lines, "     act=set-htpasswd-password user=<name> [password=<pass>] [file=<path>]\n");
+   push(@lines, "                      Sets a password, overwriting any existing one. Without\n");
+   push(@lines, "                      password= you are prompted, and the password is not echoed.\n");
+   push(@lines, "                      Prefer the prompt: password= on the command line is visible\n");
+   push(@lines, "                      in the process list. file= defaults to auth_htpasswd_file.\n");
+   push(@lines, "     act=seed-htpasswd-password user=<name> [file=<path>] [reveal=auto|show|none]\n");
+   push(@lines, "                                [generate-password=t|f]\n");
+   push(@lines, "                      Set NMIS9_ADMIN_PASSWORD (or NMIS9_ADMIN_PASSWORD_FILE\n");
+   push(@lines, "                      naming a file that holds it) to choose the password. It\n");
+   push(@lines, "                      is read from the environment, not the command line, so it\n");
+   push(@lines, "                      does not appear in ps. A supplied password is never\n");
+   push(@lines, "                      written to the initial-password file: you already have it.\n");
+   push(@lines, "                      generate-password=t invents one instead and writes it to the\n");
+   push(@lines, "                      initial-password file. That is NOT the default: only do it\n");
+   push(@lines, "                      where something can read that file afterwards and remove it\n");
+   push(@lines, "                      once spent. The installer passes it. Containers must not,\n");
+   push(@lines, "                      because there the file lands root-only and the container's\n");
+   push(@lines, "                      own nmisd can neither read nor remove it.\n");
+   push(@lines, "                      Without it, and with nothing supplied, this refuses rather\n");
+   push(@lines, "                      than leaving behind a password nothing can retrieve.\n");
+   push(@lines, "                      Sets the password only when the account is not\n");
+   push(@lines, "                      configured: missing, empty, still a shipped default, or still\n");
+   push(@lines, "                      the '*NMIS-UNSEEDED*' marker shipped in conf-default/users.dat.\n");
+   push(@lines, "                      A password you set yourself is never touched, and neither is a\n");
+   push(@lines, "                      lock you applied yourself, so this is safe to run on every\n");
+   push(@lines, "                      install, upgrade and container start.\n");
+   push(@lines, "                      The password is saved to a root-only file, by default\n");
+   push(@lines, "                      /usr/local/etc/firstwave/nmis-initial-password; override with\n");
+   push(@lines, "                      NMIS_INITIAL_PASSWORD_FILE. reveal=show also prints it,\n");
+   push(@lines, "                      reveal=none never does (use for logged/unattended callers).\n");
+   push(@lines, "     act=list-htpasswd [file=<path>]\n");
+   push(@lines, "                      Lists users and the scheme each password is stored with.\n");
+   push(@lines, "                      Never prints a hash.\n");
+   push(@lines, "     act=delete-htpasswd-user user=<name> [file=<path>]\n");
+   push(@lines, "                      Removes a user's htpasswd entry.\n");
+   push(@lines, "     act=discard-initial-password\n");
+   push(@lines, "                      Removes the initial-password file once ANY user has logged\n");
+   push(@lines, "                      into the GUI, so a plaintext admin password does not outlive\n");
+   push(@lines, "                      its purpose. nmisd runs this from its hourly purge job, so\n");
+   push(@lines, "                      you should not need it by hand. Does nothing when the file\n");
+   push(@lines, "                      is already gone, or when nobody has logged in since it was\n");
+   push(@lines, "                      written. Never re-creates it: to set a password afterwards\n");
+   push(@lines, "                      use act=set-htpasswd-password.\n");
+   push(@lines, "                      Passwords only. Privileges and roles live in conf/Users.nmis\n");
+   push(@lines, "                      and are not managed by these actions.\n");
    push(@lines, "   Notes:\n");
    push(@lines, "        * Time Format: These include both absolute time and date formats like\n");
    push(@lines, "          the ISO 8601 type \"2016-05-20T14:40\", as well as very handy relative\n");

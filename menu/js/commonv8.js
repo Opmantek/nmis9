@@ -358,7 +358,9 @@ function	createDialog(opt) {
 	// get some additional content
 	// but only if we have an URL !!
 	if ( opt.url ) {
-		if( opt.url.length < 600 )
+		// OMK-12699: opt.method=='POST' forces the existing POST path, which the
+		// long-url case already uses. Reads keep the GET path untouched.
+		if( opt.url.length < 600 && opt.method != 'POST' )
 		{
 			$.ajax({
 				url: opt.url,
@@ -779,6 +781,9 @@ function get(Id,optTrue,optFalse,evnt) {
 	var getstr="";
 	var dialogID;
 	var f=document.getElementById(Id);
+	// OMK-12699: set when the form carries a csrf_token. Such a form must submit
+	// by POST, because enforce_csrf requires the method AND the token together.
+	var needsPost=false;
 
 	for (i=0;i<f.elements.length;i++)  {
 		var e=f.elements[i];
@@ -796,6 +801,7 @@ function get(Id,optTrue,optFalse,evnt) {
 
 				if (e.type == "hidden") {
 					getstr += "&"+ e.name + "=" + encodeURIComponent(e.value);
+					if (e.name == 'csrf_token' && e.value) { needsPost = true; }
 				}
 
 				if (e.type=="checkbox") {
@@ -884,7 +890,8 @@ function get(Id,optTrue,optFalse,evnt) {
 	createDialog({
 		id 		: dialogID,
 		url 	: url,
-		async   : false
+		async   : false,
+		method  : needsPost ? 'POST' : undefined
 	});				// update dialog and show it
 return false;
 
@@ -1411,22 +1418,28 @@ function saveWindowState() {
   });
 
 	windowDataString = JSON.stringify({ windowData: windowData });
-	$.ajax({
-    type: "POST",
-		url:	'menu.pl',
-    data: windowDataString,
-    contentType: "application/json; charset=utf-8",
-    dataType: "html"
-  });
+	postWindowState(windowDataString);
 }
 
 function clearWindowState() {
 	windowDataString = JSON.stringify({ windowData: "" });
+	postWindowState(windowDataString);
+}
+
+// OMK-12699: the window state used to go up as a raw JSON body, which menu.pl
+// dispatched on the body existing rather than on an act. CGI.pm exposes no other
+// parameters alongside such a body, so neither an act nor a token could ride
+// with it. A form-encoded POST puts this write on the same guarded path as
+// every other mutation. The token comes from the menu markup, which is the same
+// document that carries the two menu items calling this.
+function postWindowState(payload) {
+	var el = document.getElementById('nmis_csrf_token');
 	$.ajax({
-    type: "POST",
+		type: "POST",
 		url:	'menu.pl',
-    data: windowDataString,
-    contentType: "application/json; charset=utf-8",
-    dataType: "html"
-  });
+		data: { act:         'menu_window_state',
+						csrf_token:  el ? el.value : '',
+						windowdata:  payload },
+		dataType: "html"
+	});
 }

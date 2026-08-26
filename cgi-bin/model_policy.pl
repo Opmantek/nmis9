@@ -66,6 +66,15 @@ if ($AU->Require)
 }
 
 
+# OMK-12699: a missing act is this script's read-only status view, and the menu
+# links it that way. Normalise before the guard, which classifies anything
+# unregistered as a write and would refuse the act-less link.
+$Q->{act} ||= 'status';
+
+# OMK-12699: write acts need POST and a valid CSRF token. Must sit after any act
+# rewriting and before dispatch.
+$AU->enforce_csrf($Q) or exit 0;
+
 # actions: display the current policy state, or update
 if (!$Q->{act} or $Q->{act} eq 'status')
 {
@@ -121,6 +130,7 @@ sub display_policy
 	$q->start_form(-id => "modelpolicy_form", -href => $q->url(-absolute=>1)."?")
 			. $q->hidden(-override => 1, -name => "conf", -value => $Q->{conf})
 			. $q->hidden(-override => 1, -name => "act", -value => "update")
+			. $AU->csrf_hidden_field
 			. $q->hidden(-override => 1, -name => "widget", -value => $widget)
 			. $q->hidden(-override => 1, -name => "cancel", -value => '', -id=> "cancelinput")
 			. qq|<table><tr><th class="header">Option</th><th class="header">Status</th><th class="header">Description</th></tr>|;

@@ -283,6 +283,9 @@ my %hash = (
   'authentication' => {
 	'auth_banner_title' => 'NMIS9',
 	'auth_buttons_visible' => 'true',
+	'auth_cookie_samesite' => 'Lax',
+	'auth_cookie_secure' => 'false',
+	'auth_csrf_enforce' => 'true',
 	'auth_cw_company_id' => '',
 	'auth_cw_private_key' => '',
 	'auth_cw_public_key' => '',
@@ -292,7 +295,6 @@ my %hash = (
 	'auth_default_groups' => '',
 	'auth_default_privilege' => '',
 	'auth_expire' => '+30min',
-	'auth_htpasswd_encrypt' => 'crypt',
 	'auth_htpasswd_file' => '<nmis_conf>/users.dat',
 	'auth_ldap_acc' => 'cn=administrator,ou=people,dc=corp,dc=opmantek,dc=com',
 	'auth_ldap_attr' => 'sAMAccountName cn',
@@ -307,10 +309,10 @@ my %hash = (
 	'auth_ldaps_server' => '',
 	'auth_ldaps_verify' => 'optional',
 	# when true (default), writes to the Users, Access, Config, PrivMap,
-	# AuthLdapPrivs, Tables and Services tables are restricted to
-	# administrators regardless of the Access matrix (OMK-12707). Set to an
-	# explicit false token (false/no/0) to defer these rights back to the
-	# Access matrix - only do so if you understand that it re-enables
+	# AuthLdapPrivs, Tables, Services and Logs tables are restricted to
+	# administrators regardless of the Access matrix (OMK-12707, OMK-12823).
+	# Set to an explicit false token (false/no/0) to defer these rights back
+	# to the Access matrix - only do so if you understand that it re-enables
 	# non-admin privilege-escalation paths. Any other value keeps it on.
 	'auth_lock_sensitive_tables' => 'true',
 	'auth_lockout_after' => 0,
@@ -321,6 +323,9 @@ my %hash = (
 	'auth_method_3' => '',
 	'auth_radius_secret' => '',
 	'auth_radius_server' => '',
+	# SSO cookie signing form for the OMK apps: 'mojo8' (default, Mojolicious 8.x)
+	# or 'mojo9' (9.x). Installer-managed, not a customer setting. See OMK-12902.
+	'auth_sso_cookie_format' => 'mojo8',
 	'auth_sso_domain' => '', # must be .yourdomain.tld, including the leading .
 	'auth_web_key' => 'Please Change Me!',
 	'expire_users' => 'false',

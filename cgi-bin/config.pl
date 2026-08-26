@@ -96,6 +96,10 @@ exit 1 if (defined($Q->{cluster_id}) && $Q->{cluster_id} ne $C->{cluster_id});
 
 # what shall we do
 
+# OMK-12699: write acts need POST and a valid CSRF token. Must sit after any act
+# rewriting and before dispatch.
+$AU->enforce_csrf($Q) or exit 0;
+
 if ($Q->{act} eq 'config_nmis_menu') {			displayConfig();
 } elsif ($Q->{act} eq 'config_nmis_add') {		addConfig();
 } elsif ($Q->{act} eq 'config_nmis_edit') {		editConfig();
@@ -143,6 +147,7 @@ sub displayConfig{
 	# conversely the non-widget mode needs post inputs as query params are ignored
 	print start_form(-id=>"nmisconfig", -href=>url(-absolute=>1)."?")
 			. hidden(-override => 1, -name => "act", -value => "config_nmis_menu")
+			. $AU->csrf_hidden_field
 			. hidden(-override => 1, -name => "widget", -value => $widget);
 
 	print start_table({width=>"400px"}) ; # first table level
@@ -331,6 +336,7 @@ sub editConfig {
 	# except that this one also needs the cancel case covered
 	print start_form(-id=>"nmisconfig", -href=>url(-absolute=>1)."?")
 			. hidden(-override => 1, -name => "act", -value => "config_nmis_doedit")
+			. $AU->csrf_hidden_field
 			. hidden(-override => 1, -name => "widget", -value => $widget)
 			. hidden(-override => 1, -name => "cancel", -value => '', -id=> "cancelinput")
 			. hidden(-override => 1, -name => "edittype", -value => '', -id=> "edittype")
@@ -721,6 +727,7 @@ sub deleteConfig {
 	# start of form, see comment for first two start_forms
 	print start_form( -name=>"nmisconfig", -id=>"nmisconfig", -href=>url(-absolute=>1)."?")
 			. hidden(-override => 1, -name => "act", -value => "config_nmis_dodelete")
+			. $AU->csrf_hidden_field
 			. hidden(-override => 1, -name => "widget", -value => $widget)
 			. hidden(-override => 1, -name => "cancel", -value => '', -id=> "cancelinput");
 
@@ -798,6 +805,7 @@ sub addConfig{
 	# start of form, see comment for first two start_forms
 	print start_form(-id=>"nmisconfig", -href=>url(-absolute=>1)."?")
 			. hidden(-override => 1, -name => "act", -value => "config_nmis_doadd")
+			. $AU->csrf_hidden_field
 			. hidden(-override => 1, -name => "widget", -value => $widget)
 			. hidden(-override => 1, -name => "cancel", -value => '', -id=> "cancelinput");
 
