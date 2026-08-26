@@ -212,6 +212,46 @@ sub is_safe_script_basename
 	return ($name =~ m{\A[A-Za-z0-9_.\-]+\z}) ? 1 : 0;
 }
 
+# True when $path resolves inside $dir. Symlinks are followed, so one planted in
+# $dir cannot point out of it, and a path that does not exist yet is judged on
+# its parent so a not-yet-created file still passes. is_safe_script_basename
+# keeps shell metacharacters out of callers that interpolate the result, and it
+# accepts '..', hence the explicit check (OMK-12823).
+sub path_inside_dir
+{
+	my ($path, $dir) = @_;
+	return 0 if (!defined($path) or $path eq '' or !defined($dir) or $dir eq '');
+
+	my ($base, $parent) = File::Basename::fileparse($path);
+	return 0 if ($base =~ /\A\.\.?\z/ or !is_safe_script_basename($base));
+
+	my $realdir = Cwd::abs_path($dir);
+	my $target = Cwd::abs_path(-e $path ? $path : $parent);
+	return 0 if (!defined($realdir) or !defined($target));
+
+	return ($target eq $realdir or index($target, "$realdir/") == 0) ? 1 : 0;
+}
+
+# Confine a caller-supplied filename to $dir: a bare name gets $dir prepended,
+# anything else has to resolve inside it. Returns the resolved absolute path, or
+# undef when refused, with the reason on stderr tagged $who (OMK-12823).
+sub confine_path_to_dir
+{
+	my ($fn, $dir, $who) = @_;
+	return undef if (!defined($fn) or $fn eq '' or !defined($dir) or $dir eq '');
+
+	my $candidate = ($fn =~ m!/!) ? $fn : "$dir/$fn";
+	if (path_inside_dir($candidate, $dir))
+	{
+		my ($base, $parent) = File::Basename::fileparse($candidate);
+		return Cwd::abs_path($parent) . "/$base";
+	}
+
+	warn returnTime() . " " . ($who // 'confine_path_to_dir')
+			. ", refusing file \"$fn\", outside $dir\n";
+	return undef;
+}
+
 # fixme9 move away
 sub getCGIForm {
 	my $buffer = shift;

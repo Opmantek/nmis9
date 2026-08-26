@@ -86,10 +86,12 @@ my @INSECURE_WEB_KEYS = (
 # what the Access table says: each of these guards a table whose contents
 # feed back into authentication or authorisation, so any write access is
 # equivalent to full admin (OMK-12707)
+# table_logs_rw joined for OMK-12823: a Logs entry names the file that a per-log
+# CheckAccess($logName) is applied to, so writing it re-aims the check.
 my %admin_only_rights = map { ($_ => 1) }
 		(qw(table_users_rw table_access_rw table_config_rw
 				table_authldapprivs_rw table_privmap_rw table_tables_rw
-				table_services_rw));
+				table_services_rw table_logs_rw));
 
 # whether the %admin_only_rights guard is active. Default on; an admin can
 # set config auth_lock_sensitive_tables to an explicit false token to defer

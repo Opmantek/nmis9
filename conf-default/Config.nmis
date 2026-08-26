@@ -309,10 +309,10 @@ my %hash = (
 	'auth_ldaps_server' => '',
 	'auth_ldaps_verify' => 'optional',
 	# when true (default), writes to the Users, Access, Config, PrivMap,
-	# AuthLdapPrivs, Tables and Services tables are restricted to
-	# administrators regardless of the Access matrix (OMK-12707). Set to an
-	# explicit false token (false/no/0) to defer these rights back to the
-	# Access matrix - only do so if you understand that it re-enables
+	# AuthLdapPrivs, Tables, Services and Logs tables are restricted to
+	# administrators regardless of the Access matrix (OMK-12707, OMK-12823).
+	# Set to an explicit false token (false/no/0) to defer these rights back
+	# to the Access matrix - only do so if you understand that it re-enables
 	# non-admin privilege-escalation paths. Any other value keeps it on.
 	'auth_lock_sensitive_tables' => 'true',
 	'auth_lockout_after' => 0,
