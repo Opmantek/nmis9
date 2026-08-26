@@ -73,6 +73,7 @@ working_tests=(
     t_auth_session_privs.t
     t_access_policy.pl
     t_mongo_exposure.t
+    t_common_dbpassword.t
     t_csrf.t
     t_csrf_cgi.t
     t_ci_perl_tests.t
