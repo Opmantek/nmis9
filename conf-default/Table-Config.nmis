@@ -283,7 +283,7 @@ my %hash = (
 			{ db_name =>  { display => "text", value => [ "nmisng" ] ,
 											validate => { 'regex' => qr/^[a-zA-Z0-9_-]{1,63}$/ }}},
 
-			{ db_password => { display => "password", value => ["op42flow42"],
+			{ db_password => { display => "password", value => ["CHANGE_ME_RUN_setup_mongodb"],
 												 validate => { 'regex' => qr/^.+$/}}},
 
 			{ db_port => { display => "text", value => ["27017"],
@@ -292,7 +292,7 @@ my %hash = (
 			{ db_server => { display => "text", value => ["localhost"],
 											 validate => { "resolvable" => [ 4 ] } } },
 
-			{ db_username => { display => "text", value => ['opUserRW'],
+			{ db_username => { display => "text", value => ['nmis9RW'],
  												 validate => { 'regex' => qr/^.+$/}}},
 				],
 	}
