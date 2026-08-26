@@ -40,6 +40,7 @@ use lib "$FindBin::Bin/../lib";
 use MongoDB;
 use File::Basename;
 use File::Copy;
+use File::Temp ();
 use version 0.77;
 use Tie::IxHash;
 
@@ -395,17 +396,18 @@ for my $w (@writes)
 }
 
 # Persist db_password only when we generated it, and feed it to patch_config.pl
-# on STDIN (--value-stdin) so the secret never lands in the process command line
-# (/proc/<pid>/cmdline). An operator/env-supplied value is honoured for the user
-# above but not written to disk, so an env-only secret is not persisted here.
+# via a 0600 temp file (--value-file) so the secret never lands in the process
+# command line (/proc/<pid>/cmdline) or in a shell pipe. An operator/env-supplied
+# value is honoured for the user above but not written to disk, so an env-only
+# secret is not persisted here.
 if ($generated)
 {
-	local $SIG{PIPE} = 'IGNORE';
-	open(my $pc, '|-', $patchtool, $cfgfile, "--value-stdin", "/database/db_password")
-		or die "ERROR: failed to run patch_config.pl for db_password on $cfgfile\n";
-	print $pc $genpw;
-	close($pc)
-		or die "ERROR: failed to write db_password to $cfgfile\n";
+	my $pwtmp = File::Temp->new(UNLINK => 1);
+	chmod 0600, $pwtmp->filename;
+	print $pwtmp $genpw;
+	$pwtmp->flush;
+	my $rc = system($patchtool, $cfgfile, "--value-file", $pwtmp->filename, "/database/db_password");
+	$rc == 0 or die "ERROR: failed to write db_password to $cfgfile\n";	# name only the key, never the value
 }
 $genpw = "x" x 64; undef $genpw;
 print "INFO: NMIS is now configured to use scoped user $target_user in $dbname.\n";
