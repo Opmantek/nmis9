@@ -45,14 +45,16 @@ services:
       # root user. setup_mongodb.pl (run by the entrypoint's setup_db)
       # authenticates as admin using the NMIS_DB_ADMIN_* pair below, and
       # creates/updates nmis9RW with the effective NMIS_DB_PASSWORD value.
-      # The app and admin share ${MONGODB_PASSWORD} in dev. That only works
-      # because .env-dev's value is off setup_mongodb.pl's deny set ('',
-      # 'example', 'password', 'op42flow42', CHANGE_ME*); if it were a denied
-      # value, setup would GENERATE a random password for nmis9RW instead of
-      # honouring the supplied one, and the app would keep authenticating
-      # with the old value while the stored user has a different password.
+      # The scoped app secret (MONGODB_APP_PASSWORD) is DISTINCT from the mongo
+      # root/admin secret (MONGODB_PASSWORD), matching production. Both are fixed
+      # working dev values and both must stay off setup_mongodb.pl's deny set
+      # ('', 'example', 'password', 'op42flow42', CHANGE_ME*); if the app value
+      # were a denied one, setup would GENERATE a random password for nmis9RW
+      # instead of honouring the supplied one, and the app would keep
+      # authenticating with the old value while the stored user has a different
+      # password.
       NMIS_DB_USERNAME: nmis9RW
-      NMIS_DB_PASSWORD: ${MONGODB_PASSWORD}
+      NMIS_DB_PASSWORD: ${MONGODB_APP_PASSWORD}
       NMIS_DB_ADMIN_USERNAME: ${MONGODB_USERNAME}
       NMIS_DB_ADMIN_PASSWORD: ${MONGODB_PASSWORD}
       NMIS_DB_AUTH_SOURCE: nmisng

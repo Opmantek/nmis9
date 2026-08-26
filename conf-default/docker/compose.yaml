@@ -11,11 +11,13 @@ services:
       # OMK-12826: the app runs as the scoped nmis9RW user, not the mongo
       # root user. setup_mongodb.pl (run by the entrypoint's setup_db)
       # authenticates as admin using NMIS_DB_ADMIN_*, and creates/updates
-      # nmis9RW with the effective NMIS_DB_PASSWORD value. Run `make
-      # prod-setup` before first start so MONGODB_PASSWORD is a strong,
-      # non-default value - see .env.
+      # nmis9RW with the effective NMIS_DB_PASSWORD value. The scoped app
+      # secret (MONGODB_APP_PASSWORD) is DISTINCT from the mongo root/admin
+      # secret (MONGODB_PASSWORD), so reading the app config or env does not
+      # yield the root password. Run `make prod-setup` before first start so
+      # both are strong, distinct, non-default values - see .env.
       NMIS_DB_USERNAME: nmis9RW
-      NMIS_DB_PASSWORD: ${MONGODB_PASSWORD}
+      NMIS_DB_PASSWORD: ${MONGODB_APP_PASSWORD}
       NMIS_DB_ADMIN_USERNAME: ${MONGODB_USERNAME}
       NMIS_DB_ADMIN_PASSWORD: ${MONGODB_PASSWORD}
       NMIS_DB_AUTH_SOURCE: nmisng

@@ -21,7 +21,19 @@ if [ -e $TARGETDIR/admin/setup_mongodb.pl ]; then
 				[ -n "$UNATTENDED" ] && EXTRAARGS='auto=true'
 				[ -n "$PRESEED" ] && EXTRAARGS="$EXTRAARGS preseed=$PRESEED"
 				$TARGETDIR/admin/setup_mongodb.pl $EXTRAARGS
-				logmsg "MongoDB setup helper returned $?"
+				setup_rc=$?
+				logmsg "MongoDB setup helper returned $setup_rc"
+				# DB setup is MANDATORY (see the message below): a failed run must
+				# abort the install, not complete it as successful. run_hooks in the
+				# installer terminates on any non-zero hook exit, which is what surfaces
+				# the failure to an unattended install that would otherwise see nothing.
+				if [ "$setup_rc" -ne 0 ]; then
+						echolog "ERROR: MongoDB setup is MANDATORY and it FAILED (exit $setup_rc)."
+						echolog "NMIS cannot authenticate to MongoDB until $TARGETDIR/admin/setup_mongodb.pl"
+						echolog "completes successfully. Fix the cause and re-run the installer, or run"
+						echolog "the helper by hand as the root user before starting NMIS."
+						exit "$setup_rc"
+				fi
 		else
 				echolog "Skipping MongoDB setup helper as instructed."
 				cat <<EOF

@@ -76,10 +76,14 @@ working_tests=(
     t_common_dbpassword.t
     t_db_auth_source.t
     t_patch_config_value_file.t
-    # t_setup_mongodb_scoped_user.t is NOT registered here: it BAIL_OUTs unless
-    # NMIS_TEST_MONGO_URI points at a disposable Mongo, which CI does not yet set,
-    # so registering it would abort the whole suite. Pending CI-fixture wiring
-    # (a throwaway Mongo + NMIS_TEST_MONGO_URI) as a follow-up.
+    # OMK-12826 scoped-user / credential coverage (all run without a live Mongo):
+    t_mongo_admin_user.t
+    t_mongo_scoped_credentials.t
+    t_setup_mongodb_hook_rc.t
+    # t_setup_mongodb_scoped_user.t skip_alls unless NMIS_TEST_MONGO_URI points at
+    # a disposable auth-Mongo (a CI fixture tracked separately), so it is a
+    # harmless skip here until that lands, and then runs the real provisioning.
+    t_setup_mongodb_scoped_user.t
     t_csrf.t
     t_csrf_cgi.t
     t_ci_perl_tests.t

@@ -825,7 +825,7 @@ than per field.
 `installer_hooks/common_dbpassword.sh`,
 `installer_hooks/24-postcopy-setup-mongodb`, `docker-dev/compose-dev.yaml`,
 `docker-dev/.env-dev`, `conf-default/docker/compose.yaml`,
-`conf-default/docker/.env`
+`conf-default/docker/.env`, the root `compose.yaml` and `.env`, `Makefile`
 
 **What changed**
 
@@ -835,6 +835,8 @@ than per field.
 | `db_password` | `op42flow42` (a live, working shipped default) | `CHANGE_ME_RUN_setup_mongodb` (a placeholder; `setup_mongodb.pl` generates a random 64-hex password when the effective value is still a shipped default) |
 | `db_auth_source` (new) | did not exist | `nmisng`, written by `setup_mongodb.pl` once it provisions the scoped user; absent otherwise, so the driver keeps defaulting to `admin` on an install that has not migrated (phased, matching the authSource work in OMK-12826 Tasks 2/3) |
 | `opUserRW` on `admin` | created/rotated by `setup_mongodb.pl`, granted `root` | untouched: `setup_mongodb.pl` no longer creates, rotates, or grants it anything |
+| container app password | shared `${MONGODB_PASSWORD}` with the mongo root/admin identity in every compose file | its own `${MONGODB_APP_PASSWORD}`, distinct from the root/admin secret, in all three compose files, so reading the app config or env no longer yields the root password |
+| root `compose.yaml` app identity | ran NMIS as the mongo root identity (`NMIS_DB_USERNAME=${MONGODB_USERNAME}`, no authSource, no admin split) | scoped `nmis9RW` with `db_auth_source=nmisng` and a separate `NMIS_DB_ADMIN_*` bootstrap pair, matching `conf-default/docker/compose.yaml` (plus the `service_healthy` startup gate) |
 
 `setup_mongodb.pl` now authenticates its bootstrap connection with a separate
 admin credential (`NMIS_DB_ADMIN_USERNAME`/`NMIS_DB_ADMIN_PASSWORD`, falling
@@ -842,7 +844,29 @@ back to the interactive prompt, defaulting to `opUserRW`), and provisions
 `nmis9RW` as a `dbOwner` of `nmisng` only — no `admin`-database role, no
 `root`. `db_password` is written back to `conf/Config.nmis` only when
 `setup_mongodb.pl` generated it; an operator- or env-supplied password is
-honoured for the created user but never persisted to disk.
+honoured for the created user but never persisted to disk. When it does write,
+it persists the generated `db_password` first and then `db_username` and
+`db_auth_source` in a single (atomic) `patch_config.pl` call, so a mid-sequence
+write failure never leaves the config naming `nmis9RW` with a stale password and
+the install marked migrated.
+
+Three follow-on fixes ship in the same change (review of the initial commit):
+
+- **Enabling auth on a fresh no-auth server is now gated.** Because NMIS only
+  provisions the scoped `nmis9RW` (no `admin`/`root` user), `setup_mongodb.pl`
+  refuses to enable authentication when no administrative user exists (none with
+  `root`, `userAdminAnyDatabase`, or `userAdmin` on `admin`); enabling it then
+  would close MongoDB's localhost exception with nobody able to manage users. The
+  role decision is `NMISNG::DB::has_admin_capable_user`.
+- **The legacy (<2.0) MongoDB driver now honours `db_auth_source`.** Its run-time
+  `authenticate()` loop targets the auth source alone when one is set, instead of
+  the hardcoded `('admin', $db_name)` pair that would fail on `admin` first and
+  never reach the scoped user after migration (`NMISNG::DB::_legacy_auth_dbs`).
+- **Installer hook 24 now fails on a failed mandatory setup.** It captures
+  `setup_mongodb.pl`'s exit code and returns non-zero, so `run_hooks` aborts the
+  install rather than completing it as successful while NMIS cannot authenticate.
+  The container path already fails hard because `docker-entrypoint.sh` runs under
+  `set -e`.
 
 **Why:** `opUserRW` was one MongoDB identity with the `root` role, shared by
 NMIS and every other OMK product on the host, all authenticating with the
@@ -875,18 +899,26 @@ exactly as it was, so the migration is additive rather than destructive.
 scoped user is provisioned, so an install that has not yet run setup keeps
 authenticating against `admin` with no config change required.
 
-**`docker-dev/.env-dev` ships a working credential, deliberately.** Unlike
-`conf-default/docker/.env` (the production compose file, which ships the
-`CHANGE_ME_run_make_prod-setup` placeholder and refuses to start until
-`make prod-setup` replaces it — see the root `Makefile`), the dev compose
-env fixes `MONGODB_PASSWORD=nmis9devMongoRW` so the stack comes up without
-an extra setup step. This is not a hardening gap: `MONGODB_BIND_ADDR`
+**Two distinct passwords in the container path.** Every compose file now feeds
+the scoped app user its own `${MONGODB_APP_PASSWORD}`, separate from the mongo
+root/admin `${MONGODB_PASSWORD}`. In production, `make prod-setup` generates both
+as distinct random values into `conf-default/docker/.env`, and `make prod-up`
+refuses to start while either is still empty or a known default (the deny-set is
+shared from `installer_hooks/common_dbpassword.sh`, not just a `CHANGE_ME`
+check). The root `compose.yaml`/`.env` (not driven by the Makefile) ship both
+empty for the operator to fill with distinct strong values before first start.
+
+**`docker-dev/.env-dev` ships working credentials, deliberately.** Unlike
+`conf-default/docker/.env` (which ships the `CHANGE_ME_run_make_prod-setup`
+placeholders and refuses to start until `make prod-setup` replaces them, see the
+root `Makefile`), the dev compose env fixes `MONGODB_PASSWORD=nmis9devMongoRW`
+(root/admin) and `MONGODB_APP_PASSWORD=nmis9devAppRW` (scoped app) so the stack
+comes up without an extra setup step. This is not a hardening gap: `MONGODB_BIND_ADDR`
 defaults to `127.0.0.1` in that file (H12 / OMK-12708), so the Mongo it
-authenticates is not reachable off the host, and the value itself is not a
-secret — it exists only to keep `setup_mongodb.pl`'s deny-set check (`''`,
-`example`, `password`, `op42flow42`, `CHANGE_ME*`) from generating a random
-password for `nmis9RW` while the dev container keeps authenticating with
-the fixed one.
+authenticates is not reachable off the host, and the values are not secrets. Both
+must stay off `setup_mongodb.pl`'s deny-set (`''`, `example`, `password`,
+`op42flow42`, `CHANGE_ME*`), or setup would generate a random password for
+`nmis9RW` while the app keeps authenticating with the fixed one.
 
 **Mitigations to investigate (not implemented)**
 

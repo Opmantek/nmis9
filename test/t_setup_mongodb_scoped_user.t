@@ -21,8 +21,13 @@
 #      presence, not only by absence.
 #
 # Requires a real, disposable MongoDB (auth optional; the fixture below copes
-# with either). BAIL_OUT, never skip, if none is configured: a silent skip
-# would hide a real regression in CI.
+# with either). skip_all when NMIS_TEST_MONGO_URI is unset, so this file can be
+# listed in ci/scripts/perl_tests.sh and stay a harmless skip until CI grows a
+# disposable auth-Mongo fixture that sets the URI (that fixture is tracked
+# separately). A BAIL_OUT here would abort the whole suite under `set -eu`, which
+# is why it was previously left out of the list entirely. The skip is done in a
+# BEGIN before the MongoDB/NMISNG::DB use lines below, so it stays clean even
+# where those modules are not installed.
 use strict;
 use warnings;
 
@@ -32,8 +37,8 @@ use lib "$FindBin::Bin/../lib";
 use Test::More;
 
 BEGIN {
-	$ENV{NMIS_TEST_MONGO_URI}
-		or BAIL_OUT("set NMIS_TEST_MONGO_URI to a disposable mongo admin URI to run this test");
+	plan skip_all => "set NMIS_TEST_MONGO_URI to a disposable mongo admin URI to run this test"
+		unless ($ENV{NMIS_TEST_MONGO_URI});
 }
 
 use File::Temp qw(tempdir);

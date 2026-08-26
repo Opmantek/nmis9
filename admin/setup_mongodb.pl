@@ -383,23 +383,20 @@ else
 my $cfgfile   = $conf->{configfile};
 my $patchtool = $conf->{'<nmis_base>'} . "/admin/patch_config.pl";
 
-# Non-secret keys go via argv. On failure name only the KEY, never the value.
-my @writes = (
-	[ "db_username",    "/database/db_username=$target_user" ],
-	[ "db_auth_source", "/database/db_auth_source=$dbname" ],
-);
-for my $w (@writes)
-{
-	my ($key, $kv) = @$w;
-	system($patchtool, $cfgfile, $kv) == 0
-		or die "ERROR: failed to write $key to $cfgfile\n";
-}
-
-# Persist db_password only when we generated it, and feed it to patch_config.pl
-# via a 0600 temp file (--value-file) so the secret never lands in the process
-# command line (/proc/<pid>/cmdline) or in a shell pipe. An operator/env-supplied
-# value is honoured for the user above but not written to disk, so an env-only
-# secret is not persisted here.
+# Order matters (OMK-12826). Persist db_password FIRST (when we generated it),
+# then the db_username/db_auth_source pointers. --value-file takes only one key,
+# so the secret write is necessarily a separate patch_config.pl call from the
+# pointers, and the two cannot be one atomic write. Writing the credential before
+# the pointers means a failure between them leaves db_auth_source still unset, so
+# the config still names the pre-migration user; a re-run detects that (it is not
+# yet migrated), reads the already-stored generated password, and completes
+# idempotently. The reverse order would point the app at nmis9RW with a stale
+# password and report the install as migrated.
+#
+# Feed the secret via a 0600 temp file so it never lands in the process command
+# line (/proc/<pid>/cmdline) or a shell pipe. An operator/env-supplied value is
+# honoured for the user above but not written to disk, so an env-only secret is
+# not persisted here.
 if ($generated)
 {
 	my $pwtmp = File::Temp->new(UNLINK => 1);
@@ -410,6 +407,15 @@ if ($generated)
 	$rc == 0 or die "ERROR: failed to write db_password to $cfgfile\n";	# name only the key, never the value
 }
 $genpw = "x" x 64; undef $genpw;
+
+# Then switch the pointer keys over in a SINGLE patch_config.pl call: it reads,
+# edits both in memory, and writes once, so db_username and db_auth_source land
+# all-or-nothing with no half state. Non-secret, so they go via argv; on failure
+# name only the KEYS, never any value.
+system($patchtool, $cfgfile,
+	"/database/db_username=$target_user",
+	"/database/db_auth_source=$dbname") == 0
+	or die "ERROR: failed to write db_username/db_auth_source to $cfgfile\n";
 print "INFO: NMIS is now configured to use scoped user $target_user in $dbname.\n";
 
 my $mongod_conf = '/etc/mongod.conf';
@@ -428,8 +434,28 @@ if ($isnoauth)
 		print "INFO: Could not offer to set authentication for your local MongoDB daemon as this process is not running with root privileges\n";
 	}
 
+	# OMK-12826: NMIS now provisions only the scoped nmis9RW (dbOwner on nmisng),
+	# never an admin/root user. Enabling auth while no administrative user exists
+	# would close MongoDB's localhost exception with nobody able to manage users,
+	# locking out database administration until auth is disabled again at the OS
+	# level. Refuse in that case rather than enable auth.
+	if ( ($islocal_and_mongod_3_4_or_newer) and ($< == 0) and !admin_user_present($conn) )
+	{
+		print "\nWARNING: NOT enabling MongoDB authentication.
+This server has no administrative user: none holds the root or
+userAdminAnyDatabase role, or userAdmin on the admin database, and NMIS no
+longer creates one. Enabling authentication now would close MongoDB's
+localhost exception with no user able to manage authentication, locking you
+out of database administration until auth is disabled again at the OS level.
+
+Create an administrative user first (for example one with the
+userAdminAnyDatabase or root role in the admin database), then enable
+authentication yourself by adding 'authorization: enabled' to
+$mongod_conf and restarting MongoDB.\n\n";
+		input_ok("Hit enter to continue:");
+	}
 	# offer to set authentication enabled for mongod version 3.4 or newer, but only root privileges can edit $mongod_conf
-	if ( ($islocal_and_mongod_3_4_or_newer) and ($< == 0) )
+	elsif ( ($islocal_and_mongod_3_4_or_newer) and ($< == 0) )
 	{
 		print "\nWARNING: Authentication should be enabled for production use!
 Currently your local MongoDB server at $dbserver:$port operates without
@@ -795,6 +821,21 @@ EOF
 print "\nMongoDB server at $dbserver:$port setup completed\n\n";
 
 exit 0;
+
+# OMK-12826: true if MongoDB already has a user that can administer auth after it
+# is enabled (root, userAdminAnyDatabase, or userAdmin on admin). Queried on the
+# admin db, where those users live. On any failure it returns false, so setup
+# fails safe and declines to enable auth rather than risk locking administration
+# out. The role decision itself lives in NMISNG::DB::has_admin_capable_user.
+sub admin_user_present
+{
+	my ($conn) = @_;
+	my $r = NMISNG::DB::run_command(
+		db      => $conn->get_database("admin"),
+		command => { "usersInfo" => 1 });
+	my $users = (ref($r) eq 'HASH' && ref($r->{users}) eq 'ARRAY') ? $r->{users} : [];
+	return NMISNG::DB::has_admin_capable_user($users);
+}
 
 # print question, return true if y (or in unattended mode).
 # default is yes, except in preseed mode where the default

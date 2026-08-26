@@ -1014,6 +1014,46 @@ sub _auth_source_args
 	return (db_name => $src);
 }
 
+# OMK-12826: the legacy (<2.0) driver authenticates at run time by calling
+# authenticate($db, $user, $pwd) for each db in this list, returning on the first
+# failure. When db_auth_source is set the credential lives ONLY in that source db
+# (a scoped nmis9RW created by setup_mongodb.pl holds no role in 'admin'), so the
+# loop must target the source alone; the old ('admin', $db_name) pair would fail
+# authenticating against 'admin' first and never reach the data db, breaking a 1.x
+# install after it migrates. When db_auth_source is unset the pre-OMK-12826
+# ('admin', $db_name) behaviour is preserved verbatim.
+sub _legacy_auth_dbs
+{
+	my ($CONF, $db_name) = @_;
+	my $src = $CONF->{db_auth_source};
+	return ($src) if (defined($src) && $src ne '');
+	return ('admin', $db_name);
+}
+
+# OMK-12826: given a usersInfo result (arrayref of user documents), returns true
+# if any user can still administer authentication after auth is enabled, i.e.
+# holds root or userAdminAnyDatabase, or userAdmin on the admin database.
+# setup_mongodb.pl uses this to refuse to enable auth on a fresh no-auth server
+# when the only user is the scoped nmis9RW (dbOwner on nmisng), which would
+# otherwise close the localhost exception with no one able to manage users.
+sub has_admin_capable_user
+{
+	my ($users) = @_;
+	return 0 unless (ref($users) eq 'ARRAY');
+	for my $u (@$users)
+	{
+		next unless (ref($u) eq 'HASH' && ref($u->{roles}) eq 'ARRAY');
+		for my $role (@{$u->{roles}})
+		{
+			next unless (ref($role) eq 'HASH');
+			my $name = $role->{role} // '';
+			return 1 if ($name eq 'root' || $name eq 'userAdminAnyDatabase');
+			return 1 if ($name eq 'userAdmin' && ($role->{db} // '') eq 'admin');
+		}
+	}
+	return 0;
+}
+
 # returns the db handle, or undef in case of errors (and then $error_string is set)
 sub get_db_connection
 {
@@ -1110,8 +1150,8 @@ sub get_db_connection
 		undef $password;
 		return $new_conn;
 	}
-	# authenticate to the dbs
-	foreach my $db ('admin',$db_name)
+	# authenticate to the dbs (OMK-12826: honour db_auth_source, see _legacy_auth_dbs)
+	foreach my $db (_legacy_auth_dbs($CONF, $db_name))
 	{
 		try
 		{
