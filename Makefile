@@ -23,9 +23,11 @@ dev-logs: ## follow dev logs
 	docker compose -f $(DEV_COMPOSE) --env-file $(DEV_ENV) logs -f
 
 prod-setup: ## generate a strong MONGODB_PASSWORD into the prod .env (run once before prod-up)
-	@pw=$$(perl -e 'open(my $$f,"<:raw","/dev/urandom") or exit 1; read($$f,my $$b,24)==24 or exit 1; print unpack("H*",$$b)'); \
+	@grep -q '^MONGODB_PASSWORD=CHANGE_ME' $(PROD_ENV) || { echo "ERROR: MONGODB_PASSWORD already set; refusing to overwrite (delete the line or reset to the CHANGE_ME placeholder to regenerate)"; exit 1; }; \
+	 pw=$$(perl -e 'open(my $$f,"<:raw","/dev/urandom") or exit 1; read($$f,my $$b,24)==24 or exit 1; print unpack("H*",$$b)'); \
 	 [ $${#pw} -eq 48 ] || { echo "ERROR: could not generate password"; exit 1; }; \
 	 sed -i.bak "s/^MONGODB_PASSWORD=.*/MONGODB_PASSWORD=$$pw/" $(PROD_ENV) && rm -f $(PROD_ENV).bak; \
+	 chmod 600 $(PROD_ENV); \
 	 echo "Wrote a generated MONGODB_PASSWORD to $(PROD_ENV)"
 
 prod-up: ## start the production stack (requires prod-setup first)

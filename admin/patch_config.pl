@@ -72,6 +72,12 @@ exit codes for -r: 0 ok, 1 key doesn't exist, 2 value is undef,
 
 -R: show all existing config entries
 
+--value-stdin: read the value for a single key from STDIN instead of argv, so
+a secret never appears in /proc/<pid>/cmdline. Give the key WITHOUT an
+'=value' suffix; the value is all of STDIN with at most one trailing newline
+stripped. Scalar overwrite only (op '='), and cannot be combined with -r/-R.
+E.g. printf '%s' \"\$secret\" | patch_config.pl Config.nmis --value-stdin /database/db_password
+
 E.g. Create empty array: patch_config.pl -a Config.nmis /new/key=
 E.g. Add element to array: patch_config.pl Config.nmis /new/key+=value
 E.g. Set empty existing array: patch_config.pl -af Config.nmis /new/key=

@@ -820,9 +820,12 @@ than per field.
 
 ### H13 / OMK-12826 / OMK-12709 — MongoDB app account is no longer the shared root identity
 
-**Files:** `conf-default/Config.nmis`, `admin/setup_mongodb.pl`,
-`lib/NMISNG/DB.pm`, `installer_hooks/common_dbpassword.sh`,
-`installer_hooks/24-postcopy-setup-mongodb`, `docker-dev/compose-dev.yaml`
+**Files:** `conf-default/Config.nmis`, `conf-default/Table-Config.nmis`,
+`admin/setup_mongodb.pl`, `lib/NMISNG/DB.pm`,
+`installer_hooks/common_dbpassword.sh`,
+`installer_hooks/24-postcopy-setup-mongodb`, `docker-dev/compose-dev.yaml`,
+`docker-dev/.env-dev`, `conf-default/docker/compose.yaml`,
+`conf-default/docker/.env`
 
 **What changed**
 
@@ -871,6 +874,19 @@ exactly as it was, so the migration is additive rather than destructive.
 `db_auth_source` is phased in the same run: it is only written once the
 scoped user is provisioned, so an install that has not yet run setup keeps
 authenticating against `admin` with no config change required.
+
+**`docker-dev/.env-dev` ships a working credential, deliberately.** Unlike
+`conf-default/docker/.env` (the production compose file, which ships the
+`CHANGE_ME_run_make_prod-setup` placeholder and refuses to start until
+`make prod-setup` replaces it — see the root `Makefile`), the dev compose
+env fixes `MONGODB_PASSWORD=nmis9devMongoRW` so the stack comes up without
+an extra setup step. This is not a hardening gap: `MONGODB_BIND_ADDR`
+defaults to `127.0.0.1` in that file (H12 / OMK-12708), so the Mongo it
+authenticates is not reachable off the host, and the value itself is not a
+secret — it exists only to keep `setup_mongodb.pl`'s deny-set check (`''`,
+`example`, `password`, `op42flow42`, `CHANGE_ME*`) from generating a random
+password for `nmis9RW` while the dev container keeps authenticating with
+the fixed one.
 
 **Mitigations to investigate (not implemented)**
 

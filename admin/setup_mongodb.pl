@@ -211,17 +211,23 @@ if (!$isnoauth)
 	# authenticate, because the app secret in db_password is NOT the admin
 	# credential. No-op idempotently with an actionable message rather than
 	# failing auth and dying later with a misleading "could not determine
-	# server version".
+	# server version". A preseed file (tags d92b/18ba, read further below via
+	# input_text) can also legitimately supply admin creds in unattended mode,
+	# so check for those too before deciding there is nothing to do.
+	my $preseed_has_admin = (ref($answers) eq 'HASH'
+			&& (defined($answers->{d92b}) || defined($answers->{'18ba'})));
 	if ($already_migrated && $noninteractive
 			&& !defined($ENV{NMIS_DB_ADMIN_USERNAME})
-			&& !defined($ENV{NMIS_DB_ADMIN_PASSWORD}))
+			&& !defined($ENV{NMIS_DB_ADMIN_PASSWORD})
+			&& !$preseed_has_admin)
 	{
 		print "INFO: this install is already migrated (db_auth_source=\"$conf->{db_auth_source}\")\n"
 			. "and MongoDB requires authentication. The value in db_password is the scoped\n"
 			. "application secret, not an administrator credential, so this unattended re-run\n"
 			. "cannot (and need not) re-provision. Nothing to do.\n"
 			. "To force re-provisioning, re-run with NMIS_DB_ADMIN_USERNAME and\n"
-			. "NMIS_DB_ADMIN_PASSWORD set to a MongoDB administrator, or run interactively.\n";
+			. "NMIS_DB_ADMIN_PASSWORD set to a MongoDB administrator, with a preseed file\n"
+			. "supplying admin answers (tags d92b/18ba), or run interactively.\n";
 		exit 0;
 	}
 
@@ -278,8 +284,11 @@ if (!$isnoauth)
 		$authfailed = $verify->{err} if (!$verify->{ok});
 	}
 
-	print $authfailed? "ERROR $authfailed\nWill attempt to continue!\n"
-			: "INFO: authentication succeeded.\n";
+	die("ERROR: MongoDB admin authentication failed: $authfailed\n"
+			. "Set NMIS_DB_ADMIN_USERNAME and NMIS_DB_ADMIN_PASSWORD to a MongoDB\n"
+			. "administrator credential (or re-run interactively and supply one) and try again.\n")
+		if ($authfailed);
+	print "INFO: authentication succeeded.\n";
 }
 my $admindb = $conn->get_database("admin");
 
