@@ -5,6 +5,15 @@
 SCRIPTPATH=${0%/*}
 . $SCRIPTPATH/common_functions.sh
 
+# OMK-12709/OMK-12826: warn (never block, never rotate) when the effective
+# db_password is a known shipped default. See common_dbpassword.sh for why
+# this hook must not hand-edit db_password itself.
+. $SCRIPTPATH/common_dbpassword.sh
+nmis_dbpassword_classify "$TARGETDIR" && rc=0 || rc=$?
+if [ "$rc" = 1 ] || [ "$rc" = 2 ]; then
+		nmis_dbpassword_advice "$NMIS_DBPASSWORD_USER"
+fi
+
 if [ -e $TARGETDIR/admin/setup_mongodb.pl ]; then
 		printBanner "Running MongoDB setup helper"
 
@@ -17,8 +26,9 @@ if [ -e $TARGETDIR/admin/setup_mongodb.pl ]; then
 				echolog "Skipping MongoDB setup helper as instructed."
 				cat <<EOF
 
-You can perform the MongoDB setup at any time by running
-$TARGETDIR/admin/setup_mongodb.pl as the root user.
+Database setup is now MANDATORY: NMIS cannot authenticate to MongoDB until
+$TARGETDIR/admin/setup_mongodb.pl has been run as the root user. Run it
+before starting NMIS.
 
 EOF
 		fi

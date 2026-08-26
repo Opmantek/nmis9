@@ -818,6 +818,73 @@ than per field.
 
 ---
 
+### H13 / OMK-12826 / OMK-12709 — MongoDB app account is no longer the shared root identity
+
+**Files:** `conf-default/Config.nmis`, `admin/setup_mongodb.pl`,
+`lib/NMISNG/DB.pm`, `installer_hooks/common_dbpassword.sh`,
+`installer_hooks/24-postcopy-setup-mongodb`, `docker-dev/compose-dev.yaml`
+
+**What changed**
+
+| Key | Before | After |
+|-----|--------|-------|
+| `db_username` | `opUserRW` | `nmis9RW` |
+| `db_password` | `op42flow42` (a live, working shipped default) | `CHANGE_ME_RUN_setup_mongodb` (a placeholder; `setup_mongodb.pl` generates a random 64-hex password when the effective value is still a shipped default) |
+| `db_auth_source` (new) | did not exist | `nmisng`, written by `setup_mongodb.pl` once it provisions the scoped user; absent otherwise, so the driver keeps defaulting to `admin` on an install that has not migrated (phased, matching the authSource work in OMK-12826 Tasks 2/3) |
+| `opUserRW` on `admin` | created/rotated by `setup_mongodb.pl`, granted `root` | untouched: `setup_mongodb.pl` no longer creates, rotates, or grants it anything |
+
+`setup_mongodb.pl` now authenticates its bootstrap connection with a separate
+admin credential (`NMIS_DB_ADMIN_USERNAME`/`NMIS_DB_ADMIN_PASSWORD`, falling
+back to the interactive prompt, defaulting to `opUserRW`), and provisions
+`nmis9RW` as a `dbOwner` of `nmisng` only — no `admin`-database role, no
+`root`. `db_password` is written back to `conf/Config.nmis` only when
+`setup_mongodb.pl` generated it; an operator- or env-supplied password is
+honoured for the created user but never persisted to disk.
+
+**Why:** `opUserRW` was one MongoDB identity with the `root` role, shared by
+NMIS and every other OMK product on the host, all authenticating with the
+same shipped default password (`op42flow42`). Anyone who read the published
+default, or a config file from any one OMK product, had root on every OMK
+product's database on that host. Rotating that shared identity from NMIS
+alone would have broken the other products immediately (and their next
+install would rotate it back and break NMIS), so the supported fix is a
+per-product scoped user rather than a rotation of the shared one. The
+detect-only warning in `installer_hooks/common_dbpassword.sh` (OMK-12709)
+makes the exposure visible on an un-migrated install without touching
+`db_password` itself, since this hook must never rotate or block.
+
+**Delegated functionality affected.** A site that relied on the shared
+`opUserRW`/`root` identity to let one MongoDB login administer the databases
+of several OMK products now needs the per-product scoped-user setup for
+each; there is no single shared credential to fall back to. The MongoDB
+administrative/bootstrap credential is now supplied separately from the
+app's own credential (`NMIS_DB_ADMIN_USERNAME`/`NMIS_DB_ADMIN_PASSWORD` in
+the Docker path, or the interactive prompt on a host install), so a caller
+that only ever set `db_username`/`db_password` and expected it to double as
+the admin login must now supply the admin pair too.
+
+**Upgrade note.** An existing install migrates automatically the next time
+`admin/setup_mongodb.pl` is run: it maps `db_username eq 'opUserRW'` (or
+empty) to `nmis9RW`, provisions that user, and generates a password only if
+the effective one is still a shipped default. `opUserRW` itself is left
+exactly as it was, so the migration is additive rather than destructive.
+`db_auth_source` is phased in the same run: it is only written once the
+scoped user is provisioned, so an install that has not yet run setup keeps
+authenticating against `admin` with no config change required.
+
+**Mitigations to investigate (not implemented)**
+
+- *TLS/certificate auth for the admin bootstrap connection:* the admin
+  credential still travels as a plaintext env var or interactive prompt for
+  that one bootstrap connection. Related to the transport work in H14
+  (OMK-12710).
+- *Per-product credential rotation tooling:* nothing here gives an operator a
+  supported way to rotate `nmis9RW`'s password after initial provisioning
+  short of re-running `setup_mongodb.pl` with a new `db_password` already in
+  place. Worth a dedicated rotation path if this comes up in practice.
+
+---
+
 ## Open threads to investigate (epic-wide, not tied to one change)
 
 These came up while reviewing OMK-12707 and are recorded so they are not lost.
