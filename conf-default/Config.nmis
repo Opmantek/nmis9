@@ -103,6 +103,10 @@ my %hash = (
 	'default_privpassword' => '',
 	'default_username' => '',
 	'demote_faulty_nodes' => 'true', # try totally unpollable nodes just once a day?
+	# turns on the per-node dashboard JSON file. Default false matches the
+	# prior unset behaviour exactly (getbool(undef) is already false) - this
+	# just makes the setting visible/discoverable, here and in Table-Config.nmis.
+	'enable_dashnode_file' => 'false',
 	'enable_interfaces_summary' => 'false',
 	'display_status_summary' => 'true',
 	'domain_name' => '',
@@ -117,6 +121,14 @@ my %hash = (
 	'fastping_target_interval' => '1',
 	'fastping_timeout' => 5000,
 	'file_size_warning' => '100000000',
+	# master on/off gate for whether code-raised ("Operational") status
+	# documents count toward status_summary/health_score. Defaults false so
+	# an existing install's health numbers don't change on upgrade - these
+	# documents still write and appear in the status collection/dashnode
+	# file either way, this only affects whether they move the percentage.
+	# The per-event Status flag (Events.nmis) and status_summary_exclude_events
+	# still apply underneath once this is true.
+	'health_score_include_operational_events' => 'false',
 	'hide_groups' => [],
 	'http_req_timeout' => '60',
 	'interface_availability_value_when_down' => 'U',
@@ -198,6 +210,23 @@ my %hash = (
 	'snmp_stop_polling_on_error' => 'true',
 	'snmp_timeout' => 5,
 	'stateless_event_dampening' => 900,
+	# site-wide backstop for the per-event Events.nmis Status flag: docs
+	# still write, but don't count toward node health. Catches sites whose
+	# Events.nmis predates the installer merge, or a site's own copy that
+	# still needs this even once merging reaches everyone.
+	# Interface Down/Service Down/Service Degraded: permanent, these don't
+	# affect node state, counting them would mark nodes degraded on upgrade.
+	# Service Configuration Error: a stuck-active event (removing a bad
+	# service reference, rather than fixing the Services table, leaves it
+	# active forever, see lib/NMISNG/Node.pm ~8836/~9372) would otherwise
+	# permanently degrade health for an already-fixed problem.
+	# Model File Invalid is deliberately NOT here - it's re-checked fresh
+	# every cycle, so it can't get stuck. Add any other event name here too
+	# if a site doesn't want it counted once the switch above is on.
+	# Note: re-enabling one of the first three also needs its Events.nmis
+	# Status flag flipped to true, they're excluded there too; Service
+	# Configuration Error only needs removing from this list.
+	'status_summary_exclude_events' => 'Interface Down,Service Down,Service Degraded,Service Configuration Error',
 	'threshold_period-default' => '-15 minutes',
 	'threshold_period-health' => '-4 hours',
 	'threshold_period-interface' => '-15 minutes',

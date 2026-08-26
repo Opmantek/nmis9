@@ -3336,7 +3336,8 @@ sub getComponentUUID
 sub getComponentUUIDConf
 {
 	my %args = @_;
-	my @components = $args{components};
+	my @components = ref($args{components}) eq 'ARRAY' ? @{$args{components}}
+				: defined($args{components}) ? ($args{components}) : ();
 	my $conf = $args{conf};
 
 	my $C = $conf // NMISNG::Util::loadConfTable();
