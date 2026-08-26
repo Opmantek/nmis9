@@ -470,27 +470,46 @@ sub collect_evidence
 	system("which mongosh >/dev/null 2>&1") == 0 and $mongo_shell = "mongosh";
 	print "Detected MongoDB shell: $mongo_shell\n";
 
+	# OMK-12826: the scoped app user (nmis9RW) authenticates against db_auth_source
+	# (the app db, e.g. nmisng), not admin. Without --authenticationDatabase the
+	# login fails and this whole section would be empty. Add it when set.
+	my $authsource = $globalconf->{db_auth_source};
+	my $dbname     = $globalconf->{db_name};
 	my @mongoargs = ("--quiet", 	# no heading, just json output please!
 									 "--username", $globalconf->{db_username},
 									 "--password", NMISNG::Util::decrypt($globalconf->{db_password}, 'database', 'db_password'),
 									 "--host", $globalconf->{db_server},
 									 "--port", $globalconf->{db_port});
+	push @mongoargs, ("--authenticationDatabase", $authsource) if ($authsource);
 	my $status = system("type $mongo_shell >/dev/null 2>&1");
 	if (POSIX::WIFEXITED($status) && !POSIX::WEXITSTATUS($status))
 	{
+		# A scoped dbOwner can only authenticate against, and operate on, the app
+		# db, so connect there; a legacy admin user connects to admin as before.
+		my $connectdb = $authsource ? $dbname : "admin";
 		# get the general mongo status
 		open("F", "|$mongo_shell ".join(" ",@mongoargs)
-				 ." admin >$targetdir/system_status/mongo_status 2>&1")
+				 ." $connectdb >$targetdir/system_status/mongo_status 2>&1")
 				or warn "can't run $mongo_shell: $!\n";
 		F->autoflush(1);
 
-		# fire the most essential commands blindly, don't want the complexity of ipc::run here
-		for my $cmd ("show databases", "db.hostInfo()", "db.serverStatus()",
-								 "show users", "show roles")
+		# admin-scoped commands (listDatabases, hostInfo, serverStatus, and
+		# admin's user/role listings) need privileges beyond the scoped dbOwner.
+		# Only attempt them on a legacy admin-authenticated connection; otherwise
+		# the section degrades to the db-scoped output below rather than erroring.
+		if (!$authsource)
 		{
-			print F "print('--- $cmd ---')\n$cmd\n";
+			# fire the most essential commands blindly, don't want the complexity of ipc::run here
+			for my $cmd ("show databases", "db.hostInfo()", "db.serverStatus()",
+									 "show users", "show roles")
+			{
+				print F "print('--- $cmd ---')\n$cmd\n";
+			}
 		}
-		my $dbname= $globalconf->{db_name};
+		else
+		{
+			print F "print('--- skipping admin-only status commands (scoped user, authSource=$authsource) ---')\n";
+		}
 		print F "print('--- changing to db $dbname ---')\nuse $dbname\n";
 		for my $cmd ("db.stats()", "db.printCollectionStats()",
 							 "db.getCollectionInfos()", "show users", "show roles")
@@ -973,6 +992,9 @@ sub collect_bot_data
 								 "--password", NMISNG::Util::decrypt($globalconf->{db_password}, 'database', 'db_password'),
 								 "--host", $globalconf->{db_server},
 								 "--port", $globalconf->{db_port});
+		# OMK-12826: scoped app user authenticates against db_auth_source, not admin.
+		push @mongoargs, ("--authenticationDatabase", $globalconf->{db_auth_source})
+			if ($globalconf->{db_auth_source});
 		my $run = "$mongo_shell @mongoargs $dbname --eval \"$query\"";
 
 		$bot_data->{count}->{$data} = `$run`;
