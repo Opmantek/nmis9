@@ -26,22 +26,40 @@ and performance data for any SNMP capable device. A highly configurable and
 extensible GUI displays health and performance data focused on technical
 information, as well as high level reporting for executive reports.
 
-## Initial administrator login
-On a fresh install NMIS no longer ships a default password. A strong random
-password is generated for the `nmis` web user during installation.
+## Initial NMIS administrator login
+The default username for NMIS is `nmis`. There is no longer a shipped default
+password, so `nm1888` no longer works. A strong random password is generated
+for the `nmis` user during installation and written to a root-only file.
 
-- Interactive install shows the password on the console once. Record it then.
-- It is also written to a root-only file, by default
-  `/usr/local/etc/firstwave/nmis-initial-password`. Set the environment variable
-  `NMIS_INITIAL_PASSWORD_FILE` before installing to change that location.
+To find the `nmis` password:
+
+    sudo cat /usr/local/etc/firstwave/nmis-initial-password
+
 - **Record it promptly, because the file removes itself.** Once any user has
   logged into the GUI, `nmisd` deletes it within the hour, so it will not be
   there to read a second time.
+- An interactive install also prints the password on the console once.
+- Set the environment variable `NMIS_INITIAL_PASSWORD_FILE` before installing
+  to have it written somewhere else.
+
+To reset the `nmis` password later:
+
+    sudo <nmis_base>/bin/nmis-cli act=set-htpasswd-password user=nmis
+
+That prompts for the new password. It also works inside a container, where
+`htpasswd` (`apache2-utils`) is not installed, and it is how you recover if the
+file is automatically deleted before you read it.
+
+On the wiki:
+
+- [NMIS 9 Installation Guide](https://docs.community.firstwave.com/wiki/spaces/NMIS/pages/3165688289/NMIS+9+Installation+Guide)
+- [Default Credentials (Passwords) for NMIS9 VM](https://docs.community.firstwave.com/wiki/spaces/NMIS/pages/3165689019/Default+Credentials+Passwords+for+NMIS9+VM)
+
 
 ### In Docker, you choose the password
 
-Containers do not generate one. Set `NMIS_ADMIN_PASSWORD` in your `.env` before
-the first start, and compose passes it in. It ships empty on purpose, because a
+NMIS Container does not generate a password. Set `NMIS_ADMIN_PASSWORD` in your `.env` before
+the first start, and docker compose passes it in. It ships empty on purpose, because a
 value there would be the same known password on every deployment.
 
 If NMIS needs to set a password and none is supplied, the container **refuses to
@@ -60,7 +78,7 @@ a password you set later in the GUI, so a restart does not reset you.
 - Change the password later with
   `bin/nmis-cli act=set-htpasswd-password user=nmis`. This works inside the
   container too, where `htpasswd` (`apache2-utils`) is not installed, and it is
-  how you recover if the file went before you read it.
+  how you recover if the file is automatically deleted before you read it.
 
 An upgrade of an existing site still using the old shipped default is rotated to
 a random password automatically. Any password you set yourself is left alone. A
