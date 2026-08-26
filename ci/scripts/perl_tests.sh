@@ -13,8 +13,6 @@ yes_bin="${YES:-/usr/bin/yes}"
 working_tests=(
     uuid.t
     t_util.pm
-    t_util_encryption_failclosed.t
-    t_util_verify_selftest_failclosed.t
     t_nmis_config.pl
     t_writehashtofile.pl
     t_status.pl
@@ -78,6 +76,8 @@ working_tests=(
     t_csrf.t
     t_csrf_cgi.t
     t_ci_perl_tests.t
+    t_util_encryption_failclosed.t
+    t_util_verify_selftest_failclosed.t
 )
 
 # run every file even when one fails, so a failure early in the list does not
