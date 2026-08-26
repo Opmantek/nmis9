@@ -68,6 +68,8 @@ BEGIN { $ENV{NMIS_GLOBAL_ENABLE_PASSWORD_ENCRYPTION} = 'true'; }
 
 use Test::More;
 use Test::Mojo;
+use File::Copy;
+use Crypt::PasswdMD5 qw(apache_md5_crypt);
 
 use NMISNG;
 use NMISNG::Log;
@@ -75,6 +77,60 @@ use NMISNG::Node;
 use NMISNG::Util;
 
 my $NODENAME = "t_12827_secret_node";
+
+# ---- seed a throwaway admin, so login never depends on nmis/nm1888 ----------
+# The dev/CI entrypoint re-seeds the built-in "nmis" account's password from
+# NMIS_ADMIN_PASSWORD (docker-dev/.env-dev), so nm1888 does not authenticate in
+# the container. A failed login is silent here: the request runs unauthenticated,
+# the edit form renders without the secret fields and no save persists, which
+# surfaces downstream as confusing "form rendered undef" and "edit not saved"
+# failures rather than a login error. Seed our own administrator into the
+# UNTRACKED conf/Users.nmis and conf/users.dat instead, exactly as t_csrf_cgi.t
+# does, and restore both in END. Must run before the app boots so the forked CGI
+# reads the seeded account.
+my $TESTUSER = 't12827_secret_admin';
+my $TESTPASS = 't12827-secret-' . $$;
+
+my $CONFDIR  = "$FindBin::Bin/../conf";
+my $USERSCFG = "$CONFDIR/Users.nmis";
+my $USERSDAT = "$CONFDIR/users.dat";
+
+my ($CFGBAK, $DATBAK);
+if (-f $USERSCFG && -f $USERSDAT)
+{
+	$CFGBAK = "$USERSCFG.t12827bak";
+	$DATBAK = "$USERSDAT.t12827bak";
+	copy($USERSCFG, $CFGBAK);
+	copy($USERSDAT, $DATBAK);
+
+	open(my $in, '<', $USERSCFG) or die "cannot read $USERSCFG: $!";
+	my $txt = do { local $/; <$in> };
+	close $in;
+	# a seeding miss must say so, rather than resurfacing later as a login failure
+	# that reads like a product bug.
+	my $seeded = ($txt =~ s{(\%hash\s*=\s*\()}{$1
+  '$TESTUSER' => {
+    '_id' => '$TESTUSER',
+    'groups' => 'all',
+    'privilege' => 'administrator',
+    'user' => '$TESTUSER'
+  },});
+	die "cannot seed $TESTUSER into $USERSCFG: no '%hash = (' found, the file format changed\n"
+		if (!$seeded);
+
+	open(my $out, '>', $USERSCFG) or die "cannot write $USERSCFG: $!";
+	print $out $txt;
+	close $out;
+
+	open(my $pw, '>>', $USERSDAT) or die "cannot append to $USERSDAT: $!";
+	print $pw $TESTUSER . ":" . apache_md5_crypt($TESTPASS) . "\n";
+	close $pw;
+}
+
+END {
+	if ($CFGBAK && -f $CFGBAK) { copy($CFGBAK, $USERSCFG); unlink $CFGBAK; }
+	if ($DATBAK && -f $DATBAK) { copy($DATBAK, $USERSDAT); unlink $DATBAK; }
+}
 
 # One distinct plaintext per secret field, so a field mix-up cannot pass unnoticed.
 # These are the six fields Table-Nodes.nmis marks display => 'password'.
@@ -92,6 +148,7 @@ my @SECRET_FIELDS = sort keys %SECRET;
 
 my $C = NMISNG::Util::loadConfTable();
 plan skip_all => "no MongoDB configured" unless ($C && $C->{db_name});
+plan skip_all => "could not seed the test admin under conf/ (bare host?)" unless $CFGBAK;
 
 # Without the encryption modules NMISNG::Util::encrypt silently returns its input
 # unchanged, so the fixture would be plaintext and every assertion below would pass
@@ -260,9 +317,12 @@ BAIL_OUT("could not save seed node: $saveerr") if ($saveerr);
 # ---- authenticate through the real app --------------------------------------
 
 $t->post_ok('/cgi-nmis9/nmiscgi.pl' => form =>
-	{ conf => 'Config', auth_username => 'nmis', auth_password => 'nm1888' });
-my $logged_in = grep { $_->name =~ /CGISESSID|nmis|omk/ } @{$t->ua->cookie_jar->all};
-ok($logged_in, "authenticated session established");
+	{ conf => 'Config', auth_username => $TESTUSER, auth_password => $TESTPASS });
+# a cookie alone proves nothing: an unauthenticated response still sets a session
+# cookie, so assert the body is the app, not the login page. A silent login
+# failure here is what made the real failure look like a form/save bug.
+unlike($t->tx->res->body // '', qr/Invalid username\/password/,
+	   "authenticated session established as $TESTUSER");
 
 # ---- 1. the edit form really does hand the ciphertext back ------------------
 # This is the precondition the fix relies on. If the form ever started rendering
