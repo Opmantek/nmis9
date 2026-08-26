@@ -8,8 +8,17 @@ services:
     image: ${NMIS_IMAGE:-public.ecr.aws/n2x4v8j4/firstwave/nmis9:9.6.5}
     restart: always
     environment:
-      NMIS_DB_USERNAME: ${MONGODB_USERNAME}
+      # OMK-12826: the app runs as the scoped nmis9RW user, not the mongo
+      # root user. setup_mongodb.pl (run by the entrypoint's setup_db)
+      # authenticates as admin using NMIS_DB_ADMIN_*, and creates/updates
+      # nmis9RW with the effective NMIS_DB_PASSWORD value. Run `make
+      # prod-setup` before first start so MONGODB_PASSWORD is a strong,
+      # non-default value - see .env.
+      NMIS_DB_USERNAME: nmis9RW
       NMIS_DB_PASSWORD: ${MONGODB_PASSWORD}
+      NMIS_DB_ADMIN_USERNAME: ${MONGODB_USERNAME}
+      NMIS_DB_ADMIN_PASSWORD: ${MONGODB_PASSWORD}
+      NMIS_DB_AUTH_SOURCE: nmisng
       # NMIS overrides any config key from NMIS_<KEY> in the environment
       # (NMISNG::Util::_apply_env_overrides). These are the container-side
       # values: do NOT point them at MONGODB_HOST_PORT, which is the host side.
