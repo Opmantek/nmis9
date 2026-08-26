@@ -26,7 +26,10 @@ services:
       NMIS_DB_PORT: ${MONGODB_PORT:-27017}
       NMIS_SERVER_NAME: ${NMIS_SERVER_NAME}
     depends_on:
-      - mongo
+      # Wait for mongo to be healthy so the entrypoint's setup_mongodb.pl can
+      # provision the scoped nmis9RW user on first boot (OMK-12826).
+      mongo:
+        condition: service_healthy
     volumes:
       - nmis_log_data:/usr/local/nmis9/logs
       - nmis_var_data:/usr/local/nmis9/var
@@ -44,10 +47,12 @@ services:
     healthcheck:
       # probes the service name, so a loopback-only mongod shows as unhealthy
       test: echo 'db.runCommand("ping").ok' | mongosh mongo:${MONGODB_PORT:-27017}/test --quiet
-      interval: 60s
-      timeout: 60s
-      retries: 5
-      start_period: 60s
+      # Fast probe so `depends_on: service_healthy` gates nmis startup quickly and
+      # the entrypoint's setup_mongodb.pl provisions the scoped user (OMK-12826).
+      interval: 5s
+      timeout: 5s
+      retries: 24
+      start_period: 10s
     environment:
       MONGO_INITDB_ROOT_USERNAME: ${MONGODB_USERNAME}
       MONGO_INITDB_ROOT_PASSWORD: ${MONGODB_PASSWORD}

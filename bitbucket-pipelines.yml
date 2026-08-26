@@ -33,6 +33,17 @@ pipelines:
             - sed -i "s/^DEV_UID=.*/DEV_UID=$(id -u)/; s/^DEV_GID=.*/DEV_GID=$(id -g)/" docker-dev/.env-dev
             - echo "$BB_PKG_TOKEN" | docker login crg.apkg.io -u "$BB_EMAIL" --password-stdin
             - docker compose --file docker-dev/compose-dev.yaml --env-file docker-dev/.env-dev up -d
+            # OMK-12826: `up -d` returns before the entrypoint's setup_mongodb.pl
+            # has provisioned the scoped nmis9RW user, so the Test step could race
+            # it. Wait until the app can actually authenticate before proceeding.
+            - |
+              for i in $(seq 1 48); do
+                if docker exec nmis bash -c '/usr/local/nmis9/admin/node_admin.pl act=list >/dev/null 2>&1'; then
+                  echo "nmis scoped DB user ready after ~$((i*5))s"; ready=1; break
+                fi
+                echo "waiting for nmis DB provisioning ($i)..."; sleep 5
+              done
+              [ -n "$ready" ] || { echo "ERROR: nmis DB user not ready in time"; docker logs --tail 100 nmis || true; exit 1; }
       - step:
           name: Test NMIS
           runs-on:
