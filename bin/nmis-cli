@@ -1992,11 +1992,12 @@ sub _write_initial_password_file
 		sysopen($pfh, $pwfile, O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW, 0600)
 			or die "open $pwfile: $!\n";
 		# the removal warning belongs here too, not only in the installer banner:
-		# by the time anyone reads this file the banner has long scrolled away.
+		# by the time anyone reads this file the banner has long scrolled away.		
 		print $pfh <<"FILE" or die "write $pwfile: $!\n";
 NMIS initial administrator login
 username: $user
 password: $password
+
 
 This file is removed automatically within an hour of the first GUI login,
 so record this password now.
@@ -2157,7 +2158,7 @@ sub seed_htpasswd_password
 	push @banner, "+ NMIS initial administrator password";
 	push @banner, "++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++";
 	push @banner, "";
-	push @banner, "The default user for NMIS is $user.";
+	push @banner, "The default username for NMIS is $user.";
 	if (defined $supplied)
 	{
 		# nothing to record and nothing to retrieve: they chose it.
@@ -2184,14 +2185,14 @@ sub seed_htpasswd_password
 		push @banner, "    password: $password";
 	}
 	push @banner, "";
-	push @banner, "To change the password later:";
+	push @banner, "To reset the $user password later:";
 	push @banner, "";
 	push @banner, "    sudo $nmisdir/bin/nmis-cli act=set-htpasswd-password user=$user";
 	push @banner, "";
 	push @banner, "More on logging in:";
 	push @banner, "";
 	push @banner, "    $nmisdir/README.md, section 'Initial NMIS administrator login'";
-	push @banner, "    https://docs.community.firstwave.com/wiki/spaces/NMIS/pages/3165688289";
+	push @banner, "    NMIS 9 Installation Guide  https://docs.community.firstwave.com/wiki/x/4ZGwv";
 	push @banner, "";
 	print "$_\n" for @banner;
 	return;

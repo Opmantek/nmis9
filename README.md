@@ -27,7 +27,7 @@ extensible GUI displays health and performance data focused on technical
 information, as well as high level reporting for executive reports.
 
 ## Initial NMIS administrator login
-The default user for NMIS is `nmis`. There is no longer a shipped default
+The default username for NMIS is `nmis`. There is no longer a shipped default
 password, so `nm1888` no longer works. A strong random password is generated
 for the `nmis` user during installation and written to a root-only file.
 
@@ -42,7 +42,7 @@ To find the `nmis` password:
 - Set the environment variable `NMIS_INITIAL_PASSWORD_FILE` before installing
   to have it written somewhere else.
 
-To change the password later:
+To reset the `nmis` password later:
 
     sudo <nmis_base>/bin/nmis-cli act=set-htpasswd-password user=nmis
 

@@ -64,7 +64,7 @@ EOF
 PWFILE="${NMIS_INITIAL_PASSWORD_FILE:-/usr/local/etc/firstwave/nmis-initial-password}"
 if [ -f "$PWFILE" ]; then
 		cat <<EOF
-The default user for NMIS is nmis.
+The default username for NMIS is nmis.
 To find the nmis password:
 
     sudo cat $PWFILE
@@ -72,29 +72,29 @@ To find the nmis password:
 Record it now. That file is removed automatically within an hour of the
 first GUI login, so it will not be there later.
 
-To change the password later:
+To reset the nmis password later:
 
     sudo $TARGETDIR/bin/nmis-cli act=set-htpasswd-password user=nmis
 
 More on logging in:
 
     $TARGETDIR/README.md, section 'Initial NMIS administrator login'
-    https://docs.community.firstwave.com/wiki/spaces/NMIS/pages/3165688289
+    NMIS 9 Installation Guide  https://docs.community.firstwave.com/wiki/x/4ZGwv
 
 EOF
 else
 		# no file: the password was supplied in the environment, or it already
 		# had one, so there is nothing to read out.
 		cat <<EOF
-The default user for NMIS is nmis.
-To set or change nmis password:
+The default username for NMIS is nmis.
+To set or reset the nmis password:
 
     sudo $TARGETDIR/bin/nmis-cli act=set-htpasswd-password user=nmis
 
 More on logging in:
 
     $TARGETDIR/README.md, section 'Initial NMIS administrator login'
-    https://docs.community.firstwave.com/wiki/spaces/NMIS/pages/3165688289
+    NMIS 9 Installation Guide  https://docs.community.firstwave.com/wiki/x/4ZGwv
 
 EOF
 fi
