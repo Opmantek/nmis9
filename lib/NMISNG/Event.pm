@@ -39,6 +39,8 @@ use Data::Dumper;
 use Test::Deep::NoTest;
 use Time::HiRes;
 
+use NMISNG::Status;
+
 our $VERSION = "9.6.5";
 
 # Allow testing of proposed fix for Event Load():
@@ -488,6 +490,13 @@ sub check
 
 		}
 	}
+
+	# explicit outcome so checkEvent() can tell "genuinely closed, or
+	# nothing active to close" apart from "bailed out without persisting" -
+	# the two early `return;`s above (dampening not satisfied, the
+	# OMK-12622 duplicate-key case) leave the down event still active and
+	# must read as false, so a caller can avoid reporting a false "ok".
+	return 1;
 }
 
 sub custom_data
@@ -544,6 +553,20 @@ sub delete
 		);
 		$ret = "event delete failed: $result->{error}" if ( !$result->{success} );
 	}
+	# event closed outside notify/checkEvent: flip its operational status
+	# doc to ok if one exists (OMK-12605). update-only, so up-events and
+	# traps (which never had a doc) stay inert.
+	if ( !$ret )
+	{
+		NMISNG::Status::close_operational_status(
+			nmisng     => $self->nmisng,
+			cluster_id => $self->cluster_id // $self->nmisng->config->{cluster_id},
+			node_uuid  => $self->node_uuid,
+			event      => $self->event,
+			element    => $self->element,
+		);
+	}
+
 	$self->nmisng->log->error($ret) if ($ret);
 	return $ret;
 }

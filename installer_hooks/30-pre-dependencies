@@ -195,7 +195,7 @@ if [ "${OSFLAVOUR}" = "redhat" ]; then
             if input_yn "Do you want to install these packages now?" "5af4"; then
                 REPO='';
                 NEEDREPO='';
-				install_package "gcc"||:;  #cpan packages below use this, fails without making sure this isn't installed
+                install_package "gcc"||:;  # cpan packages below use this, fails without making sure this isn't installed
                 install_package "perl-CPAN"||:;
                 install_package "perl-App-cpanminus"||:;
                 install_package "perl-LWP-Protocol-https"||:;
@@ -205,9 +205,9 @@ if [ "${OSFLAVOUR}" = "redhat" ]; then
                     else
                             PROMPT="--prompt";
                     fi;
-                    cpanm Devel::GlobalDestruction::XS --sudo "${PROMPT}" 2>&1||:; # can't use execprint as cpanm may be interactive
-                    cpanm Proc::Queue --sudo "${PROMPT}" 2>&1||:; # can't use execprint as cpanm may be interactive
-                    cpanm Net::SMTPS --sudo "${PROMPT}" ||2>&1:; # can't use execprint as cpanm may be interactive
+                    cpanm Devel::GlobalDestruction::XS --sudo ${PROMPT} 2>&1||:; # can't use execprint as cpanm may be interactive
+                    cpanm Proc::Queue --sudo ${PROMPT} 2>&1||:; # can't use execprint as cpanm may be interactive
+                    cpanm Net::SMTPS --sudo ${PROMPT} 2>&1||:; # can't use execprint as cpanm may be interactive
 
                     unset PROMPT;
                 fi;
