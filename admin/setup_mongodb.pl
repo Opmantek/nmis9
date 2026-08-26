@@ -185,19 +185,51 @@ else
 # db_username/db_password now hold NMIS's own scoped app account, so setup must
 # not use them to authenticate as admin. Prefer env for unattended installs,
 # else the interactive prompt below, else default to the legacy shared admin.
+#
+# Once the install is MIGRATED (db_auth_source is set) db_password holds the
+# scoped APP secret, which is NOT the admin credential. Defaulting the admin
+# password to decrypt(db_password) would make an unattended re-run authenticate
+# as opUserRW with the app secret, fail, and later die with a misleading
+# "could not determine server version". So only fall back to decrypt(db_password)
+# on a fresh / first-migration install.
+my $already_migrated = (defined($conf->{db_auth_source}) && $conf->{db_auth_source} ne '');
+
 my $adminuser = $ENV{NMIS_DB_ADMIN_USERNAME} // 'opUserRW';
-my $adminpwd  = $ENV{NMIS_DB_ADMIN_PASSWORD}
-	// NMISNG::Util::decrypt($conf->{db_password}, 'database', 'db_password');
+my $adminpwd  = $ENV{NMIS_DB_ADMIN_PASSWORD};
+if (!defined($adminpwd))
+{
+	$adminpwd = $already_migrated
+		? undef
+		: NMISNG::Util::decrypt($conf->{db_password}, 'database', 'db_password');
+}
 
 if (!$isnoauth)
 {
 	print "INFO: Your MongoDB seems to be running with authentication required.\n";
 
+	# already-migrated + unattended + no admin creds supplied: we cannot
+	# authenticate, because the app secret in db_password is NOT the admin
+	# credential. No-op idempotently with an actionable message rather than
+	# failing auth and dying later with a misleading "could not determine
+	# server version".
+	if ($already_migrated && $noninteractive
+			&& !defined($ENV{NMIS_DB_ADMIN_USERNAME})
+			&& !defined($ENV{NMIS_DB_ADMIN_PASSWORD}))
+	{
+		print "INFO: this install is already migrated (db_auth_source=\"$conf->{db_auth_source}\")\n"
+			. "and MongoDB requires authentication. The value in db_password is the scoped\n"
+			. "application secret, not an administrator credential, so this unattended re-run\n"
+			. "cannot (and need not) re-provision. Nothing to do.\n"
+			. "To force re-provisioning, re-run with NMIS_DB_ADMIN_USERNAME and\n"
+			. "NMIS_DB_ADMIN_PASSWORD set to a MongoDB administrator, or run interactively.\n";
+		exit 0;
+	}
+
 	print "\n";
 	# defaults for the prompt below: the env/legacy resolution above, captured
 	# before the loop starts overwriting $adminuser/$adminpwd with entered values.
 	my $default_adminuser = $adminuser;
-	my $default_adminpwd  = $adminpwd;
+	my $default_adminpwd  = $adminpwd // '';
 	my $confirm;
 	do
 	{
@@ -338,16 +370,33 @@ else
 # Only now that the user exists, switch the live config over. patch_config.pl
 # writes conf/Config.nmis. A failed provisioning above dies before this point,
 # so a broken run never leaves the config pointing at a user that was not made.
-my $cfgfile = $conf->{configfile};
-my @writes = ("/database/db_username=$target_user", "/database/db_auth_source=$dbname");
-# Persist db_password only when we generated it. An operator/env-supplied value
-# is honoured for the user above but not written to disk, so an env-only secret
-# does not get persisted into conf/Config.nmis.
-push @writes, "/database/db_password=$genpw" if ($generated);
-for my $kv (@writes)
+my $cfgfile   = $conf->{configfile};
+my $patchtool = $conf->{'<nmis_base>'} . "/admin/patch_config.pl";
+
+# Non-secret keys go via argv. On failure name only the KEY, never the value.
+my @writes = (
+	[ "db_username",    "/database/db_username=$target_user" ],
+	[ "db_auth_source", "/database/db_auth_source=$dbname" ],
+);
+for my $w (@writes)
 {
-	system($conf->{'<nmis_base>'} . "/admin/patch_config.pl", $cfgfile, $kv) == 0
-		or die "ERROR: failed to write $kv to $cfgfile\n";
+	my ($key, $kv) = @$w;
+	system($patchtool, $cfgfile, $kv) == 0
+		or die "ERROR: failed to write $key to $cfgfile\n";
+}
+
+# Persist db_password only when we generated it, and feed it to patch_config.pl
+# on STDIN (--value-stdin) so the secret never lands in the process command line
+# (/proc/<pid>/cmdline). An operator/env-supplied value is honoured for the user
+# above but not written to disk, so an env-only secret is not persisted here.
+if ($generated)
+{
+	local $SIG{PIPE} = 'IGNORE';
+	open(my $pc, '|-', $patchtool, $cfgfile, "--value-stdin", "/database/db_password")
+		or die "ERROR: failed to run patch_config.pl for db_password on $cfgfile\n";
+	print $pc $genpw;
+	close($pc)
+		or die "ERROR: failed to write db_password to $cfgfile\n";
 }
 $genpw = "x" x 64; undef $genpw;
 print "INFO: NMIS is now configured to use scoped user $target_user in $dbname.\n";
