@@ -49,8 +49,11 @@
 # documented anti-pattern. The form is not hand-built - it is fetched, parsed and
 # posted back the way a browser would, which is what makes it a genuine round trip.
 #
-# Needs a reachable MongoDB, the NMISx app, and the encryption modules; skips
-# loudly otherwise. Seeds and removes one node, and changes nothing on disk.
+# Needs a reachable MongoDB and the NMISx app. In a MongoDB-configured environment
+# the encryption modules and a master.key are prerequisites the test provides or
+# fails loudly on, never skips over. It seeds and removes one node, seeds and
+# restores a throwaway admin in conf/, and manages an isolated master.key, all
+# restored in END so the disk is left as it was found.
 
 use strict;
 use warnings;
@@ -150,22 +153,25 @@ my $C = NMISNG::Util::loadConfTable();
 plan skip_all => "no MongoDB configured" unless ($C && $C->{db_name});
 plan skip_all => "could not seed the test admin under conf/ (bare host?)" unless $CFGBAK;
 
-# Without the encryption modules NMISNG::Util::encrypt silently returns its input
-# unchanged, so the fixture would be plaintext and every assertion below would pass
-# vacuously. The stock dev/CI image (Debian 11) ships none of them, so say so
-# loudly rather than letting a green run imply this path is covered.
+# The three encryption modules are declared install dependencies (since 9.4.5) and
+# now ship in the dev/CI image. Reaching this line means MongoDB is configured, so
+# we are in the container, where they MUST be present. A missing module here is a
+# real regression, not a bare-host condition, so FAIL LOUDLY rather than skip: a
+# skip_all here is a silent green that hides the fact this security path never ran,
+# which is exactly how the gap went unnoticed before. NMISNG::Util::encrypt returns
+# its input unchanged when they are absent, so without them the fixture would be
+# plaintext and every assertion below would pass vacuously.
 my @missing = grep { !eval "require $_; 1" }
 		qw(Crypt::CBC Crypt::Cipher::AES Math::Random::Secure);
 if (@missing)
 {
-	diag("*" x 72);
-	diag("*** OMK-12827 SECRET PASS-THROUGH COVERAGE IS NOT RUNNING ***");
-	diag("*** missing encryption modules: " . join(", ", @missing));
-	diag("*** install: apt-get install -y libcrypt-cbc-perl libcryptx-perl libmath-random-secure-perl");
-	diag("*** without these, NMISNG::Util::encrypt returns plaintext unchanged and");
-	diag("*** this test could only ever pass vacuously, so it refuses to run.");
-	diag("*" x 72);
-	plan skip_all => "encryption modules absent (" . join(",", @missing) . "): coverage DISABLED, see diagnostics above";
+	fail("encryption modules present in this MongoDB-configured environment");
+	diag("missing: " . join(", ", @missing)
+			 . " - install: apt-get install -y libcrypt-cbc-perl libcryptx-perl "
+			 . "libmath-random-secure-perl. Without them this security path cannot run, "
+			 . "and it must go red here rather than skip to a false green.");
+	done_testing();
+	exit;
 }
 
 # A failure here is not a missing dependency, it is the test's own premise breaking,
@@ -178,6 +184,48 @@ if (!NMISNG::Util::getbool($C->{global_enable_password_encryption}))
 			 . "'; without it no node can hold a '!!' value and this test is meaningless");
 	done_testing();
 	exit;
+}
+
+# ---- ensure an isolated master.key exists, so encrypt/decrypt really run -------
+# NMISNG::Util::encrypt/decrypt read /usr/local/etc/firstwave/master.key and, when
+# it is absent, call _make_seed - which DIES for a non-root caller and, as root,
+# creates a web-readable key and leaves it on disk. With encryption enabled the very
+# next line (the DB connect) decrypts db_password and would trigger that, so this
+# MUST run first. Leaning on the root side effect makes the test pass only by the
+# accident of running as root, and mutates the host. Manage an isolated key instead:
+# use an existing readable one untouched, else write a format-identical 256-char key
+# (the read path takes the first line as the cipher key) and remove it in END so the
+# disk is left as we found it. If no key exists and one cannot be created (non-root,
+# unwritable dir), FAIL LOUDLY - never skip, a skip would hide that this did not run.
+my $KEYFILE = '/usr/local/etc/firstwave/master.key';
+my $KEYDIR  = '/usr/local/etc/firstwave';
+my ($KEY_CREATED, $KEYDIR_CREATED);
+if (!-r $KEYFILE)
+{
+	$KEYDIR_CREATED = 1 if (!-d $KEYDIR && (mkdir($KEYDIR) || -d $KEYDIR));
+	# 256 chars from [A-Za-z0-9], no trailing newline - identical shape to _make_seed.
+	# Math::Random::Secure (required above) rather than core rand(), which OMK-12827
+	# itself flags as an insecure seed source.
+	my @cs   = ('A'..'Z', 'a'..'z', 0..9);
+	my $seed = join '', map { $cs[int(Math::Random::Secure::rand(scalar @cs))] } (1..256);
+	if (open(my $kh, '>', $KEYFILE))
+	{
+		print $kh $seed;
+		close $kh;
+		chmod(0644, $KEYFILE);
+		$KEY_CREATED = 1;
+	}
+	else
+	{
+		BAIL_OUT("cannot create an isolated master.key at $KEYFILE ($!); this test "
+				 . "needs a readable key - run it as root or in the dev container. It "
+				 . "will not skip and report a false green.");
+	}
+}
+
+END {
+	unlink $KEYFILE if ($KEY_CREATED && -f $KEYFILE);
+	rmdir  $KEYDIR  if ($KEYDIR_CREATED && -d $KEYDIR);
 }
 
 my $logger = NMISNG::Log->new(level => 'error');
