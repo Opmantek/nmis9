@@ -36,7 +36,7 @@ The dev and CI image `crg.apkg.io/firstwavecloud/nmis-dev:latest` is built from 
 
 ## Locked decisions
 
-1. **Fail closed without destroying data, never by dying.** `decrypt` returns the existing `""` sentinel for a value it cannot decrypt, a read failure that no caller persists. `encrypt` returns the value unchanged, never `""`, because a caller such as `NMISNG::Node::new` assigns `encrypt`'s result straight back to a stored secret and saves it, so `""` would wipe the credential. The value handed to `encrypt` is already plaintext at rest, so returning it unchanged adds no new exposure. Neither path rewrites the flag, and no new `die` is introduced. (The first version of this decision used `""` for both; review found `encrypt`-returns-`""` wipes node secrets through `Node::new`, so `encrypt` returns unchanged instead.)
+1. **Fail closed without destroying data, never by dying.** Both `decrypt` and `encrypt` return their input value unchanged for a value they cannot process, never the `""` sentinel. A decrypt-then-persist caller (`NMISNG::Node::new`, and `cgi-bin/tables.pl` `doeditTable`) and an encrypt-then-persist caller assign the result straight back to a stored secret and save it, so `""` would wipe the credential. Handing back a `"!!"` ciphertext unchanged still fails auth for a read caller, so reads stay fail closed, and re-persisting the same ciphertext is a no-op. The value handed to `encrypt` is already plaintext at rest, so returning it unchanged adds no new exposure. Neither path rewrites the flag, and no new `die` is introduced. (Earlier drafts used `""`: the first used it for both and would have wiped node secrets through `encrypt`/`Node::new`, corrected so `encrypt` returns unchanged; the PR #65 review then found the surviving `decrypt`-returns-`""` wiped secrets through `cgi-bin/tables.pl` `doeditTable`, so `decrypt` returns unchanged too.)
 2. **The loud, human-facing failure lives at the enable boundary.** `verifyNMISEncryption` runs only from `enableEOS` and `disableEOS`, which are root-only admin commands with an operator present that already print to the terminal. That is where we print an actionable message that names the missing packages. `testEncryption` already blocks `enableEOS` when the modules are missing, so the flag cannot be set true through that path.
 3. **Scenario 2 is a Slice B follow-up.** If encryption was already on and the modules later disappear under a running daemon, Slice A keeps the system safe (fail closed, no self-disable, no credential wipe) but cannot raise a GUI alert from inside `Util.pm`. Surfacing that needs the `nmisng` and event wiring that lives outside this file.
 
@@ -67,7 +67,7 @@ Behaviour when the crypto modules cannot load. "enabled" means `global_enable_pa
 
 | Function | Condition | Input shape | Old return | New return | Flag write |
 | --- | --- | --- | --- | --- | --- |
-| `decrypt` | enabled | `"!!"` ciphertext | input, then flag set false | `""` | none |
+| `decrypt` | enabled | `"!!"` ciphertext | input, then flag set false | input unchanged | none |
 | `decrypt` | enabled | plaintext | input, then flag set false | input unchanged | none |
 | `decrypt` | disabled | any | unchanged from today | unchanged from today | none |
 | `encrypt` | enabled or force | plaintext | input, then flag set false when enabled and not force | input unchanged | none |
@@ -96,7 +96,7 @@ New test file under `test/`, driving `NMISNG::Util` directly with a throwaway co
 
 These use `Test::Without::Module` to force the crypto `require` to fail, so they drive the missing-modules branch on demand rather than relying on the environment. That branch returns before any seed is read, so no master key is needed. With encryption enabled and the modules forced absent:
 
-- `decrypt` of a `"!!"` value returns `""`.
+- `decrypt` of a `"!!"` value returns it unchanged, never `""` (the property that guards the `doeditTable`/`Node::new` wipe), and a replay of the `doeditTable` value flow preserves the stored ciphertext.
 - `encrypt` of a plaintext value returns it unchanged, and never `""` (the property that guards the `Node::new` wipe).
 - `verifyNMISEncryption` returns failure and its output names the three packages.
 - `testEncryption` returns 0.
@@ -138,7 +138,7 @@ This is a security change, so before the pull request:
 ## Risks
 
 - Removing the item 8 return of plaintext for a disabled `"!!"` input is a behaviour change. Mitigation is the caller audit in the security-fix gate.
-- Returning `""` on a write path means a caller could persist `""` for a secret it failed to encrypt. This is a failed write, not a cleartext leak, and it only happens on a misconfigured system where the modules are absent while encryption is enabled, which `enableEOS` already prevents through `testEncryption`.
+- Persisting `""` for a secret a write path could not process. The PR #65 review found this was reachable: with encryption enabled and the modules absent, `decrypt` returning `""` for a `"!!"` value let `cgi-bin/tables.pl` `doeditTable` persist `""` over a stored node/table secret. Resolved by `decrypt` returning the input unchanged (decision 1), so the editor re-persists the same ciphertext. Two residuals stay for Slice B: `encrypt` still returns `""` on a seed or cipher failure with the modules present (`Util.pm:5028`, `:5034`), which `NMISNG::Node::new`'s unguarded assign-and-save would persist; and the pre-existing `""` returns inside `decrypt` on a cipher error, a corrupted seed, or an unreadable master key, which the same `doeditTable` path could still persist. The proper fix for the latter is a write-path guard that refuses to persist a secret it could not encrypt while encryption is enabled.
 - There is a pre-existing latent crash if encryption is disabled, the modules are missing, and a leftover `"!!"` value reaches `decrypt`. It is out of scope for this slice and noted for a later one.
 
 ## Notes
