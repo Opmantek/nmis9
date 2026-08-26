@@ -75,6 +75,7 @@ working_tests=(
     t_mongo_exposure.t
     t_common_dbpassword.t
     t_db_auth_source.t
+    t_setup_mongodb_scoped_user.t
     t_csrf.t
     t_csrf_cgi.t
     t_ci_perl_tests.t

@@ -181,23 +181,29 @@ else
 	print "INFO: failed to retrieve server status from MongoDB, assuming auth is on.\n";
 }
 
-my $adminuser = $conf->{db_username};
-
-
-my $adminpwd = NMISNG::Util::decrypt($conf->{db_password}, 'database', 'db_password');
-
+# OMK-12826: the admin/bootstrap credential is SEPARATE from the app credential.
+# db_username/db_password now hold NMIS's own scoped app account, so setup must
+# not use them to authenticate as admin. Prefer env for unattended installs,
+# else the interactive prompt below, else default to the legacy shared admin.
+my $adminuser = $ENV{NMIS_DB_ADMIN_USERNAME} // 'opUserRW';
+my $adminpwd  = $ENV{NMIS_DB_ADMIN_PASSWORD}
+	// NMISNG::Util::decrypt($conf->{db_password}, 'database', 'db_password');
 
 if (!$isnoauth)
 {
 	print "INFO: Your MongoDB seems to be running with authentication required.\n";
 
 	print "\n";
+	# defaults for the prompt below: the env/legacy resolution above, captured
+	# before the loop starts overwriting $adminuser/$adminpwd with entered values.
+	my $default_adminuser = $adminuser;
+	my $default_adminpwd  = $adminpwd;
 	my $confirm;
 	do
 	{
 		# let's default to our standard user for both admin and operational use...
-		$adminuser = input_text("Enter your MongoDB ADMIN user for $dbserver:$port [default: $conf->{db_username}]:","d92b");
-		$adminuser = $conf->{db_username} if ($adminuser eq "");
+		$adminuser = input_text("Enter your MongoDB ADMIN user for $dbserver:$port [default: $default_adminuser]:","d92b");
+		$adminuser = $default_adminuser if ($adminuser eq "");
 
 		$confirm = $noninteractive? 1 : input_yn("You entered \"$adminuser\" - is this correct?","9f20");
 		print "\n";
@@ -206,8 +212,8 @@ if (!$isnoauth)
 
 	do
 	{
-		$adminpwd = input_text("Enter your MongoDB ADMIN password [default: " . NMISNG::Util::decrypt($conf->{db_password}, 'database', 'db_password') . "]:","18ba");
-		$adminpwd = NMISNG::Util::decrypt($conf->{db_password}, 'database', 'db_password') if ($adminpwd eq "");
+		$adminpwd = input_text("Enter your MongoDB ADMIN password [default: $default_adminpwd]:","18ba");
+		$adminpwd = $default_adminpwd if ($adminpwd eq "");
 
 		$confirm = $noninteractive? 1 : input_yn("You entered \"$adminpwd\" - is this correct?","3937");
 		print "\n";
@@ -266,90 +272,85 @@ for my $dbname (@dropthese)
 
 print "INFO: server version is $mongod_version.\n";
 
-# check whether the user exists already, if so grant full privileges for all dbs and ensure the password is set
-my $userlist = NMISNG::DB::run_command(db => $admindb,
-																			 command => {
-																				 "usersInfo" => { user => $adminuser, db => "admin" }, });
-# returns users->[0], roles are array of hashes in users->[0]->roles, keys db and role
-if (ref($userlist) ne "HASH" or ref($userlist->{users}) ne "ARRAY" or !@{$userlist->{users}})
-{
-	print "INFO: adding user $adminuser to admin db\n";
-	# create the user
-	my $create_result =	NMISNG::DB::run_command(db => $admindb,
-																					 command => Tie::IxHash->new(
-																						 "createUser" => $adminuser,
-																						 "pwd" => $adminpwd,
-																						 "roles" => ['root'] ) );
+# OMK-12826: NMIS no longer creates, rotates, or grants root to the shared
+# admin account (opUserRW). $adminuser/$adminpwd above are used only to
+# authenticate this bootstrap connection when auth is required; management of
+# that account is out of scope and belongs to whatever provisioned it.
 
-	warn "creating $adminuser with root role failed: $create_result\n"
-			if (ref($create_result) ne "HASH");
-	warn "creating $adminuser with root role failed: $create_result->{errmsg}\n"
-			if (!$create_result->{ok});
-}
-else
-{
-	print "INFO: user $adminuser already exists in admin db, granting root role\n";
-	my $cmd = Tie::IxHash->new("grantRolesToUser" => $adminuser, "roles" => ['root'] );
-	my $privl_result = NMISNG::DB::run_command(db => $admindb, command => $cmd);
-	warn "upgrade to root role for $adminuser failed: $privl_result\n"
-			if (ref($privl_result) ne "HASH");
-	warn "upgrade to root role for $adminuser failed: $privl_result->{errmsg}\n"
-			if (!$privl_result->{ok});
-
-	print "INFO: setting password for user $adminuser\n";
-	$cmd = Tie::IxHash->new("updateUser" => $adminuser, "pwd" => $adminpwd);
-	my $pwd_result =  NMISNG::DB::run_command(db => $admindb, command => $cmd);
-	warn "setting password for $adminuser failed: $pwd_result\n"
-			if (ref($pwd_result) ne "HASH");
-	warn "setting password for $adminuser failed: $pwd_result->{errmsg}\n"
-			if (!$pwd_result->{ok});
-}
-
-# then add or update the correct user in the relevant database(s)
-# and grant it dbOwner rights
-my $dbname = $conf->{db_name};
+# OMK-12826/OMK-12709: NMIS's own scoped app user in the nmisng database.
+my $dbname   = $conf->{db_name} // 'nmisng';
 my $dbhandle = $conn->get_database($dbname);
 
-# nmis9: just one db, one user
-my $dbuser = $adminuser;
-my $password = $adminpwd;
+# Target app username: migrate the shared opUserRW to nmis9RW; keep any other
+# existing choice (a site may already have a custom scoped user).
+my $target_user = ($conf->{db_username} // 'opUserRW');
+$target_user = 'nmis9RW' if ($target_user eq 'opUserRW' || $target_user eq '');
 
-$userlist = NMISNG::DB::run_command(db => $dbhandle,
-																 command => { "usersInfo" =>
-																							{ user => $dbuser, db => $dbname }, });
-# returns users->[0], roles are array of hashes in users->[0]->roles, keys db and role
+# App password. Honour an operator- or env-supplied value; generate one only
+# when the effective value is a shipped default or the ship placeholder. This
+# keeps the docker/env path (which supplies NMIS_DB_PASSWORD) and a real install
+# (which ships a placeholder) both correct, and never overwrites a deliberate
+# password. The default set mirrors installer_hooks/common_dbpassword.sh.
+my $curpw = NMISNG::Util::decrypt($conf->{db_password}, 'database', 'db_password') // '';
+my $is_default = ($curpw eq '' || $curpw eq 'op42flow42' || $curpw eq 'example'
+	|| $curpw eq 'password' || $curpw =~ /^CHANGE_ME/);
+my $genpw = $curpw;
+my $generated = 0;
+if ($is_default)
+{
+	# Prefer the kernel CSPRNG, fall back to Math::Random::Secure, as
+	# nmis_authkey_generate does. 32 bytes as 64 hex chars.
+	$genpw = '';
+	if (open(my $ur, '<:raw', '/dev/urandom')) {
+		my $b; $genpw = unpack('H*', $b) if (read($ur, $b, 32) == 32);
+		close($ur);
+	}
+	if (length($genpw) != 64) {
+		eval { require Math::Random::Secure;
+		       $genpw = join('', map { sprintf('%08x', Math::Random::Secure::irand()) } 1..8); 1 } or $genpw = '';
+	}
+	die "ERROR: could not generate a database password (need /dev/urandom or Math::Random::Secure)\n"
+		if (length($genpw) != 64);
+	$generated = 1;
+}
+
+my $userlist = NMISNG::DB::run_command(db => $dbhandle,
+	command => { "usersInfo" => { user => $target_user, db => $dbname } });
 if (!$userlist or !$userlist->{users} or !@{$userlist->{users}})
 {
-	print "INFO: adding user $dbuser to database $dbname\n";
-		my $create_result =	NMISNG::DB::run_command(db => $dbhandle,
-																						 command => Tie::IxHash->new(
-																							 "createUser" => $dbuser,
-																							 "pwd" => $password,
-																							 "roles" => ['dbOwner'] ) );
-	warn "creating $dbuser with root dbOwner failed: $create_result\n"
-			if (ref($create_result) ne "HASH");
-	warn "creating $dbuser with root dbOwner failed: $create_result->{errmsg}\n"
-			if (!$create_result->{ok});
+	print "INFO: creating scoped user $target_user in $dbname (dbOwner)\n";
+	my $r = NMISNG::DB::run_command(db => $dbhandle,
+		command => Tie::IxHash->new("createUser" => $target_user, "pwd" => $genpw,
+			"roles" => [ { role => 'dbOwner', db => $dbname } ]));
+	die "creating $target_user failed: " . (ref($r) eq 'HASH' ? $r->{errmsg} : $r) . "\n"
+		if (ref($r) ne 'HASH' || !$r->{ok});
 }
 else
 {
-	print "INFO: user $dbuser already exists in database $dbname, granting dbOwner role\n";
-	my $cmd = Tie::IxHash->new("grantRolesToUser" => $dbuser, "roles" => ['dbOwner'] );
-	my $privl_result = NMISNG::DB::run_command(db => $dbhandle, command => $cmd);
-	warn "upgrade to dbOwner role for $dbuser failed: $privl_result\n"
-			if (ref($privl_result) ne "HASH");
-	warn "upgrade to dbOwner role for $dbuser failed: $privl_result->{errmsg}\n"
-			if (!$privl_result->{ok});
-
-	print "INFO: setting password for user $dbuser\n";
-	$cmd = Tie::IxHash->new("updateUser" => $dbuser, "pwd" => $password);
-	my $pwd_result =  NMISNG::DB::run_command(db => $dbhandle, command => $cmd);
-	warn "setting password for $dbuser failed: $pwd_result\n"
-			if (ref($pwd_result) ne "HASH");
-	warn "setting password for $dbuser failed: $pwd_result->{errmsg}\n"
-			if (!$pwd_result->{ok});
-
+	print "INFO: updating scoped user $target_user in $dbname (dbOwner, new password)\n";
+	my $r1 = NMISNG::DB::run_command(db => $dbhandle,
+		command => Tie::IxHash->new("updateUser" => $target_user, "pwd" => $genpw,
+			"roles" => [ { role => 'dbOwner', db => $dbname } ]));
+	die "updating $target_user failed: " . (ref($r1) eq 'HASH' ? $r1->{errmsg} : $r1) . "\n"
+		if (ref($r1) ne 'HASH' || !$r1->{ok});
 }
+
+# Only now that the user exists, switch the live config over. patch_config.pl
+# writes conf/Config.nmis. A failed provisioning above dies before this point,
+# so a broken run never leaves the config pointing at a user that was not made.
+my $cfgfile = $conf->{configfile};
+my @writes = ("/database/db_username=$target_user", "/database/db_auth_source=$dbname");
+# Persist db_password only when we generated it. An operator/env-supplied value
+# is honoured for the user above but not written to disk, so an env-only secret
+# does not get persisted into conf/Config.nmis.
+push @writes, "/database/db_password=$genpw" if ($generated);
+for my $kv (@writes)
+{
+	system($conf->{'<nmis_base>'} . "/admin/patch_config.pl", $cfgfile, $kv) == 0
+		or die "ERROR: failed to write $kv to $cfgfile\n";
+}
+$genpw = "x" x 64; undef $genpw;
+print "INFO: NMIS is now configured to use scoped user $target_user in $dbname.\n";
 
 my $mongod_conf = '/etc/mongod.conf';
 if ( ($islocal) and (! -f $mongod_conf) )
