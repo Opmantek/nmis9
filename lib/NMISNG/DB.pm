@@ -1002,6 +1002,18 @@ sub connection_of_db
 # if query_timeout is given, the xxx_db_query_timeout config is ignored.
 # both are given in ms. -1 means no timeout.
 #
+# OMK-12826: the MongoDB auth source (the db the user's credential lives in).
+# When db_auth_source is set the runtime authenticates against it (the driver's
+# db_name attribute / authSource). When empty or absent the driver defaults to
+# 'admin', which is the pre-OMK-12826 behaviour, so legacy installs are unchanged.
+sub _auth_source_args
+{
+	my ($CONF) = @_;
+	my $src = $CONF->{db_auth_source};
+	return () unless (defined($src) && $src ne '');
+	return (db_name => $src);
+}
+
 # returns the db handle, or undef in case of errors (and then $error_string is set)
 sub get_db_connection
 {
@@ -1046,6 +1058,7 @@ sub get_db_connection
 		username           => $username,
 		password           => $password,
 		connect_timeout_ms => $timeout,
+		_auth_source_args($CONF),
 
 		app_name => "nmis-$version",
 
