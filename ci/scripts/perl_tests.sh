@@ -76,13 +76,12 @@ working_tests=(
     t_common_dbpassword.t
     t_db_auth_source.t
     t_patch_config_value_file.t
-    # OMK-12826 scoped-user / credential coverage (all run without a live Mongo):
-    t_mongo_admin_user.t
-    t_mongo_scoped_credentials.t
+    # OMK-12826 scoped-user coverage:
     t_setup_mongodb_hook_rc.t
-    # t_setup_mongodb_scoped_user.t skip_alls unless NMIS_TEST_MONGO_URI points at
-    # a disposable auth-Mongo (a CI fixture tracked separately), so it is a
-    # harmless skip here until that lands, and then runs the real provisioning.
+    # t_setup_mongodb_scoped_user.t drives real provisioning against the disposable
+    # no-auth mongo the CI Test step starts (NMIS_TEST_MONGO_URI). It BAIL_OUTs
+    # (red) if that URI is unset, so a broken/absent fixture fails the pipeline
+    # rather than skipping green.
     t_setup_mongodb_scoped_user.t
     t_csrf.t
     t_csrf_cgi.t

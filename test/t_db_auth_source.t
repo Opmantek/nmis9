@@ -1,7 +1,10 @@
 #!/usr/bin/perl
-# OMK-12826: DB.pm authenticates against db_auth_source when set (authSource),
-# and keeps the driver default (admin) when it is absent, so legacy installs are
-# unchanged. Pure unit test of the arg-building helpers; no Mongo needed.
+# OMK-12826: unit tests for the pure NMISNG::DB helpers added for the scoped-user
+# work. No Mongo needed - each calls the function and asserts on its return.
+#   - _auth_source_args / _legacy_auth_dbs: how the 2.x and legacy drivers pick
+#     the authSource / authentication db(s) from db_auth_source.
+#   - has_admin_capable_user: whether a usersInfo result contains a user that can
+#     still administer auth (used to gate enabling auth in setup_mongodb.pl).
 use strict; use warnings;
 use FindBin; use lib "$FindBin::Bin/../lib";
 use Test::More;
@@ -39,5 +42,33 @@ is_deeply([ NMISNG::DB::_legacy_auth_dbs({ db_auth_source => '' }, 'nmisng') ],
 is_deeply([ NMISNG::DB::_legacy_auth_dbs({}, 'nmisng') ],
 	[ 'admin', 'nmisng' ],
 	"legacy auth keeps ('admin', db_name) when db_auth_source is absent");
+
+# --- has_admin_capable_user: does a usersInfo result still hold an admin? -------
+# setup_mongodb.pl uses this to refuse to enable auth on a fresh no-auth server
+# when the only user is the scoped nmis9RW (dbOwner on nmisng, no admin role),
+# which would close the localhost exception with nobody able to manage users.
+sub _role { return { role => $_[0], db => $_[1] } }
+sub _user { my ($name, @roles) = @_; return { user => $name, db => 'admin', roles => [@roles] } }
+
+ok(!NMISNG::DB::has_admin_capable_user([ _user('nmis9RW', _role('dbOwner', 'nmisng')) ]),
+	"scoped nmis9RW alone is NOT an administrative user");
+ok(!NMISNG::DB::has_admin_capable_user([]),
+	"an empty user list has no administrative user");
+ok(!NMISNG::DB::has_admin_capable_user(undef),
+	"undef is treated as no administrative user (defensive)");
+ok(NMISNG::DB::has_admin_capable_user([ _user('root', _role('root', 'admin')) ]),
+	"a root user counts as administrative");
+ok(NMISNG::DB::has_admin_capable_user([ _user('ua', _role('userAdminAnyDatabase', 'admin')) ]),
+	"userAdminAnyDatabase counts as administrative");
+ok(NMISNG::DB::has_admin_capable_user([ _user('ua', _role('userAdmin', 'admin')) ]),
+	"userAdmin on the admin db counts as administrative");
+ok(!NMISNG::DB::has_admin_capable_user([ _user('ua', _role('userAdmin', 'nmisng')) ]),
+	"userAdmin on a non-admin db does NOT count");
+ok(!NMISNG::DB::has_admin_capable_user([ _user('rw', _role('readWrite', 'admin')) ]),
+	"readWrite on admin does NOT count");
+ok(NMISNG::DB::has_admin_capable_user([
+		_user('nmis9RW', _role('dbOwner', 'nmisng')),
+		_user('opUserRW', _role('root', 'admin')) ]),
+	"a real admin alongside the scoped user counts as administrative");
 
 done_testing();

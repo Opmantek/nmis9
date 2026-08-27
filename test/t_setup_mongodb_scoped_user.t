@@ -20,14 +20,15 @@
 #      roles -- the central "NMIS never touches opUserRW" guard, proven by
 #      presence, not only by absence.
 #
-# Requires a real, disposable MongoDB (auth optional; the fixture below copes
-# with either). skip_all when NMIS_TEST_MONGO_URI is unset, so this file can be
-# listed in ci/scripts/perl_tests.sh and stay a harmless skip until CI grows a
-# disposable auth-Mongo fixture that sets the URI (that fixture is tracked
-# separately). A BAIL_OUT here would abort the whole suite under `set -eu`, which
-# is why it was previously left out of the list entirely. The skip is done in a
-# BEGIN before the MongoDB/NMISNG::DB use lines below, so it stays clean even
-# where those modules are not installed.
+# Requires a real, disposable MongoDB. The CI Test step provides one (a throwaway
+# no-auth mongo plus NMIS_TEST_MONGO_URI, see bitbucket-pipelines.yml), so this
+# test runs for real in CI. BAIL_OUT - never skip_all - when the URI is unset: a
+# missing precondition must make the pipeline RED, not pass as a green NOTESTS
+# skip that silently stops testing the security fix. A BAIL_OUT here does NOT
+# abort the whole suite: ci/scripts/perl_tests.sh runs each file in its own
+# `prove` under `if ! ...`, so a bail is caught per-file and marks only this file
+# failed (exit 255). The bail is in a BEGIN before the MongoDB/NMISNG::DB use
+# lines below, so it stays clean even where those modules are not installed.
 use strict;
 use warnings;
 
@@ -37,8 +38,8 @@ use lib "$FindBin::Bin/../lib";
 use Test::More;
 
 BEGIN {
-	plan skip_all => "set NMIS_TEST_MONGO_URI to a disposable mongo admin URI to run this test"
-		unless ($ENV{NMIS_TEST_MONGO_URI});
+	$ENV{NMIS_TEST_MONGO_URI}
+		or BAIL_OUT("NMIS_TEST_MONGO_URI is unset - the CI Test step must provide a disposable mongo; refusing to skip a security regression test");
 }
 
 use File::Temp qw(tempdir);

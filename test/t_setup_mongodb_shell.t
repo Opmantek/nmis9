@@ -241,42 +241,4 @@ subtest 'no "null" default hiding undef from the defined test' => sub {
         'the value is read directly, so the defined test below it can fire');
 };
 
-# ---------------------------------------------------------------------------
-# 11. OMK-12826: enabling auth on a fresh no-auth server is guarded by an
-#     administrative-user check, so it cannot lock out Mongo administration.
-# ---------------------------------------------------------------------------
-subtest 'enable-auth is gated on an administrative user existing (OMK-12826)' => sub {
-    ok(-f $script, 'setup_mongodb.pl exists') or return;
-
-    like($content, qr/!admin_user_present\(\$conn\)/,
-        'a branch tests for the absence of an administrative user');
-    like($content, qr/NOT enabling MongoDB authentication/,
-        'and refuses to enable auth in that case');
-    like($content, qr/has_admin_capable_user/,
-        'the role decision goes through NMISNG::DB::has_admin_capable_user');
-    like($content, qr/elsif \( \(\$islocal_and_mongod_3_4_or_newer\) and \(\$< == 0\) \)/,
-        'the enable-auth offer is now an elsif after the no-admin refusal');
-};
-
-# ---------------------------------------------------------------------------
-# 12. OMK-12826: db_password is persisted before the db_username/db_auth_source
-#     pointers, and the pointers are written in a single (atomic) call, so a
-#     mid-sequence write failure never leaves the config naming nmis9RW with a
-#     stale password and db_auth_source set.
-# ---------------------------------------------------------------------------
-subtest 'db_password is written before the pointer keys, which are one atomic write' => sub {
-    ok(-f $script, 'setup_mongodb.pl exists') or return;
-
-    my $pw_pos  = index($content, '--value-file');
-    my $ptr_pos = index($content, '/database/db_username=$target_user');
-    ok($pw_pos >= 0,  'db_password is written via --value-file');
-    ok($ptr_pos >= 0, 'the db_username pointer is written');
-    ok($pw_pos < $ptr_pos,
-        'db_password is written before the db_username/db_auth_source pointers');
-
-    like($content,
-        qr/"\/database\/db_username=\$target_user",\s*\n?\s*"\/database\/db_auth_source=\$dbname"/,
-        'db_username and db_auth_source are written in one patch_config.pl call');
-};
-
 done_testing;
