@@ -52,8 +52,11 @@
 # Needs a reachable MongoDB and the NMISx app. In a MongoDB-configured environment
 # the encryption modules and a master.key are prerequisites the test provides or
 # fails loudly on, never skips over. It seeds and removes one node, seeds and
-# restores a throwaway admin in conf/, and manages an isolated master.key, all
-# restored in END so the disk is left as it was found.
+# restores a throwaway admin in conf/Users.nmis + conf/users.dat, and manages an
+# isolated master.key, all restored or removed in END so the disk is left as it was
+# found. It does NOT modify conf/Config.nmis: db_password is forced ENV-sourced (see
+# the BEGIN block) so the encryption-on DB connect cannot re-encrypt it back into
+# the file, in this process or in the forked CGI.
 
 use strict;
 use warnings;
@@ -67,7 +70,38 @@ use lib "$FindBin::Bin/../lib";
 # config env override (loadConfTable layer 4) rather than by editing conf/: nothing
 # on disk changes, so a hard kill cannot leave the install reconfigured, and the
 # CGI that Plugin::CGI forks inherits the setting. Must run before any config load.
-BEGIN { $ENV{NMIS_GLOBAL_ENABLE_PASSWORD_ENCRYPTION} = 'true'; }
+BEGIN {
+	$ENV{NMIS_GLOBAL_ENABLE_PASSWORD_ENCRYPTION} = 'true';
+
+	# Keep the DB connect from rewriting conf/Config.nmis. With encryption on,
+	# NMISNG::DB::get_db_connection calls decrypt(db_password, 'database',
+	# 'db_password'), which re-encrypts a plaintext, site-sourced db_password and
+	# writeConfData's it back into conf/Config.nmis. That happens in this process
+	# AND in the forked CGI - and the CGI cannot be pointed at a different conf dir,
+	# because NMISx pins it to /usr/local/nmis9/cgi-bin, so it always resolves conf
+	# to /usr/local/nmis9/conf. If the ephemeral master.key this test manages is
+	# then removed, the db_password is left undecryptable. Promote db_password to a
+	# layer-4 ENV override: writeConfData refuses to modify an ENV-managed key, so
+	# neither process writes the file. Only when it is not already ENV-set and the
+	# on-disk value is plaintext (an already-'!!' value is not re-encrypted, and an
+	# ENV value already wins). Must run before any config load, hence BEGIN. The
+	# forked CGI inherits this env, so it is covered too.
+	if (!defined $ENV{NMIS_DB_PASSWORD})
+	{
+		my $cf = "$FindBin::Bin/../conf/Config.nmis";
+		if (open(my $fh, '<', $cf))
+		{
+			local $/;
+			my $raw = <$fh>;
+			close $fh;
+			if ($raw =~ /'db_password'\s*=>\s*'([^']*)'/
+					&& $1 ne '' && substr($1, 0, 2) ne '!!')
+			{
+				$ENV{NMIS_DB_PASSWORD} = $1;
+			}
+		}
+	}
+}
 
 use Test::More;
 use Test::Mojo;
