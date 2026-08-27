@@ -866,7 +866,11 @@ Three follow-on fixes ship in the same change (review of the initial commit):
   generated password cannot be recorded the just-created admin is dropped and
   auth is left off, so an admin with an unrecoverable password is never left
   behind (`ensure_admin_user`, using `NMISNG::DB::has_admin_capable_user` to
-  detect an existing admin). An existing admin is reused, not duplicated.
+  detect an existing admin). An existing admin is reused, not duplicated. A site
+  that deliberately runs Mongo without authentication keeps its config-gated way
+  back: decline the prompt interactively, or preseed `116b "no"`, and setup
+  leaves auth off (that decline is a success; an auth-enable the operator *asked*
+  for but that fails now exits non-zero so installer hook 24 aborts).
 - **The legacy (<2.0) MongoDB driver is no longer supported.** `lib/NMISNG/DB.pm`
   now requires the 2.x driver (`use MongoDB 2.0.0`) and fails at load otherwise, so
   the old run-time `authenticate()` loop (which hardcoded `('admin', $db_name)` and

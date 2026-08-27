@@ -29,6 +29,11 @@
 # `prove` under `if ! ...`, so a bail is caught per-file and marks only this file
 # failed (exit 255). The bail is in a BEGIN before the MongoDB/NMISNG::DB use
 # lines below, so it stays clean even where those modules are not installed.
+#
+# Also needs a WRITABLE checkout: setup_mongodb.pl (via loadConfTable) mkpaths a
+# `conf` dir under the install root regardless of the dir= it is passed, so a
+# read-only tree makes it die. CI's checkout is writable; a local run mounted
+# read-only will fail here for that reason, not a code fault.
 use strict;
 use warnings;
 

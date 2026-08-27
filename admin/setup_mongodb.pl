@@ -417,6 +417,12 @@ if ( ($islocal) and (! -f $mongod_conf) )
 my $islocal_and_mongod_3_4_or_newer = ( ($islocal) and (version->parse($mongod_version) >= version->parse("3.4.0")) );
 
 # warn about auth being very much recommended!
+# OMK-12826: track whether an auth-enable that the operator ASKED for actually
+# succeeded. A failure on this mandatory-hardening path must exit non-zero (so
+# installer hook 24 aborts) instead of reporting success with Mongo left
+# unauthenticated. Declining the offer (116b "no") is a deliberate no-auth choice
+# and stays a success.
+my $auth_enable_failed = 0;
 if ($isnoauth)
 {
 	# only root privileges can edit $mongod_conf
@@ -450,10 +456,13 @@ production use.\n\n";
 					. "credential would lock MongoDB administration out via the closed\n"
 					. "localhost exception. Resolve the above and re-run.\n\n";
 				input_ok("Hit enter to continue:");
+				$auth_enable_failed = 1;
 			}
-			else
+			# a non-zero restart means mongod.conf says authorization:enabled but the
+			# running daemon has not picked it up, so the server is still unauthenticated
+			elsif (enable_mongo_auth($mongod_conf) != 0)
 			{
-				enable_mongo_auth($mongod_conf);
+				$auth_enable_failed = 1;
 			}
 		}
 		else
@@ -782,6 +791,17 @@ EOF
 }
 
 
+# OMK-12826: an auth-enable the operator asked for but that failed (admin could
+# not be provisioned/recorded, or mongod did not restart) must not report success:
+# exit non-zero so installer hook 24 aborts rather than leaving a fresh install
+# unauthenticated while claiming it is done.
+if ($auth_enable_failed)
+{
+	print "\nERROR: MongoDB authentication could not be enabled, so the server is left\n"
+		. "unauthenticated. Fix the cause reported above and re-run this helper as root.\n\n";
+	exit 1;
+}
+
 print "\nMongoDB server at $dbserver:$port setup completed\n\n";
 
 exit 0;
@@ -831,6 +851,9 @@ sub write_mongo_admin_password_file
 	eval {
 		my $pwdir = dirname($pwfile);
 		make_path($pwdir, { mode => 0700 }) if (!-d $pwdir);
+		# re-tighten even if the dir pre-existed with looser perms, so a
+		# world-readable parent cannot expose the filename
+		chmod(0700, $pwdir) or warn "WARNING: could not chmod $pwdir to 0700: $!\n";
 		unlink($pwfile);
 		sysopen(my $pfh, $pwfile, O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW, 0600)
 			or die "open $pwfile: $!\n";
@@ -845,7 +868,8 @@ separate, scoped user (see db_username in conf/Config.nmis) and does not use thi
 account. Record this password somewhere safe, then secure or delete this file.
 FILE
 		close($pfh) or die "close $pwfile: $!\n";
-		chown(0, -1, $pwfile);    # best effort, needs root
+		chown(0, -1, $pwfile)    # best effort, needs root
+			or warn "WARNING: could not chown $pwfile to root: $!\n";
 		1;
 	} or do { $err = $@ || "unknown error"; };
 	return $err;
@@ -891,10 +915,13 @@ sub ensure_admin_user
 	if ($ferr)
 	{
 		# roll back: never leave an admin whose generated password nobody recorded
-		NMISNG::DB::run_command(db => $conn->get_database("admin"),
+		my $dr = NMISNG::DB::run_command(db => $conn->get_database("admin"),
 			command => { "dropUser" => $adminuser });
+		my $dropped = (ref($dr) eq 'HASH' && $dr->{ok})
+			? "dropped it again"
+			: "and FAILED to drop it - remove '$adminuser' from the admin db by hand";
 		return ('error', "created administrator '$adminuser' but could not record its "
-			. "password ($ferr); dropped it again");
+			. "password ($ferr); $dropped");
 	}
 	return ('created', "created MongoDB administrator '$adminuser'; its generated "
 		. "password is recorded in $pwfile");
@@ -935,6 +962,9 @@ sub enable_mongo_auth
 	my $startup = system("service","mongod","restart") >> 8;
 	print "ERROR: failed to restart MongoDB, exit code $startup\n" if ($startup);
 	sleep 3;
+	# non-zero so the caller can propagate a still-unauthenticated server to the
+	# process exit code rather than reporting success
+	return $startup;
 }
 
 # print question, return true if y (or in unattended mode).
