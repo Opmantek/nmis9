@@ -54,9 +54,11 @@
 # fails loudly on, never skips over. It seeds and removes one node, seeds and
 # restores a throwaway admin in conf/Users.nmis + conf/users.dat, and manages an
 # isolated master.key, all restored or removed in END so the disk is left as it was
-# found. It does NOT modify conf/Config.nmis: db_password is forced ENV-sourced (see
-# the BEGIN block) so the encryption-on DB connect cannot re-encrypt it back into
-# the file, in this process or in the forked CGI.
+# found. It does NOT modify conf/Config.nmis: db_password is promoted to a layer-4
+# ENV override (from the effective loaded value, just before the DB connect) so the
+# encryption-on connect cannot re-encrypt it back into the file, in this process or
+# the forked CGI - and a before/after checksum of conf/Config.nmis fails the run red
+# if anything writes it anyway.
 
 use strict;
 use warnings;
@@ -70,42 +72,13 @@ use lib "$FindBin::Bin/../lib";
 # config env override (loadConfTable layer 4) rather than by editing conf/: nothing
 # on disk changes, so a hard kill cannot leave the install reconfigured, and the
 # CGI that Plugin::CGI forks inherits the setting. Must run before any config load.
-BEGIN {
-	$ENV{NMIS_GLOBAL_ENABLE_PASSWORD_ENCRYPTION} = 'true';
-
-	# Keep the DB connect from rewriting conf/Config.nmis. With encryption on,
-	# NMISNG::DB::get_db_connection calls decrypt(db_password, 'database',
-	# 'db_password'), which re-encrypts a plaintext, site-sourced db_password and
-	# writeConfData's it back into conf/Config.nmis. That happens in this process
-	# AND in the forked CGI - and the CGI cannot be pointed at a different conf dir,
-	# because NMISx pins it to /usr/local/nmis9/cgi-bin, so it always resolves conf
-	# to /usr/local/nmis9/conf. If the ephemeral master.key this test manages is
-	# then removed, the db_password is left undecryptable. Promote db_password to a
-	# layer-4 ENV override: writeConfData refuses to modify an ENV-managed key, so
-	# neither process writes the file. Only when it is not already ENV-set and the
-	# on-disk value is plaintext (an already-'!!' value is not re-encrypted, and an
-	# ENV value already wins). Must run before any config load, hence BEGIN. The
-	# forked CGI inherits this env, so it is covered too.
-	if (!defined $ENV{NMIS_DB_PASSWORD})
-	{
-		my $cf = "$FindBin::Bin/../conf/Config.nmis";
-		if (open(my $fh, '<', $cf))
-		{
-			local $/;
-			my $raw = <$fh>;
-			close $fh;
-			if ($raw =~ /'db_password'\s*=>\s*'([^']*)'/
-					&& $1 ne '' && substr($1, 0, 2) ne '!!')
-			{
-				$ENV{NMIS_DB_PASSWORD} = $1;
-			}
-		}
-	}
-}
+BEGIN { $ENV{NMIS_GLOBAL_ENABLE_PASSWORD_ENCRYPTION} = 'true'; }
 
 use Test::More;
 use Test::Mojo;
 use File::Copy;
+use File::Path ();
+use Digest::MD5 ();
 use Crypt::PasswdMD5 qw(apache_md5_crypt);
 
 use NMISNG;
@@ -236,7 +209,9 @@ my $KEYDIR  = '/usr/local/etc/firstwave';
 my ($KEY_CREATED, $KEYDIR_CREATED);
 if (!-r $KEYFILE)
 {
-	$KEYDIR_CREATED = 1 if (!-d $KEYDIR && (mkdir($KEYDIR) || -d $KEYDIR));
+	my $keydir_existed = -d $KEYDIR;
+	File::Path::make_path($KEYDIR) unless $keydir_existed;   # recursive; parents too
+	$KEYDIR_CREATED = 1 unless $keydir_existed;              # only remove what we made
 	# 256 chars from [A-Za-z0-9], no trailing newline - identical shape to _make_seed.
 	# Math::Random::Secure (required above) rather than core rand(), which OMK-12827
 	# itself flags as an insecure seed source.
@@ -262,6 +237,43 @@ END {
 	rmdir  $KEYDIR  if ($KEYDIR_CREATED && -d $KEYDIR);
 }
 
+# ---- force db_password ENV-managed, then pin conf/Config.nmis against mutation ---
+# With encryption on, the DB connect below decrypts db_password with section/keyword
+# args, which re-encrypts a plaintext value and writeConfData's it back into
+# conf/Config.nmis - in this process AND the forked CGI (pinned by NMISx to
+# /usr/local/nmis9/conf, so it cannot be aimed elsewhere). Promote db_password to a
+# layer-4 ENV override so writeConfData refuses the write in both. Derive the value
+# from the EFFECTIVE loaded config, not a regex over the file, so a value inherited
+# from conf-default's plaintext default or written in any quoting is covered. Only a
+# plaintext value needs this (an already-'!!' value is not re-encrypted).
+{
+	my $src   = NMISNG::Util::getConfigSources(key => 'db_password');
+	my $pw    = $C->{db_password};
+	my $plain = (defined $pw && $pw ne '' && substr($pw, 0, 2) ne '!!');
+	if ($plain && (!$src || ($src->{layer} // 0) != 4))
+	{
+		$ENV{NMIS_DB_PASSWORD} = $pw;               # inherited by the forked CGI
+		$NMISNG::Util::_config_cache_invalid = 1;
+		$C = NMISNG::Util::loadConfTable();         # reload: db_password now layer 4
+		$src = NMISNG::Util::getConfigSources(key => 'db_password');
+	}
+	# A plaintext db_password that is not provably ENV-managed would let the connect
+	# rewrite conf/Config.nmis. Fail loud, never skip.
+	if ($plain && (!$src || ($src->{layer} // 0) != 4))
+	{
+		BAIL_OUT("could not force db_password to be ENV-managed; refusing to run "
+				 . "because the encryption-on DB connect would rewrite conf/Config.nmis");
+	}
+}
+
+# Belt and braces: whatever the guard above does, conf/Config.nmis (and its .bak)
+# must be byte-identical at the end. If it ever misses a config shape, this turns the
+# run red rather than letting it go green while corrupting on-disk config.
+my $CONF_FILE         = "$FindBin::Bin/../conf/Config.nmis";
+my $CONF_BAK          = "$CONF_FILE.bak";
+my $CONF_CKSUM_BEFORE = _file_cksum($CONF_FILE);
+my $BAK_CKSUM_BEFORE  = _file_cksum($CONF_BAK);
+
 my $logger = NMISNG::Log->new(level => 'error');
 my $nmisng = NMISNG->new(config => $C, log => $logger);
 plan skip_all => "NMISNG object required" unless $nmisng;
@@ -270,6 +282,18 @@ my $t = eval { Test::Mojo->new('NMISx') };
 plan skip_all => "NMISx Mojo app not available (run in the dev container): $@" unless $t;
 
 # ---- helpers ----------------------------------------------------------------
+
+# md5 of a file, or a distinct sentinel when absent, so "file created" is caught too.
+sub _file_cksum
+{
+	my ($f) = @_;
+	return 'ABSENT' unless -f $f;
+	open(my $fh, '<', $f) or return "UNREADABLE:$!";
+	local $/;
+	my $data = <$fh>;
+	close $fh;
+	return Digest::MD5::md5_hex($data);
+}
 
 # Read the node straight out of the database. Deliberately NOT via
 # NMISNG::Node->configuration: constructing a Node runs the encrypt/decrypt
@@ -464,6 +488,17 @@ for my $f (grep { $_ ne 'community' } @SECRET_FIELDS)
 {
 	is($after2->{$f}, $CIPHER{$f}, "$f untouched while a sibling secret was changed");
 }
+
+# ---- 4. the test must not have written conf/Config.nmis (round-4 review) -------
+# Both the test process and the forked CGI decrypt db_password during their DB
+# connects; with encryption on that path re-encrypts a plaintext value back into the
+# file. The ENV promotion above blocks it, but this is the hard gate: any mutation
+# of conf/Config.nmis or its .bak turns the run red rather than passing while
+# silently corrupting on-disk config.
+is(_file_cksum($CONF_FILE), $CONF_CKSUM_BEFORE,
+	 "conf/Config.nmis was not modified by the test");
+is(_file_cksum($CONF_BAK), $BAK_CKSUM_BEFORE,
+	 "conf/Config.nmis.bak was not created or modified by the test");
 
 # ---- cleanup ----------------------------------------------------------------
 
