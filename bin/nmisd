@@ -2780,12 +2780,16 @@ sub fping_loop
 			delete $state{$maybegoner}
 			if (ref($byuuid{$uuid}) ne "HASH");
 		}
-		# the same needs to happen for no-longer multi-homed nodes
+		# the same needs to happen for no-longer multi-homed nodes.
+		# BR-04 (OMK-12778): node records from get_nodes_model()->data() keep their
+		# config under {configuration} (double-checked), so host_backup lives at
+		# configuration.host_backup - the same path the enrolment below uses. Reading
+		# the top-level key (always absent) evicted multihomed sibling state every cycle.
 		for my $maybegoner (grep(defined($state{$_}->{has_sibling}),
 														 keys %state))
 		{
 			delete $state{$maybegoner}
-			if (!$byuuid{ $state{$maybegoner}->{uuid} }->{host_backup});
+			if (!$byuuid{ $state{$maybegoner}->{uuid} }->{configuration}->{host_backup});
 		}
 
 		# second: find out which nodes are due for a ping

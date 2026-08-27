@@ -3336,7 +3336,8 @@ sub getComponentUUID
 sub getComponentUUIDConf
 {
 	my %args = @_;
-	my @components = $args{components};
+	my @components = ref($args{components}) eq 'ARRAY' ? @{$args{components}}
+				: defined($args{components}) ? ($args{components}) : ();
 	my $conf = $args{conf};
 
 	my $C = $conf // NMISNG::Util::loadConfTable();
@@ -4562,16 +4563,24 @@ sub enableEOS {
 }
 
 ########################################################################
-# verifyNMISEncryption - Verify Password encrypred strings.            #
-#                                                                      #
-# Returns:                                                             #
-#    0 - If nothing was changed.                                       #
-#    1 - If Encryption of secrets was reversed.                        #
+# verifyNMISEncryption - Verify Password encrypted strings.           #
+########################################################################
+# Returns:
+#    0 - Verification ran. Password fields may have been synced to match
+#        the encryption setting (encrypted when it is enabled, decrypted
+#        when it is disabled). The encryption setting itself is never
+#        changed here.
+#    1 - Verification could not run: encryption is enabled but the crypto
+#        modules are missing, or the self-test failed. Nothing was changed
+#        and no secret was touched (fail closed). Install the crypto modules.
 ########################################################################
 sub verifyNMISEncryption {
 	my (%args)   = @_;
 	my $logger   = $args{log};
-	# We create seed file in ./installer_hooks/20-postcopy-user as installer always runs with root permissions:
+	# Master key path. The installer does NOT create this file today. The lines
+	# in installer_hooks/20-postcopy-user that once created it are commented out.
+	# _make_seed creates it lazily and requires root. Restoring install-time
+	# creation is OMK-12827 Slice B.
 	my $seeddir  = '/usr/local/etc/firstwave/';
 	my $seedfile = '/usr/local/etc/firstwave/master.key';
 	my $epochNow = time;
@@ -4594,11 +4603,9 @@ sub verifyNMISEncryption {
 		$logger->debug9(sub {"Config '" .  Dumper($fullConfig) . "'."});
 		if ($nmis_encryption_enabled)
 		{
-			$logger->error("ERROR: The configuration option 'global_enable_password_encryption' is set to 'true'!");
-			$logger->error("Disabling Encryption of secrets.");
-			$fullConfig->{globals}{global_enable_password_encryption} = "false";
-			$logger->debug9(sub {"Config '" .  Dumper($fullConfig) . "'."});
-			writeConfData(data=>$fullConfig);
+			my $msg = "Encryption of secrets is enabled but the required Perl modules Crypt::CBC, Crypt::Cipher::AES and Math::Random::Secure are not installed. Install them (Debian: libcrypt-cbc-perl libcryptx-perl libmath-random-secure-perl. RedHat: perl-Crypt-CBC perl-CryptX perl-Math-Random-Secure). Encryption has NOT been changed.";
+			$logger->error("ERROR: $msg");
+			print("ERROR: $msg\n");
 			return(1);
 		}
 		else
@@ -4610,11 +4617,9 @@ sub verifyNMISEncryption {
 	{
 		if (!testEncryption())
 		{
-			$logger->error("ERROR: Encryption is not working!");
-			$logger->error("ERROR: Password encryption will be disabled!");
-			$logger->debug9(sub {"Config '" .  Dumper($fullConfig) . "'."});
-			$fullConfig->{globals}{global_enable_password_encryption} = "false";
-			writeConfData(data=>$fullConfig);
+			my $msg = "Encryption of secrets is enabled but the encryption self-test failed, so secrets cannot be protected. Check that the crypto modules are installed and the master key is readable. Encryption has NOT been changed.";
+			$logger->error("ERROR: $msg");
+			print("ERROR: $msg\n");
 			return(1);
 		}
 		# Make sure we have a seed file.
@@ -4839,18 +4844,24 @@ sub decrypt {
 		$logger->error("ERROR: Password encryption cannot be enabled!");
 		if ($encryption_enabled)
 		{
-			$logger->error("ERROR: The configuration option 'global_enable_password_encryption' is set to 'true'!");
-			$logger->error("Disabling Encryption of secrets.");
-			my ($fullConfig,undef) = getConfDeep(only_local => 1);
-			$fullConfig->{globals}{global_enable_password_encryption} = "false";
-			writeConfData(data=>$fullConfig);
+			$logger->error("ERROR: 'global_enable_password_encryption' is 'true' but the crypto modules are missing. Encryption stays enabled and secrets cannot be decrypted. NMIS will not disable encryption for you; install the modules named above.");
+			# Fail closed WITHOUT wiping. Never rewrite the flag, and never
+			# return "" here: a decrypt-then-persist caller (NMISNG::Node::new,
+			# cgi-bin/tables.pl doeditTable) assigns decrypt's result straight
+			# back and saves, so "" would overwrite the stored secret. Return
+			# the value unchanged - a "!!" value handed back still fails auth, so
+			# reads stay fail closed, and re-persisting the same ciphertext is a
+			# no-op. This matches encrypt's fail-closed-without-wipe on this path.
 			return $password;
 		}
 	}
 
 	$logger->debug("Encryption is '" . $encryption_enabled . "'.");
-	
-	# We create seed file in ./installer_hooks/20-postcopy-user as installer always runs with root permissions:
+
+	# Master key path. The installer does NOT create this file today. The lines
+	# in installer_hooks/20-postcopy-user that once created it are commented out.
+	# _make_seed creates it lazily and requires root. Restoring install-time
+	# creation is OMK-12827 Slice B.
 	my $seedfile           = '/usr/local/etc/firstwave/master.key';
 	my $strLen             = "";
 	my $fh;
@@ -4971,20 +4982,22 @@ sub encrypt {
 	{
 		$logger->error("ERROR: 'Crypt::CBC' and 'Crypt::Cipher::AES', and 'Math::Random::Secure' must be installed in order to enable password encryption!");
 		$logger->error("ERROR: Password encryption cannot be enabled!");
-		if ($encryption_enabled && !$force)
-		{
-			$logger->error("ERROR: The configuration option 'global_enable_password_encryption' is set to 'true'!");
-			$logger->error("Disabling Encryption of secrets.");
-			my ($fullConfig,undef) = getConfDeep(only_local => 1);
-			$fullConfig->{globals}{global_enable_password_encryption} = "false";
-			writeConfData(data=>$fullConfig);
-		}
+		$logger->error("ERROR: encryption is enabled but those modules are missing, so this value cannot be encrypted. The flag is left unchanged and the value is stored as-is; install the modules named above.")
+			if ($encryption_enabled);
+		# Fail closed without destroying data. Never rewrite the flag, and never
+		# return "" here, so an unguarded caller such as NMISNG::Node::new cannot
+		# wipe a stored secret on this missing-modules path. The value is
+		# already plaintext at rest, so returning it unchanged adds no new
+		# exposure while leaving encryption enabled.
 		return $password;
 	}
 
 	$logger->debug("Encryption is '" . $encryption_enabled . "'.");
 
-	# We create seed file in ./installer_hooks/20-postcopy-user as installer always runs with root permissions:
+	# Master key path. The installer does NOT create this file today. The lines
+	# in installer_hooks/20-postcopy-user that once created it are commented out.
+	# _make_seed creates it lazily and requires root. Restoring install-time
+	# creation is OMK-12827 Slice B.
 	my $seedfile           = '/usr/local/etc/firstwave/master.key';
 	my $strLen             = 0;
 	my $fh;
@@ -4995,29 +5008,10 @@ sub encrypt {
 		_make_seed($seedfile, $logger);
 	}
 
-	# Passed already encrypted string.
+	# Passed an already-encrypted string. encrypt never decrypts a stored value,
+	# never emits cleartext, and never writes the config (OMK-12827 item 8).
+	# Hand the ciphertext back unchanged, regardless of the flag.
 	if (substr($password, 0, 2) eq "!!") {
-		# Encryption is disabled, decrypt whatever we encounter and return that.
-		if (!$encryption_enabled && !$force) {
-			# If we have an encrypted password in the configuration file, then we decrypt it.
-			my $decrypted_pw = decrypt($password);
-			# If the 'section and 'keyword' arguments are passed, it means we are
-			# dealing with the configuration file, so we we decrypt it in the file.
-			if (defined($section) && defined($keyword) && $section ne '' && $keyword ne '') {
-				# Get the non-flattened raw hash
-				my ($fullConfig,undef) = getConfDeep(only_local => 1);
-				$logger->debug9(sub {"Config '" .  Dumper($fullConfig) . "'."});
-				if ($fullConfig->{$section}{$keyword} ne $decrypted_pw) {
-					$logger->debug3(sub {"Decrypting the password for Section: '$section' Field: '$keyword'"});
-					$fullConfig->{$section}{$keyword} = $decrypted_pw;
-					$logger->debug9(sub {"Config '" .  Dumper($fullConfig) . "'."});
-					writeConfData(data=>$fullConfig);
-				}
-			}
-			return $decrypted_pw;
-		} else {
-			$logger->debug9(sub {"Encryption is enabled."});
-		}
 		return $password;
 	}
 
@@ -5062,7 +5056,10 @@ sub _make_seed {
 	my $seedfile  = shift;
 	my $logger    = shift;
 
-	# We create seed file in ./installer_hooks/20-postcopy-user as installer always runs with root permissions:
+	# Master key path. The installer does NOT create this file today. The lines
+	# in installer_hooks/20-postcopy-user that once created it are commented out.
+	# _make_seed creates it lazily and requires root. Restoring install-time
+	# creation is OMK-12827 Slice B.
 	my $seeddir  = File::Spec->rel2abs(dirname(${seedfile}));
 	my @charset  = (('A'..'Z'), ('a'..'z'), (0..9));
 	my $range    = $#charset + 1;

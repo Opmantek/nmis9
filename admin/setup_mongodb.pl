@@ -504,8 +504,7 @@ if ($mongod_logrotate_conf_not_found)
 	# offer to set logrotate for mongod version 3.4 or newer
 	if ( ($islocal_and_mongod_3_4_or_newer) and ($< == 0) )
 	{
-		print "\nWARNING: local MongoDB server at $dbserver:$port
-operates without a logrotate script!
+		print "\nWARNING: local MongoDB server at $dbserver:$port operates without a logrotate script!
 This is MongoDB's default, but is not recommended for production use.\n\n";
 
 		if (input_yn("Should we add a logrotate script for your local MongoDB server at $dbserver:$port?","399a"))
@@ -517,7 +516,7 @@ This is MongoDB's default, but is not recommended for production use.\n\n";
 			if (-f "/etc/redhat-release")
 			{
 				$osflavour="redhat";
-				print "\nINFO: detected OS flavour RedHat/CentOS\n";
+				print "INFO: detected OS flavour RedHat/CentOS\n";
 
 				open(F, "/etc/redhat-release") or die "cannot read redhat-release: $!\n";
 				my $reldata = join('',<F>);
@@ -762,7 +761,7 @@ $mongod_systemlog_path {
   create 640 $mongod_user $mongod_user
   sharedscripts
   postrotate
-    kill -SIGUSR1 \$(pidof mongod) >/dev/null 2>&1||:
+    /bin/kill -SIGUSR1 \$(pidof mongod) >/dev/null 2>&1||:
   endscript
 }
 EOF
@@ -774,7 +773,7 @@ EOF
 				or die ("Error: chmod 0644 $mongod_logrotate_conf failed: $!\n");
 
 			# restart mongod to implement settings for logrotate test
-			print "\nrestarting mongod to implement settings for logrotate ...\n\n";
+			print "restarting mongod to implement settings for logrotate ...\n";
 			my $startup = system("service","mongod","restart") >> 8;
 			print "ERROR: failed to restart MongoDB, exit code $startup\n" if ($startup);
 			sleep 3;

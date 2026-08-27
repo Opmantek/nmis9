@@ -140,6 +140,12 @@ sub _query
 			and_part => {
 				cluster_id => $self->{data}{cluster_id},
 				node_uuid => $self->{data}{node_uuid},
+				# method matters here: several fields below are left blank by
+				# the Operational writer and get dropped from the actual query
+				# (see get_query_part), so without method this could collapse
+				# to cluster_id/node_uuid/event and match a Threshold or Alert
+				# document sharing the same event name.
+				method => $self->{data}{method},
 				event => $self->{data}{event},
 				element => $self->{data}{element},
 				property => $self->{data}{property},
@@ -248,10 +254,15 @@ sub save
 # update dashnode data structure if enabled
 # args: record - the record being saved
 # modifies: $self->nmisng->{dashnode_context}{data}
+# no-ops in a process that never called load_dashnode_data (the fping
+# worker, standalone services/thresholds jobs) - otherwise this would grow
+# an in-memory hash forever in a long-lived process that never flushes it.
 sub update_dashnode_data {
 	my ($self, %args) = @_;
 	my $record = $args{record};
-	if( NMISNG::Util::getbool($self->nmisng->config->{enable_dashnode_file}) ) {
+	if( NMISNG::Util::getbool($self->nmisng->config->{enable_dashnode_file})
+			&& defined($self->nmisng->{dashnode_context})
+			&& defined($self->nmisng->{dashnode_context}{data}) ) {
 		my $data = { %$record }; # take a copy because we're modifying the data		
 		if( $data->{index} == ""){
 			$data->{index} = 0;
@@ -277,7 +288,7 @@ sub update_dashnode_data {
 		# $data->{"class"} //= "";
 		# $data->{"element"} //= "";
 		$data->{"level_select"} //= "default";
-		$data->{"inventory_id"} = $data->{"inventory_id"}->hex;
+		$data->{"inventory_id"} = $data->{"inventory_id"}->hex if ( ref( $data->{"inventory_id"} ) );
 		$data->{expire_at} = $data->{expire_at}->to_string;
 		delete $data->{lastupdate};
 		# delete $data->{inventory_id};
@@ -301,6 +312,130 @@ sub validate
 {
 	my ($self) = @_;
 	return ( 1, undef );
+}
+
+# writes/refreshes the status document for a code-raised ("operational")
+# event. called from Compat::NMIS::notify (status error) and
+# Compat::NMIS::checkEvent (status ok) on every cycle. threshold and alert
+# callers maintain their own status documents and are gated out here.
+# args: nmisng, node (NMISNG::Node), event, element, status (error|ok),
+#  level, details, context, inventory_id,
+#  events_config (optional, avoids a reload when the caller has it)
+# returns: undef on success or skip, error string on save failure
+sub save_operational_status
+{
+	my (%args) = @_;
+	my ( $nmisng, $node, $event, $element, $status, $level, $details, $context, $inventory_id )
+		= @args{qw(nmisng node event element status level details context inventory_id)};
+
+	return if ( ref($nmisng) ne "NMISNG" or !$node or !$event or !$status );
+
+	# threshold and alert callers maintain their own status documents
+	my $ctype = ( ref($context) eq "HASH" ) ? ( $context->{type} // '' ) : '';
+	return if ( $ctype eq "threshold" or $ctype eq "alert" );
+	return if ( $event =~ /^(Proactive|Alert: )/ );
+
+	my $events_config = $args{events_config}
+		// NMISNG::Util::loadTable( dir => 'conf', name => 'Events' );
+	my $thisevent_control = $events_config->{$event}
+		|| $events_config->{'Default'}
+		|| { Log => "true", Notify => "true", Status => "true" };
+
+	# stateless events have no ok/error state; same test notify performs
+	my $C = $nmisng->config;
+	# \Q..\E: the event name is data, not a pattern. this helper runs on every
+	# notify/checkEvent call including ones whose event name comes from custom
+	# alert data in the database, so an unbalanced metacharacter would
+	# otherwise die and abort the whole poll cycle for that node.
+	my $is_stateless = ( $C->{non_stateful_events} !~ /\Q$event\E/
+		or NMISNG::Util::getbool( $thisevent_control->{Stateful} ) ) ? 0 : 1;
+	return if ($is_stateless);
+
+	# per-event write gate: off only if this event's Events.nmis entry says
+	# so. Events.nmis is now installer-merged (installer_hooks/10-postcopy-
+	# confmerges), so this one flag reliably reaches existing sites too -
+	# no separate Config.nmis list needed.
+	return if ( defined( $thisevent_control->{TrackStatus} )
+		and !NMISNG::Util::getbool( $thisevent_control->{TrackStatus} ) );
+
+	# defensive wrap: this runs on the busiest path in the product (every
+	# notify/checkEvent, every node, every cycle), so an unexpected die from
+	# anything below (Status->new's confess on a missing cluster_id,
+	# make_oid on a malformed inventory_id) is caught and reported rather
+	# than aborting the caller's poll.
+	my $error;
+	eval
+	{
+		my $status_obj = NMISNG::Status->new(
+			nmisng     => $nmisng,
+			cluster_id => $node->cluster_id,
+			node_uuid  => $node->uuid,
+			method     => "Operational",
+			event      => $event,
+			element    => $element // '',
+			status     => $status,
+			level      => $level // 'Normal',
+			details    => $details // '',
+			property   => '',
+			index      => '',
+			class      => '',
+			section    => '',
+			source     => '',
+			value      => '',
+			( defined($inventory_id) ? ( inventory_id => NMISNG::DB::make_oid($inventory_id) ) : () ),
+		);
+		$error = $status_obj->save();
+	};
+	$error = "save_operational_status died for $event: $@" if ($@);
+	$nmisng->log->error("save_operational_status failed for $event: $error")
+		if ($error);
+	return $error;
+}
+
+# flips an existing Operational status doc to ok when its event is closed
+# outside notify/checkEvent (gui trap ack, api delete). update only, never
+# create: up-events and traps never had a doc, so they stay inert.
+# args: nmisng, cluster_id, node_uuid, event, element
+# returns: nothing
+sub close_operational_status
+{
+	my (%args) = @_;
+	my ( $nmisng, $cluster_id, $node_uuid, $event, $element )
+		= @args{qw(nmisng cluster_id node_uuid event element)};
+	return if ( ref($nmisng) ne "NMISNG" or !$node_uuid or !$event );
+
+	my $dbres = NMISNG::DB::update(
+		collection => $nmisng->status_collection(),
+		query      => NMISNG::DB::get_query(
+			no_regex => 1,
+			and_part => {
+				cluster_id => $cluster_id,
+				node_uuid  => $node_uuid,
+				method     => "Operational",
+				event      => $event,
+				element    => $element // '',
+				# only act when this hook is genuinely the thing flipping an
+				# error doc to ok (the real out-of-band case). On the ordinary
+				# clear path checkEvent has already written an honest, more
+				# specific details string moments earlier, and the doc is
+				# already ok - matching nothing here leaves that intact rather
+				# than overwriting it with the generic "event closed".
+				status     => "error",
+			}
+		),
+		record => {
+			'$set' => {
+				status     => "ok",
+				level      => "Normal",
+				details    => "event closed",
+				lastupdate => time
+			}
+		},
+		freeform => 1,
+	);
+	$nmisng->log->error("close_operational_status failed for $event: $dbres->{error}")
+		if ( !$dbres->{success} );
+	return;
 }
 
 1;

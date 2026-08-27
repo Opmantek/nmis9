@@ -102,7 +102,7 @@
   'Interface Down' => {
     'Event' => 'Interface Down',
     'Notify' => 'true',
-    'Status' => 'true',
+    'Status' => 'false',            # operational doc is written but does not affect status_summary
     'Log' => 'true',
     'Stateful' => 'true',
     'CancelingEvent' => 'Interface Up',
@@ -198,7 +198,7 @@
   'Service Down' => {
     'Event' => 'Service Down',
     'Notify' => 'true',
-    'Status' => 'true',
+    'Status' => 'false',            # operational doc is written but does not affect status_summary
     'Log' => 'true',
     'Stateful' => 'true',
     'CancelingEvent' => 'Service Up',
@@ -208,7 +208,7 @@
   'Service Degraded' => {
     'Event' => 'Service Degraded',
     'Notify' => 'true',
-    'Status' => 'true',
+    'Status' => 'false',            # operational doc is written but does not affect status_summary
     'Log' => 'true',
     'Stateful' => 'true',
     'CancelingEvent' => 'Service Up',
@@ -557,6 +557,7 @@
     "Event" => "Planned Outage Open",
     "Notify" => "true",
     "Status" => "false",                # does not contribute to status summary calculations
+    "TrackStatus" => "false",           # no status doc: an error entry for a planned window would mislead
     "Log" => "true",                    # needs to be logged for opEvents and others
     "Stateful" => "true",
     "CancelingEvent" => "Planned Outage Closed",

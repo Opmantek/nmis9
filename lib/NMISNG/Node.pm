@@ -59,6 +59,7 @@ use NMISNG::Sapi;								# for collect_services()
 use NMISNG::MIB;
 use NMISNG::Sys;
 use NMISNG::Notify;
+use NMISNG::Status;
 use NMISNG::rrdfunc;
 
 use Compat::IP;
@@ -1921,6 +1922,11 @@ sub pingable
 	my $catchall_data = $catchall_inventory->data_live();
 
 	my ( $ping_min, $ping_avg, $ping_max, $ping_loss, $pingresult, $lastping );
+	my $backup_loss;    # captured independently of $ping_loss - see below
+	# the primary's own loss, captured before either branch below may
+	# overwrite $ping_loss with the backup's numbers on failover - needed so
+	# Node Polling Failover can be determined independently of that swap.
+	my $primary_loss;
 
 	my $nodename = $self->name;
 	my $uuid = $self->uuid;
@@ -1961,18 +1967,40 @@ sub pingable
 					$ping_avg = $newestping->{data}->{ping}->{avg_rtt};
 					$ping_max = $newestping->{data}->{ping}->{max_rtt};
 					$ping_loss = $newestping->{data}->{ping}->{loss};
+					$primary_loss = $ping_loss;    # before any backup substitution below
 
 					$self->nmisng->log->debug2(sub {"$uuid ($nodename = $newestping->{data}->{ip}) PINGability at $lastping min/avg/max = $ping_min/$ping_avg/$ping_max ms loss=$ping_loss%"});
 
+					# capture the backup's own reading independently of whether
+					# the primary succeeded (bin/nmisd writes backup_loss into
+					# this same record every fping cycle, not only when the
+					# primary is down) - this is what lets Backup Host Down be
+					# decided from live data below, the same way Node Down is,
+					# rather than only a catchall flag that can go stale if an
+					# event is closed out-of-band without going through
+					# handle_down.
+					if (defined($self->configuration->{host_backup})
+							&& $self->configuration->{host_backup})
+					{
+						$backup_loss = $newestping->{data}->{ping}->{backup_loss};
+					}
+
 					# ...and use the backup host data if the primary is unreachable
+					# and the backup has actually been measured yet (a just-added
+					# host_backup, or a sibling not yet pinged this cycle, has no
+					# backup_loss - undef < 100 is true, which would wrongly read
+					# as "backup responded" instead of "backup status unknown".
+					# Leaving $ping_loss at the primary's own (already-100) value
+					# in that case correctly reports down rather than guessing up.
 					if (defined($self->configuration->{host_backup})
 							&& $self->configuration->{host_backup}
-							&& $ping_loss == 100)
+							&& $ping_loss == 100
+							&& defined($backup_loss))
 					{
 						$ping_min = $newestping->{data}->{ping}->{backup_min_rtt};
 						$ping_avg = $newestping->{data}->{ping}->{backup_avg_rtt};
 						$ping_max = $newestping->{data}->{ping}->{backup_max_rtt};
-						$ping_loss = $newestping->{data}->{ping}->{backup_loss};
+						$ping_loss = $backup_loss;
 
 						$self->nmisng->log->debug2(sub {"$uuid ($nodename = $newestping->{data}->{backup_ip}) PINGability at $lastping min/avg/max = $ping_min/$ping_avg/$ping_max ms loss=$ping_loss%"});
 					}
@@ -2001,15 +2029,32 @@ sub pingable
 
 			$pingresult = defined $ping_min ? 100 : 0;    # ping_min is undef if unreachable.
 			$lastping = Time::HiRes::time;
+			$primary_loss = $ping_loss;    # before any backup substitution below
 
-			if (!$pingresult && (my $fallback = $self->configuration->{host_backup}))
+			if (my $fallback = $self->configuration->{host_backup})
 			{
-				$self->nmisng->log->info("Starting internal ping of ($nodename = backup address $fallback) with timeout=$timeout retries=$retries packet=$packet");
-				( $ping_min, $ping_avg, $ping_max, $ping_loss) = $self->ext_ping(host => $fallback,
-																																				 packet => $packet, retries => $retries,
-																																				 timeout => $timeout );
-				$pingresult = defined $ping_min ? 100 : 0;              # ping_min is undef if unreachable.
-				$lastping = Time::HiRes::time;
+				if (!$pingresult)
+				{
+					# primary is down - fail over to the backup's own numbers
+					# for node-level reachability, as before.
+					$self->nmisng->log->info("Starting internal ping of ($nodename = backup address $fallback) with timeout=$timeout retries=$retries packet=$packet");
+					( $ping_min, $ping_avg, $ping_max, $ping_loss) = $self->ext_ping(host => $fallback,
+																																					 packet => $packet, retries => $retries,
+																																					 timeout => $timeout );
+					$pingresult = defined $ping_min ? 100 : 0;              # ping_min is undef if unreachable.
+					$lastping = Time::HiRes::time;
+					$backup_loss = $ping_loss;    # same ping just done - primary is down, this is what we measured
+				}
+				else
+				{
+					# primary is fine, but Backup Host Down still needs an
+					# independent, live read on the backup here - one extra
+					# synchronous ping, accepted as the cost of this fallback
+					# mode (the normal fping-cached path gets this for free).
+					$self->nmisng->log->debug2(sub {"Starting internal ping of ($nodename = backup address $fallback) to check its own status"});
+					(undef, undef, undef, $backup_loss)
+							= $self->ext_ping(host => $fallback, packet => $packet, retries => $retries, timeout => $timeout);
+				}
 			}
 		}
 		# at this point ping_{min,avg,max,loss}, lastping and pingresult are all set
@@ -2090,6 +2135,165 @@ sub pingable
 						if ( !NMISNG::Util::getbool( $catchall_data->{nodedown} ) );
 				$self->handle_down( sys => $S, type => "node", details => "Ping failed", catchall_inventory => $catchall_inventory );
 			}
+
+			# Backup Host Down needs the same per-cycle coverage Node Down
+			# just got above. No real event raised here though - only the
+			# fping worker's state machine owns that; this just keeps the
+			# status document fresh from what was measured a few lines up.
+			# Skipped entirely when the backup wasn't measured this cycle:
+			# never assert a state about a condition nothing assessed.
+			if (defined($self->configuration->{host_backup})
+					&& $self->configuration->{host_backup}
+					&& defined($backup_loss))
+			{
+				my $backupisdown = ( $backup_loss == 100 );
+				NMISNG::Status::save_operational_status(
+					nmisng       => $self->nmisng,
+					node         => $self,
+					event        => "Backup Host Down",
+					element      => "",
+					status       => $backupisdown ? "error" : "ok",
+					level        => $backupisdown ? ($C->{default_event_level} // "Major") : "Normal",
+					details      => $backupisdown ? "Backup ping failed" : "Backup ping ok",
+					inventory_id => $catchall_inventory->id,
+				);
+			}
+
+			# Node Polling Failover needs the same per-cycle refresh, but only
+			# for nodes that never take the SNMP-session code path in
+			# collect()/update() that already covers it (writing here too
+			# would double up). This closes the gap for SNMP-disabled,
+			# ping-only multihomed nodes. Skipped when either side wasn't
+			# measured, or both primary and backup are down (that's a total
+			# outage, Node Down's territory, not a "failover").
+			if (defined($self->configuration->{host_backup})
+					&& $self->configuration->{host_backup}
+					&& !$S->status->{snmp_enabled}
+					&& defined($primary_loss) && defined($backup_loss)
+					&& !($primary_loss == 100 && $backup_loss == 100))
+			{
+				my $failoverisdown = ( $primary_loss == 100 );    # backup must be up, total outage excluded above
+				NMISNG::Status::save_operational_status(
+					nmisng       => $self->nmisng,
+					node         => $self,
+					event        => "Node Polling Failover",
+					element      => "",
+					status       => $failoverisdown ? "error" : "ok",
+					level        => $failoverisdown ? ($C->{default_event_level} // "Major") : "Normal",
+					details      => $failoverisdown
+							? "Primary address unreachable, backup address reachable"
+							: "Using primary address",
+					inventory_id => $catchall_inventory->id,
+				);
+			}
+		}
+		else
+		{
+			# fping owns the up/down decision this cycle; the event itself is
+			# untouched here, that's the fping worker's exclusive job. The
+			# status document still needs refreshing every cycle regardless,
+			# so it doesn't go stale mid-outage and a never-down node still
+			# gets an 'ok' entry. Direct save_operational_status only, never
+			# notify/checkEvent - those own event creation, which must stay
+			# with the fping worker. $pingresult (recomputed fresh here) drives
+			# the decision rather than the catchall flag, which can drift if
+			# something closes the event out-of-band without going through
+			# handle_down; the flag's piggybacked level/details are still used
+			# for display text when down.
+			my $isdown = !$pingresult;
+			my ( $down_level, $down_details );
+			if ($isdown)
+			{
+				# read the level/details handle_down already piggybacked onto
+				# the catchall it saves right after notify()/checkEvent - zero
+				# new database reads, just two more keys on data already live
+				# here. fallback only for a catchall saved before this change
+				# shipped, or any other edge case where the keys aren't there
+				# yet (e.g. nodedown flipped by something other than
+				# handle_down).
+				$down_level   = $catchall_data->{nodedownlevel}
+						// $C->{default_event_level} // "Major";
+				$down_details = $catchall_data->{nodedowndetails} // "Ping failed";
+			}
+
+			NMISNG::Status::save_operational_status(
+				nmisng       => $self->nmisng,
+				node         => $self,
+				event        => "Node Down",
+				element      => "",
+				status       => $isdown ? "error" : "ok",
+				level        => $isdown ? $down_level   : "Normal",
+				details      => $isdown ? $down_details : "Ping ok",
+				inventory_id => $catchall_inventory->id,
+			);
+
+			# Backup Host Down: same per-cycle refresh as Node Down above,
+			# only for multihomed nodes (host_backup configured) - no backup
+			# host means no status document at all, not ok and not error.
+			#
+			# Decided from live $backup_loss, not the backupdown catchall
+			# flag: a flag-based version can get stuck error forever if the
+			# event is later closed out-of-band (GUI/API) rather than through
+			# handle_down()'s own up transition, since nothing then resets it.
+			#
+			# "Not measured" is deliberately NOT treated as "down": a ping
+			# record can lack backup_loss for reasons unrelated to the
+			# backup's real state (fping worker off - a supported setting -
+			# or fallen behind), which would otherwise mean a permanently
+			# false error on every site without a healthy fping worker. Skip
+			# the write entirely rather than assert a state nothing measured.
+			if (defined($self->configuration->{host_backup})
+					&& $self->configuration->{host_backup}
+					&& defined($backup_loss))
+			{
+				my $backupisdown = ( $backup_loss == 100 );
+				my ( $backup_down_level, $backup_down_details );
+				if ($backupisdown)
+				{
+					$backup_down_level   = $catchall_data->{backupdownlevel}
+							// $C->{default_event_level} // "Major";
+					$backup_down_details = $catchall_data->{backupdowndetails} // "Backup ping failed";
+				}
+
+				NMISNG::Status::save_operational_status(
+					nmisng       => $self->nmisng,
+					node         => $self,
+					event        => "Backup Host Down",
+					element      => "",
+					status       => $backupisdown ? "error" : "ok",
+					level        => $backupisdown ? $backup_down_level   : "Normal",
+					details      => $backupisdown ? $backup_down_details : "No backup host event active",
+					inventory_id => $catchall_inventory->id,
+				);
+			}
+
+			# Node Polling Failover, same per-cycle refresh as Backup Host
+			# Down above, but only for nodes that never take the SNMP-session
+			# code path in collect()/update() that already covers this event
+			# (writing here too would double up). Closes the gap for
+			# SNMP-disabled, ping-only multihomed nodes. Skipped when either
+			# side wasn't measured, or both primary and backup are down (a
+			# total outage is Node Down's territory, not a "failover").
+			if (defined($self->configuration->{host_backup})
+					&& $self->configuration->{host_backup}
+					&& !$S->status->{snmp_enabled}
+					&& defined($primary_loss) && defined($backup_loss)
+					&& !($primary_loss == 100 && $backup_loss == 100))
+			{
+				my $failoverisdown = ( $primary_loss == 100 );    # backup must be up, total outage excluded above
+				NMISNG::Status::save_operational_status(
+					nmisng       => $self->nmisng,
+					node         => $self,
+					event        => "Node Polling Failover",
+					element      => "",
+					status       => $failoverisdown ? "error" : "ok",
+					level        => $failoverisdown ? ($C->{default_event_level} // "Major") : "Normal",
+					details      => $failoverisdown
+							? "Primary address unreachable, backup address reachable"
+							: "Using primary address",
+					inventory_id => $catchall_inventory->id,
+				);
+			}
 		}
 
 		$RI->{pingavg}    = $ping_avg;     # results for sub runReach
@@ -2150,7 +2354,7 @@ sub handle_down
 	$details ||= "$typeofdown error";
 
 	my $eventfunc = ( $goingup ? \&Compat::NMIS::checkEvent : \&Compat::NMIS::notify );
-	&$eventfunc(
+	my $event_obj = &$eventfunc(
 		sys     => $S,
 		event   => $eventname,
 		# use specific failover closing event name
@@ -2162,12 +2366,30 @@ sub handle_down
 		conf => $self->nmisng->config
 	);
 
-	# for these three we set a XYZdown marker in the catchall, in the most atomic fashion possible
+	# for these we set a XYZdown marker in the catchall, in the most atomic fashion possible
 	# (to minimise race conditions with other processes holding a catchall_live)
-	if ($typeofdown =~ /^(snmp|wmi|node)$/)
-	{		
+	if ($typeofdown =~ /^(snmp|wmi|node|backup)$/)
+	{
 		my $quicklynow = $catchall_inventory->data;
 		$quicklynow->{"${typeofdown}down"} = ($goingup ? 'false' : 'true');
+
+		# piggyback the event's resolved level/details onto this same
+		# catchall save, so per-cycle status-doc refresh code elsewhere
+		# (pingable()'s $mustping==false branch) can read them straight out
+		# of data already in memory - zero new database reads.
+		if (!$goingup && ref($event_obj))
+		{
+			$quicklynow->{"${typeofdown}downlevel"}   = $event_obj->level;
+			$quicklynow->{"${typeofdown}downdetails"} = $event_obj->details;
+		}
+		# clear them again on the way up, so a later outage whose notify()
+		# doesn't return a usable $event_obj falls through to the reader's
+		# own fallback rather than silently reusing stale text.
+		elsif ($goingup)
+		{
+			delete $quicklynow->{"${typeofdown}downlevel"};
+			delete $quicklynow->{"${typeofdown}downdetails"};
+		}
 
 		# ensuring that nodestatus stays up to date with XXXXdown status
 		my $coarse = $self->coarse_status(catchall_data => $quicklynow);
@@ -7202,7 +7424,7 @@ sub save_dashnode_data {
 			return 0;
 		}
 		# clear context after save so it doesn't get reused incorrectly
-		delete $self->nmisng->config->{dashnode_context};		
+		delete $self->nmisng->{dashnode_context};
 	}
 	return 1;
 }
@@ -7364,6 +7586,13 @@ sub update
 			}
 			$self->handle_down(sys => $S, type => "snmp", up => 1, details => "snmp ok", catchall_inventory => $catchall_inventory)
 					if ($candosnmp);
+		}
+		elsif ( NMISNG::Util::getbool( $catchall_data->{snmpdown} ) )
+		{
+			# SNMP is no longer configured for this node (eg. credentials were
+			# removed) - clear the stale marker/event now instead of waiting
+			# for a force update to wipe the whole catchall.
+			$self->handle_down(sys => $S, type => "snmp", up => 1, details => "snmp not configured", catchall_inventory => $catchall_inventory);
 		}
 
 		# this will try all enabled sources, 0 only if none worked
@@ -9713,6 +9942,21 @@ sub collect
 			}
 			$self->handle_down(sys => $S, type => "snmp", up => 1, details => "snmp ok", catchall_inventory => $catchall_inventory)
 					if ($candosnmp);
+		}
+		# note: snmp_enabled is false here both when SNMP is genuinely
+		# unconfigured AND whenever this poll simply didn't request SNMP
+		# (wantsnmp=>0, eg. a WMI-only cycle on a node with distinct snmp/wmi
+		# polling intervals) - so this can't key off snmp_enabled the way the
+		# up=>1 case above does. Check the actual credentials instead, the
+		# same test Sys::init uses to decide whether to create the accessor.
+		elsif ( NMISNG::Util::getbool( $catchall_data->{snmpdown} )
+						and ($self->configuration->{username} // "") eq ""
+						and ($self->configuration->{community} // "") eq "" )
+		{
+			# SNMP is no longer configured for this node (eg. credentials were
+			# removed) - clear the stale marker/event now instead of waiting
+			# for a force update to wipe the whole catchall.
+			$self->handle_down(sys => $S, type => "snmp", up => 1, details => "snmp not configured", catchall_inventory => $catchall_inventory);
 		}
 
 		# returns 1 if one or more sources have worked,

@@ -98,6 +98,10 @@ my %hash = (
 														validate => { 'int' => [ 0, undef ] } } },
 			{ 'snmp_stop_polling_on_error' => { display => 'popup',
 																					value => ["false", "true"]}},
+			{ 'health_score_include_operational_events' => { display => 'popup',
+																					value => ["false", "true"]}},
+			{ 'enable_dashnode_file' => { display => 'popup',
+																					value => ["false", "true"]}},
 		],
 
 		'url' => [
