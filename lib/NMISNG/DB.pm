@@ -39,7 +39,10 @@ use Data::Dumper;
 use JSON::XS;
 use Try::Tiny;
 use boolean;         # do NOT use -truth! deprecated, segfaults in perl 5.20 and impossible with 5.22+
-use MongoDB 1.2.3;	 # we require a reasonably new Mongodb driver
+# OMK-12826: NMIS supports only the 2.x MongoDB driver. The 1.x driver cannot
+# talk to the shipped MongoDB 7.0 and is not tested, so require 2.0.0+ and fail
+# at load rather than run a half-working legacy authentication path.
+use MongoDB 2.0.0;
 use Safe::Isa;       # provides $_isa, recommended by MongoDB driver for error handling
 use Time::HiRes ();
 use Time::Moment;    # opCharts needs times (for TTL) and using this is much faster
@@ -1014,22 +1017,6 @@ sub _auth_source_args
 	return (db_name => $src);
 }
 
-# OMK-12826: the legacy (<2.0) driver authenticates at run time by calling
-# authenticate($db, $user, $pwd) for each db in this list, returning on the first
-# failure. When db_auth_source is set the credential lives ONLY in that source db
-# (a scoped nmis9RW created by setup_mongodb.pl holds no role in 'admin'), so the
-# loop must target the source alone; the old ('admin', $db_name) pair would fail
-# authenticating against 'admin' first and never reach the data db, breaking a 1.x
-# install after it migrates. When db_auth_source is unset the pre-OMK-12826
-# ('admin', $db_name) behaviour is preserved verbatim.
-sub _legacy_auth_dbs
-{
-	my ($CONF, $db_name) = @_;
-	my $src = $CONF->{db_auth_source};
-	return ($src) if (defined($src) && $src ne '');
-	return ('admin', $db_name);
-}
-
 # OMK-12826: given a usersInfo result (arrayref of user documents), returns true
 # if any user can still administer authentication after auth is enabled, i.e.
 # holds root or userAdminAnyDatabase, or userAdmin on the admin database.
@@ -1071,7 +1058,6 @@ sub get_db_connection
 
 	my $server  = $CONF->{db_server} // 'localhost';
 	my $port    = $CONF->{db_port}   // '27017';
-	my $db_name = $CONF->{db_name}   // 'nmisng';
 	my $username = $CONF->{db_username};
 	my $password = NMISNG::Util::decrypt($CONF->{db_password}, 'database', 'db_password');
 
@@ -1143,37 +1129,9 @@ sub get_db_connection
 	undef $password;
 	return if ($error_string);
 
-	# If we can't authenticate we must be using the new driver
-	if ( $username eq '' || !$new_conn->can("authenticate") )
-	{
-		$password = "wqewqdckqcoqefk34trgdfefegeegegefefegrht4t3fdbg.nrlhrhrwr";
-		undef $password;
-		return $new_conn;
-	}
-	# authenticate to the dbs (OMK-12826: honour db_auth_source, see _legacy_auth_dbs)
-	foreach my $db (_legacy_auth_dbs($CONF, $db_name))
-	{
-		try
-		{
-			# authenticate to admin so we can run serverStatus
-			my $auth = $new_conn->authenticate( $db, $username, $password );
-			if ( $auth =~ /auth fail/ || ref($auth) eq "HASH" && $auth->{ok} != 1 )
-			{
-				$error_string = "Error authenticating to MongoDB db:$db database\n";
-				$password = "wqewqdckqcoqefk34trgdfefegeegegefefegrht4t3fdbg.nrlhrhrwr";
-				undef $password;
-				return;
-			}
-		}
-		catch
-		{
-			$error_string = "Error attempting to authenticate, parameters incorrect.\nError info:$_";
-		};
-		
-		$password = "wqewqdckqcoqefk34trgdfefegeegegefefegrht4t3fdbg.nrlhrhrwr";
-		undef $password;
-		return if ($error_string);
-	}
+	# 2.x driver only (enforced by the load-time guard above): authentication is
+	# done at connection creation from the username/password/authSource client args
+	# (see _auth_source_args), so there is no per-db runtime authenticate() step.
 	$password = "wqewqdckqcoqefk34trgdfefegeegegefefegrht4t3fdbg.nrlhrhrwr";
 	undef $password;
 	return $new_conn;

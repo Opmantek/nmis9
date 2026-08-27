@@ -858,10 +858,13 @@ Three follow-on fixes ship in the same change (review of the initial commit):
   `root`, `userAdminAnyDatabase`, or `userAdmin` on `admin`); enabling it then
   would close MongoDB's localhost exception with nobody able to manage users. The
   role decision is `NMISNG::DB::has_admin_capable_user`.
-- **The legacy (<2.0) MongoDB driver now honours `db_auth_source`.** Its run-time
-  `authenticate()` loop targets the auth source alone when one is set, instead of
-  the hardcoded `('admin', $db_name)` pair that would fail on `admin` first and
-  never reach the scoped user after migration (`NMISNG::DB::_legacy_auth_dbs`).
+- **The legacy (<2.0) MongoDB driver is no longer supported.** `lib/NMISNG/DB.pm`
+  now requires the 2.x driver (`use MongoDB 2.0.0`) and fails at load otherwise, so
+  the old run-time `authenticate()` loop (which hardcoded `('admin', $db_name)` and
+  would not reach a scoped user living only in `nmisng`) is removed rather than
+  fixed. On the 2.x driver authentication is done at connection creation from the
+  authSource client arg (`_auth_source_args`), which is the path the scoped user
+  actually uses. The 1.x driver cannot talk to the shipped MongoDB 7.0 anyway.
 - **Installer hook 24 now fails on a failed mandatory setup.** It captures
   `setup_mongodb.pl`'s exit code and returns non-zero, so `run_hooks` aborts the
   install rather than completing it as successful while NMIS cannot authenticate.

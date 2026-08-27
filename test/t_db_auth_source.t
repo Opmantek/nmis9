@@ -1,8 +1,8 @@
 #!/usr/bin/perl
 # OMK-12826: unit tests for the pure NMISNG::DB helpers added for the scoped-user
 # work. No Mongo needed - each calls the function and asserts on its return.
-#   - _auth_source_args / _legacy_auth_dbs: how the 2.x and legacy drivers pick
-#     the authSource / authentication db(s) from db_auth_source.
+#   - _auth_source_args: the authSource the 2.x driver authenticates against,
+#     derived from db_auth_source (empty/absent keeps the driver default, admin).
 #   - has_admin_capable_user: whether a usersInfo result contains a user that can
 #     still administer auth (used to gate enabling auth in setup_mongodb.pl).
 use strict; use warnings;
@@ -10,38 +10,16 @@ use FindBin; use lib "$FindBin::Bin/../lib";
 use Test::More;
 use NMISNG::DB;
 
-# --- 2.x driver path: authSource passed to the client constructor ------------
+# --- 2.x driver: authSource passed to the client constructor -----------------
 is_deeply([ NMISNG::DB::_auth_source_args({ db_auth_source => 'nmisng' }) ],
 	[ db_name => 'nmisng' ],
 	"sets db_name => nmisng when db_auth_source is set");
 
 is_deeply([ NMISNG::DB::_auth_source_args({ db_auth_source => '' }) ], [],
-	"empty db_auth_source adds nothing (legacy: driver defaults to admin)");
+	"empty db_auth_source adds nothing (driver defaults to admin)");
 
 is_deeply([ NMISNG::DB::_auth_source_args({}) ], [],
-	"absent db_auth_source adds nothing (legacy)");
-
-# --- legacy 1.x driver path: which db(s) the authenticate() loop runs against --
-# The legacy driver authenticates at run time by looping authenticate($db,...).
-# When db_auth_source is set the scoped user exists ONLY in that source, so the
-# loop must target the source alone; the old ('admin', $db_name) pair would fail
-# on 'admin' first and never reach the source. When it is unset the pre-OMK-12826
-# ('admin', $db_name) behaviour must be preserved exactly.
-is_deeply([ NMISNG::DB::_legacy_auth_dbs({ db_auth_source => 'nmisng' }, 'nmisng') ],
-	[ 'nmisng' ],
-	"legacy auth targets the auth source alone when db_auth_source is set");
-
-is_deeply([ NMISNG::DB::_legacy_auth_dbs({ db_auth_source => 'admin' }, 'nmisng') ],
-	[ 'admin' ],
-	"legacy auth honours a non-default auth source verbatim");
-
-is_deeply([ NMISNG::DB::_legacy_auth_dbs({ db_auth_source => '' }, 'nmisng') ],
-	[ 'admin', 'nmisng' ],
-	"legacy auth keeps ('admin', db_name) when db_auth_source is empty");
-
-is_deeply([ NMISNG::DB::_legacy_auth_dbs({}, 'nmisng') ],
-	[ 'admin', 'nmisng' ],
-	"legacy auth keeps ('admin', db_name) when db_auth_source is absent");
+	"absent db_auth_source adds nothing (driver defaults to admin)");
 
 # --- has_admin_capable_user: does a usersInfo result still hold an admin? -------
 # setup_mongodb.pl uses this to refuse to enable auth on a fresh no-auth server
