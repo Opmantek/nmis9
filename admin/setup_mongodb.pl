@@ -40,7 +40,9 @@ use lib "$FindBin::Bin/../lib";
 use MongoDB;
 use File::Basename;
 use File::Copy;
+use File::Path qw(make_path);
 use File::Temp ();
+use Fcntl qw(:DEFAULT O_NOFOLLOW);
 use version 0.77;
 use Tie::IxHash;
 
@@ -340,19 +342,8 @@ my $genpw = $curpw;
 my $generated = 0;
 if ($is_default)
 {
-	# Prefer the kernel CSPRNG, fall back to Math::Random::Secure, as
-	# nmis_authkey_generate does. 32 bytes as 64 hex chars.
-	$genpw = '';
-	if (open(my $ur, '<:raw', '/dev/urandom')) {
-		my $b; $genpw = unpack('H*', $b) if (read($ur, $b, 32) == 32);
-		close($ur);
-	}
-	if (length($genpw) != 64) {
-		eval { require Math::Random::Secure;
-		       $genpw = join('', map { sprintf('%08x', Math::Random::Secure::irand()) } 1..8); 1 } or $genpw = '';
-	}
-	die "ERROR: could not generate a database password (need /dev/urandom or Math::Random::Secure)\n"
-		if (length($genpw) != 64);
+	$genpw = generate_password()
+		or die "ERROR: could not generate a database password (need /dev/urandom or Math::Random::Secure)\n";
 	$generated = 1;
 }
 
@@ -434,28 +425,8 @@ if ($isnoauth)
 		print "INFO: Could not offer to set authentication for your local MongoDB daemon as this process is not running with root privileges\n";
 	}
 
-	# OMK-12826: NMIS now provisions only the scoped nmis9RW (dbOwner on nmisng),
-	# never an admin/root user. Enabling auth while no administrative user exists
-	# would close MongoDB's localhost exception with nobody able to manage users,
-	# locking out database administration until auth is disabled again at the OS
-	# level. Refuse in that case rather than enable auth.
-	if ( ($islocal_and_mongod_3_4_or_newer) and ($< == 0) and !admin_user_present($conn) )
-	{
-		print "\nWARNING: NOT enabling MongoDB authentication.
-This server has no administrative user: none holds the root or
-userAdminAnyDatabase role, or userAdmin on the admin database, and NMIS no
-longer creates one. Enabling authentication now would close MongoDB's
-localhost exception with no user able to manage authentication, locking you
-out of database administration until auth is disabled again at the OS level.
-
-Create an administrative user first (for example one with the
-userAdminAnyDatabase or root role in the admin database), then enable
-authentication yourself by adding 'authorization: enabled' to
-$mongod_conf and restarting MongoDB.\n\n";
-		input_ok("Hit enter to continue:");
-	}
 	# offer to set authentication enabled for mongod version 3.4 or newer, but only root privileges can edit $mongod_conf
-	elsif ( ($islocal_and_mongod_3_4_or_newer) and ($< == 0) )
+	if ( ($islocal_and_mongod_3_4_or_newer) and ($< == 0) )
 	{
 		print "\nWARNING: Authentication should be enabled for production use!
 Currently your local MongoDB server at $dbserver:$port operates without
@@ -464,33 +435,26 @@ production use.\n\n";
 
 		if (input_yn("Should we add the setting 'authorization: enabled' to your ${mongod_conf}?","116b"))
 		{
-			# backup $mongod_conf first - we use timestamp to keep multiple copies.
-			# fatal on failure, unlike the backticks this replaced: their '|| die' was
-			# unreachable, so a failed backup used to be ignored
-			my $mongod_conf_backup = "$mongod_conf." . time;
-			# stat before the copy, which would otherwise bump the source access time.
-			# fatal if it fails, or the mode arithmetic below chmods the backup to 0000:
-			my @mongod_conf_stat = stat($mongod_conf);
-			@mongod_conf_stat
-				or die ("Error: cannot stat $mongod_conf for backup (1): $!\n");
-			copy($mongod_conf, $mongod_conf_backup)
-				or die ("Error: making backup (1) of $mongod_conf failed: $!\n");
-			# preserve mode and timestamps, as 'cp -a' did. the backup is already on
-			# disk, so lost metadata only warrants a warning:
-			chmod(($mongod_conf_stat[2] & 07777), $mongod_conf_backup)
-				or warn ("WARNING: could not preserve mode on $mongod_conf_backup: $!\n");
-			utime($mongod_conf_stat[8], $mongod_conf_stat[9], $mongod_conf_backup)
-				or warn ("WARNING: could not preserve timestamps on $mongod_conf_backup: $!\n");
-			print "\nbacked up $mongod_conf to $mongod_conf_backup\n";
-
-			local $YAML::XS::Boolean="JSON::PP";
-			my $yaml=LoadFile($mongod_conf)||die "cannot LoadFile $mongod_conf: $!\n";
-			$yaml->{security}{authorization}="enabled";
-			DumpFile($mongod_conf,$yaml)||die "cannot DumpFile $mongod_conf: $!\n";
-
-			my $startup = system("service","mongod","restart") >> 8;
-			print "ERROR: failed to restart MongoDB, exit code $startup\n" if ($startup);
-			sleep 3;
+			# OMK-12826: enabling auth closes MongoDB's localhost exception, so an
+			# administrative user must already exist or nobody can manage the server
+			# afterwards. NMIS provisions only the scoped nmis9RW (no admin role), so
+			# create a separate admin with a generated password when none exists.
+			# ensure_admin_user refuses (returns 'error') rather than leave an admin
+			# whose password could not be recorded, and we then do NOT enable auth.
+			my ($astatus, $amsg) = ensure_admin_user($conn, $dbserver, $port);
+			print "INFO: $amsg\n" if ($astatus eq 'created');
+			if ($astatus eq 'error')
+			{
+				print "\nERROR: $amsg\n"
+					. "NOT enabling authentication: doing so without a usable administrative\n"
+					. "credential would lock MongoDB administration out via the closed\n"
+					. "localhost exception. Resolve the above and re-run.\n\n";
+				input_ok("Hit enter to continue:");
+			}
+			else
+			{
+				enable_mongo_auth($mongod_conf);
+			}
 		}
 		else
 		{
@@ -835,6 +799,142 @@ sub admin_user_present
 		command => { "usersInfo" => 1 });
 	my $users = (ref($r) eq 'HASH' && ref($r->{users}) eq 'ARRAY') ? $r->{users} : [];
 	return NMISNG::DB::has_admin_capable_user($users);
+}
+
+# OMK-12826: generate a 64-hex-char (32-byte) password from the kernel CSPRNG,
+# falling back to Math::Random::Secure, as nmis_authkey_generate does. Returns
+# the hex string, or undef if neither source is available.
+sub generate_password
+{
+	my $pw = '';
+	if (open(my $ur, '<:raw', '/dev/urandom'))
+	{
+		my $b; $pw = unpack('H*', $b) if (read($ur, $b, 32) == 32);
+		close($ur);
+	}
+	if (length($pw) != 64)
+	{
+		eval { require Math::Random::Secure;
+		       $pw = join('', map { sprintf('%08x', Math::Random::Secure::irand()) } 1..8); 1 }
+			or $pw = '';
+	}
+	return (length($pw) == 64) ? $pw : undef;
+}
+
+# OMK-12826: record a generated MongoDB admin password in a root-only file, the
+# same convention as the nmis GUI initial password (dir 0700, file 0600,
+# root-owned, O_EXCL|O_NOFOLLOW). Returns undef on success or an error string.
+sub write_mongo_admin_password_file
+{
+	my ($pwfile, $server, $port, $user, $pw) = @_;
+	my $err;
+	eval {
+		my $pwdir = dirname($pwfile);
+		make_path($pwdir, { mode => 0700 }) if (!-d $pwdir);
+		unlink($pwfile);
+		sysopen(my $pfh, $pwfile, O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW, 0600)
+			or die "open $pwfile: $!\n";
+		print $pfh <<"FILE" or die "write $pwfile: $!\n";
+NMIS-provisioned MongoDB administrator
+server:   $server:$port
+username: $user
+password: $pw
+
+This is the administrative credential for your MongoDB. NMIS itself runs as a
+separate, scoped user (see db_username in conf/Config.nmis) and does not use this
+account. Record this password somewhere safe, then secure or delete this file.
+FILE
+		close($pfh) or die "close $pwfile: $!\n";
+		chown(0, -1, $pwfile);    # best effort, needs root
+		1;
+	} or do { $err = $@ || "unknown error"; };
+	return $err;
+}
+
+# OMK-12826: ensure MongoDB has an administrative user before auth is enabled, so
+# turning auth on does not close the localhost exception with nobody able to
+# manage users. Called only on a fresh no-auth local server. NMIS provisions only
+# the scoped nmis9RW (no admin role), so this creates a separate admin with a
+# generated password when none exists. Returns ($status, $message):
+#   'exists'  an admin-capable user already exists, nothing done
+#   'created' a scoped admin was created and its password recorded
+#   'error'   could not provision/record one; the caller must NOT enable auth
+# If the generated password cannot be recorded the just-created user is dropped,
+# so a half-provisioned admin with an unknown password is never left behind.
+sub ensure_admin_user
+{
+	my ($conn, $server, $port) = @_;
+
+	return ('exists', undef) if (admin_user_present($conn));
+
+	my $adminuser = 'nmis9admin';
+	my $adminpw   = generate_password()
+		or return ('error', "could not generate an administrator password "
+			. "(need /dev/urandom or Math::Random::Secure)");
+
+	my $cr = NMISNG::DB::run_command(
+		db      => $conn->get_database("admin"),
+		command => Tie::IxHash->new("createUser" => $adminuser, "pwd" => $adminpw,
+			"roles" => [ { role => 'root', db => 'admin' } ]));
+	if (ref($cr) ne 'HASH' || !$cr->{ok})
+	{
+		$adminpw = 'x' x 64; undef $adminpw;
+		return ('error', "creating administrator '$adminuser' failed: "
+			. (ref($cr) eq 'HASH' ? ($cr->{errmsg} // '') : $cr));
+	}
+
+	my $pwfile = $ENV{NMIS_MONGO_ADMIN_PASSWORD_FILE}
+		|| '/usr/local/etc/firstwave/mongodb-admin-password';
+	my $ferr = write_mongo_admin_password_file($pwfile, $server, $port, $adminuser, $adminpw);
+	$adminpw = 'x' x 64; undef $adminpw;
+
+	if ($ferr)
+	{
+		# roll back: never leave an admin whose generated password nobody recorded
+		NMISNG::DB::run_command(db => $conn->get_database("admin"),
+			command => { "dropUser" => $adminuser });
+		return ('error', "created administrator '$adminuser' but could not record its "
+			. "password ($ferr); dropped it again");
+	}
+	return ('created', "created MongoDB administrator '$adminuser'; its generated "
+		. "password is recorded in $pwfile");
+}
+
+# OMK-12826: turn on 'security.authorization: enabled' in mongod.conf and restart
+# mongod. Factored out of the enable-auth prompt so it runs only after an admin
+# user is guaranteed to exist. Backs the file up first (fatal on backup failure)
+# and preserves its mode and timestamps.
+sub enable_mongo_auth
+{
+	my ($mongod_conf) = @_;
+
+	# backup $mongod_conf first - we use timestamp to keep multiple copies.
+	# fatal on failure, unlike the backticks this replaced: their '|| die' was
+	# unreachable, so a failed backup used to be ignored
+	my $mongod_conf_backup = "$mongod_conf." . time;
+	# stat before the copy, which would otherwise bump the source access time.
+	# fatal if it fails, or the mode arithmetic below chmods the backup to 0000:
+	my @mongod_conf_stat = stat($mongod_conf);
+	@mongod_conf_stat
+		or die ("Error: cannot stat $mongod_conf for backup (1): $!\n");
+	copy($mongod_conf, $mongod_conf_backup)
+		or die ("Error: making backup (1) of $mongod_conf failed: $!\n");
+	# preserve mode and timestamps, as 'cp -a' did. the backup is already on
+	# disk, so lost metadata only warrants a warning:
+	chmod(($mongod_conf_stat[2] & 07777), $mongod_conf_backup)
+		or warn ("WARNING: could not preserve mode on $mongod_conf_backup: $!\n");
+	utime($mongod_conf_stat[8], $mongod_conf_stat[9], $mongod_conf_backup)
+		or warn ("WARNING: could not preserve timestamps on $mongod_conf_backup: $!\n");
+	print "\nbacked up $mongod_conf to $mongod_conf_backup\n";
+
+	local $YAML::XS::Boolean="JSON::PP";
+	my $yaml=LoadFile($mongod_conf)||die "cannot LoadFile $mongod_conf: $!\n";
+	$yaml->{security}{authorization}="enabled";
+	DumpFile($mongod_conf,$yaml)||die "cannot DumpFile $mongod_conf: $!\n";
+
+	my $startup = system("service","mongod","restart") >> 8;
+	print "ERROR: failed to restart MongoDB, exit code $startup\n" if ($startup);
+	sleep 3;
 }
 
 # print question, return true if y (or in unattended mode).

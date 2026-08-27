@@ -852,12 +852,21 @@ the install marked migrated.
 
 Three follow-on fixes ship in the same change (review of the initial commit):
 
-- **Enabling auth on a fresh no-auth server is now gated.** Because NMIS only
-  provisions the scoped `nmis9RW` (no `admin`/`root` user), `setup_mongodb.pl`
-  refuses to enable authentication when no administrative user exists (none with
-  `root`, `userAdminAnyDatabase`, or `userAdmin` on `admin`); enabling it then
-  would close MongoDB's localhost exception with nobody able to manage users. The
-  role decision is `NMISNG::DB::has_admin_capable_user`.
+- **Fresh no-auth server: provision a per-install admin, then enable auth.**
+  Enabling auth closes MongoDB's localhost exception, so an administrative user
+  must exist first or nobody can manage the server. NMIS provisions only the
+  scoped `nmis9RW` (no `admin`/`root` role), so on a fresh no-auth local server
+  `setup_mongodb.pl` now creates a separate admin, `nmis9admin` (role `root` on
+  `admin`), with a *generated* password, records it root-only in
+  `/usr/local/etc/firstwave/mongodb-admin-password` (0600, overridable via
+  `NMIS_MONGO_ADMIN_PASSWORD_FILE`), and only then enables auth. This is NOT the
+  old shared-identity behaviour: the account is per-install and its password is
+  random, never the shipped default, and it is never written into the app config
+  (`conf/Config.nmis` holds only the scoped `nmis9RW` credentials). If the
+  generated password cannot be recorded the just-created admin is dropped and
+  auth is left off, so an admin with an unrecoverable password is never left
+  behind (`ensure_admin_user`, using `NMISNG::DB::has_admin_capable_user` to
+  detect an existing admin). An existing admin is reused, not duplicated.
 - **The legacy (<2.0) MongoDB driver is no longer supported.** `lib/NMISNG/DB.pm`
   now requires the 2.x driver (`use MongoDB 2.0.0`) and fails at load otherwise, so
   the old run-time `authenticate()` loop (which hardcoded `('admin', $db_name)` and

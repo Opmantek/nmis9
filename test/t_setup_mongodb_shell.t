@@ -142,7 +142,9 @@ subtest 'no backticks or qx// remain in setup_mongodb.pl' => sub {
     unlike($code_only, qr/`/,            'no backticks in code');
     unlike($code_only, qr/\bqx[({\[\/|#]/, 'no qx// in code');
     unlike($code_only, qr/\bexec\s*\(/,  'no exec() in code');
-    unlike($code_only, qr/open\s*\([^)]*\|/, 'no piped open in code');
+    # \bopen so this does not match sysopen(...), whose bitwise-OR flag list
+    # (O_WRONLY | O_CREAT | ...) is not a shell pipe.
+    unlike($code_only, qr/\bopen\s*\([^)]*\|/, 'no piped open in code');
 };
 
 # ---------------------------------------------------------------------------
