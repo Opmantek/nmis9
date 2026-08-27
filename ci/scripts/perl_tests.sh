@@ -79,6 +79,8 @@ working_tests=(
     t_csrf.t
     t_csrf_cgi.t
     t_ci_perl_tests.t
+    t_util_encryption_failclosed.t
+    t_util_verify_selftest_failclosed.t
     t_plugin_nodevalidation.pl
     notify_depend.t
     t_nmisng_node_nomodel.pl
