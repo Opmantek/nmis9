@@ -29,6 +29,8 @@ working_tests=(
     t_polling.pl
     t_node_lock_stale.pl
     t_duplicate_event.pl
+    t_operational_status.pl
+    t_updateconfig.pl
     t_event_cancelingevent_cycle.pl
     t_event_query_isolation.pl
     t_event.pl
@@ -72,12 +74,28 @@ working_tests=(
     t_session_expiry.t
     t_auth_session_privs.t
     t_access_policy.pl
+    t_cgi_tables_secret_passthrough.t
     t_mongo_exposure.t
     t_csrf.t
     t_csrf_cgi.t
     t_ci_perl_tests.t
     t_util_encryption_failclosed.t
     t_util_verify_selftest_failclosed.t
+    t_plugin_nodevalidation.pl
+    notify_depend.t
+    t_nmisng_node_nomodel.pl
+    # OMK-12775 / BR-01: clear_active_queue must not wipe pending jobs
+    t_clear_active_queue.pl
+    # OMK-12776 / BR-02: service inventories must get distinct uuids
+    t_service_inventory_uuid.pl
+    # OMK-12779 / BR-05: escalation must not be suppressed by an inactive depend Node Down
+    t_escalation_depend_suppression.pl
+    # OMK-12777 / BR-03: one malformed outage record must not abort the whole check
+    t_outage_check_malformed_record.pl
+    # OMK-12780 / BR-06: a dampened stateless event must not be resurrected
+    t_stateless_event_not_resurrected.pl
+    # OMK-12781 / BR-07: cleanNodeEvents must write a TTL date and not clobber valid expiries
+    t_cleannodeevents_ttl.pl
 )
 
 # run every file even when one fails, so a failure early in the list does not

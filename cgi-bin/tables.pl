@@ -778,14 +778,27 @@ sub doeditTable
 				delete $Q->{"_custom_$item"};
 			}
 
-			# Unencrypt the password for possible validation.
-			if ($thisitem->{display} =~ /(^|,)password(,|$)/)
-			{
-				$value = NMISNG::Util::decrypt($value) if ((defined($value)) && ($value ne "") &&  (substr($value, 0, 2) eq "!!"));
-			}
+			# A password field arriving still ciphertext means the form round-tripped
+			# the stored value and the user did not edit it. Nothing needs validating,
+			# because it was validated when it was first set, and nothing needs
+			# re-encrypting, because the encrypt below already skips "!!" values. So
+			# it passes straight through, byte for byte.
+			#
+			# This deliberately does NOT decrypt (OMK-12827). The decrypt that used to
+			# live here was the only reason the web tier had to be able to READ every
+			# secret field, device SNMP/WMI community, authpassword, privpassword and
+			# wmipassword included, and all it bought was validating a value the user
+			# never typed. Removing it means a compromised web tier can no longer
+			# recover stored device credentials through this path.
+			#
+			# ref() is checked because a savearray item makes $value an ARRAY ref, and
+			# substr on a ref would silently stringify it to "ARRAY(0x...)".
+			my $unchanged_ciphertext = ($thisitem->{display} =~ /(^|,)password(,|$)/
+																	&& defined($value) && !ref($value)
+																	&& $value ne "" && substr($value, 0, 2) eq "!!");
 
 			# ... and validate if validation is enabled before encrypting passwords..
-			if (ref($thisitem->{validate}) eq "HASH")
+			if (!$unchanged_ciphertext && ref($thisitem->{validate}) eq "HASH")
 			{
 				# supported validation mechanisms:
 				# "int" => [ min, max ], undef can be used for no min/max - rejects X < min or > max.

@@ -581,6 +581,25 @@ sub config_backup
 	return {success => 1, file => "$backupfilename.gz"};
 }
 
+# OMK-12605: true if $event appears as one of the comma-separated entries in
+# $list (used for the config-driven event exclusion lists in Config.nmis).
+# Plain string equality against each trimmed entry, deliberately not a regex,
+# so event names containing metacharacters need no escaping.
+# args: list (comma-separated string, may be undef), event (string)
+# returns: 1 if listed, 0 otherwise
+sub _in_event_list
+{
+	my ($list, $event) = @_;
+	return 0 if ( !defined($list) or !length($list) or !defined($event) );
+	for my $entry ( split( /,/, $list ) )
+	{
+		$entry =~ s/^\s+//;
+		$entry =~ s/\s+$//;
+		return 1 if ( $entry eq $event );
+	}
+	return 0;
+}
+
 # fixme9: where should this function go? this isn't a great spot...should become node method
 #
 # figures out which threshold alerts need to be run for one node, based on model
@@ -745,6 +764,26 @@ sub compute_thresholds
 
 		# event control is as configured or all true.
 		my $thisevent_control = $events_config->{$eventKey} || {Log => "true", Notify => "true", Status => "true"};
+
+		# operational (code-raised) docs: not swept here (slow-polled nodes
+		# would flap), and Status=false means skip from the calculation,
+		# never stamp "ignored". status_summary_exclude_events (Config.nmis)
+		# is a second, site-wide source of the same decision, for a site
+		# whose Events.nmis predates the installer merge, or an event this
+		# ticket deliberately excludes (see the comment in Config.nmis).
+		if ( ( $status_obj->method // '' ) eq "Operational" )
+		{
+			# master on/off gate so existing customers upgrading don't see
+			# health numbers change with nothing different in their network.
+			# Off by default: no Operational doc counts here at all. Once on,
+			# the finer-grained Status flag and exclude list below still apply.
+			next if ( not NMISNG::Util::getbool( $self->config->{health_score_include_operational_events} ) );
+			next if ( not NMISNG::Util::getbool( $thisevent_control->{Status} )
+				or _in_event_list( $self->config->{status_summary_exclude_events}, $eventKey ) );
+			++$count;
+			++$countOk if ( $status_obj->status eq "ok" );
+			next;
+		}
 
 		# if this is an alert and it is older than 1 full poll cycle, delete it from status.
 		# fixme: this logic is broken for variable polling
@@ -3970,6 +4009,10 @@ LABEL_ESC:
 				"stateless event $event_data->{event} has exceeded dampening time of $stateless_event_dampening seconds."
 			);
 			$event_obj->delete();
+			# BR-06 (OMK-12780): stop processing this now-deleted event. Without this,
+			# the loop continues on the dead object and the tail save(update => 1)
+			# re-inserts it active. The sibling deletes in this loop also next LABEL_ESC.
+			next LABEL_ESC;
 		}
 
 		# set event control to policy or default=enabled.
@@ -4078,12 +4121,12 @@ LABEL_ESC:
 
 					if (ref($node_depend_obj) eq "NMISNG::Node" && $node_depend_obj->activated->{NMIS})
 					{
-						my ( $error, $erec ) = $self->events->eventLoad(
-							node_uuid => $node_depend_obj->uuid,
-							event     => "Node Down",
-							active    => 1
-						);
-						if ( !$error ) # don't need to check the type, error should tell us all we need
+						# BR-05 (OMK-12779): only an ACTIVE, non-historic Node Down on the
+						# depend node should suppress escalation. eventExist checks that the
+						# event both exists AND is active; the previous eventLoad path used
+						# ignore_active, so !$error also fired for an inactive - or even
+						# absent - Node Down doc, wrongly suppressing notifications.
+						if ( $node_depend_obj->eventExist("Node Down") )
 						{
 							$self->log->debug2(
 								"NOT escalating $event_data->{node_name} $event_data->{event} as depending on $node_depend, which is reported as down"
@@ -5044,7 +5087,7 @@ sub clear_active_queue
 {
 	my ( $self ) = @_;
 	$self->log->info("clearing active job queue");
-	my $jobs = $self->get_queue_model( { in_progress => 1 });
+	my $jobs = $self->get_queue_model( in_progress => {'$ne' => 0} );
 	if (my $fault = $jobs->error)
 	{
 		return "clear_active_queue: Failed to lookup schedule: $fault\n";
@@ -5387,7 +5430,8 @@ sub thresholdProcess
 				details      => $details,
 				value        => $args{value},
 				reset        => $args{reset},
-				inventory_id => $args{inventory_id}
+				inventory_id => $args{inventory_id},
+				context      => { type => "threshold" }
 			);
 		}
 		else
