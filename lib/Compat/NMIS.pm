@@ -1159,8 +1159,7 @@ sub overallNodeStatus
 
 	my $nmisng = new_nmisng();
 	my $C = NMISNG::Util::loadConfTable();
-	my $NT = loadNodeTable();
-	my $NS = loadNodeSummary();
+	my $NT = loadNodeTable();	
 
 	foreach $node_name (sort keys %{$NT} )
 	{
