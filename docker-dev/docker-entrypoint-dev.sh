@@ -156,10 +156,14 @@ provision_master_key() {
   fi
   # shellcheck disable=SC1090
   . "$MASTERKEY_LIB"
+  # every command guarded: this file runs under set -e, and a bare failing
+  # chown/chmod in the then-body would kill the whole entrypoint (statements
+  # inside an if body are NOT exempt from errexit)
   if nmis_masterkey_provision www-data; then
-    chown "$DEV_UID:$DEV_GID" "$NMIS_MASTERKEY_DEFAULT_DIR" "$NMIS_MASTERKEY_DEFAULT_FILE"
-    chmod 0750 "$NMIS_MASTERKEY_DEFAULT_DIR"
-    chmod 0440 "$NMIS_MASTERKEY_DEFAULT_FILE"
+    chown "$DEV_UID:$DEV_GID" "$NMIS_MASTERKEY_DEFAULT_DIR" "$NMIS_MASTERKEY_DEFAULT_FILE" \
+      || echo "WARNING: could not chown the master key to the dev user."
+    chmod 0750 "$NMIS_MASTERKEY_DEFAULT_DIR" || echo "WARNING: could not chmod the master key directory."
+    chmod 0440 "$NMIS_MASTERKEY_DEFAULT_FILE" || echo "WARNING: could not chmod the master key file."
   else
     echo "WARNING: could not provision a master key for this container."
   fi
