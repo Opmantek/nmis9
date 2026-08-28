@@ -5080,7 +5080,7 @@ sub _resolve_seed
 		}
 		elsif ($seedfile eq $default)
 		{
-			return (undef, "master key file '$seedfile' does not exist and this process is not root so it cannot create one. Run the installer, or 'nmis-cli act=enable-eos' as root, to create it.");
+			return (undef, "master key file '$seedfile' does not exist and this process is not root so it cannot create one. Run the installer (installer_hooks/21-postcopy-encryption) as root to create it.");
 		}
 		else
 		{

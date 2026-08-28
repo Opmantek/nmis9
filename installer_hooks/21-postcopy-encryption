@@ -61,7 +61,7 @@ elif nmis_masterkey_provision "$WEBOWNER"; then
 else
 	echolog "WARNING: could not create $NMIS_MASTERKEY_DEFAULT_FILE."
 	echolog "Encryption of secrets cannot be enabled until a master key exists."
-	echolog "Re-run this hook, or 'bin/nmis-cli act=enable-eos', as root to create it."
+	echolog "Re-run this hook as root to create it."
 fi
 
 exit 0
