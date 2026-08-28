@@ -216,15 +216,19 @@ subtest 'backup stat, chmod and utime are checked' => sub {
 };
 
 # ---------------------------------------------------------------------------
-# 9. Static: LoadFile and DumpFile die on failure at both sites
+# 9. Static: every LoadFile and DumpFile call dies on failure
 # ---------------------------------------------------------------------------
-subtest 'LoadFile and DumpFile are checked at both sites' => sub {
+# Expected call counts: the two historic logrotate/auth sites (OMK-12642), plus,
+# for LoadFile, the bindIp-capture read in reset_admin_password (OMK-12826). The
+# guarantee that matters is that NONE are unchecked; the counts are a sanity pin.
+subtest 'LoadFile and DumpFile are checked at every site' => sub {
     ok(-f $script, 'setup_mongodb.pl exists') or return;
 
+    my %expected = (LoadFile => 3, DumpFile => 2);
     for my $fn (qw(LoadFile DumpFile)) {
         my @calls = grep { /\b$fn\s*\(/ && !/^\s*use\s+YAML/ }
             split(/\n/, $code_only);
-        is(scalar(@calls), 2, "$fn is called at both sites");
+        is(scalar(@calls), $expected{$fn}, "$fn is called at $expected{$fn} sites");
         my @unchecked = grep { !/\bdie\b/ } @calls;
         is(scalar(@unchecked), 0, "every $fn call dies on failure");
         diag("unchecked $fn call: $_") for @unchecked;

@@ -64,9 +64,10 @@ drop: drop listed databases
 
 resetadminpw=1: reset a forgotten MongoDB admin password (local, standalone server,
   run as root). Optional adminuser=<name> (default: the recorded admin, else
-  nmis9admin) and newpassword=<pw> (default: prompt; an empty answer generates one).
-  Briefly restarts MongoDB with authentication disabled to change the password,
-  then re-enables it.\n\n";
+  nmis9admin). The new password comes from newpasswordfile=<path> (a 0600 file,
+  so the secret never reaches argv), else an interactive prompt, else it is
+  generated. Add resetconfirm=1 to proceed unattended (auto=1). Briefly restarts
+  MongoDB with authentication disabled to change the password, then re-enables it.\n\n";
 }
 
 print basename($0). " version $VERSION\n\n";
@@ -919,8 +920,11 @@ sub read_mongo_admin_password_file
 	my ($user, $pw);
 	while (my $line = <$fh>)
 	{
-		$user = $1 if ($line =~ /^username:\s*(\S+)/);
-		$pw   = $1 if ($line =~ /^password:\s*(\S+)/);
+		$line =~ s/\r?\n\z//;    # strip only the line ending, not internal spaces
+		# capture the rest of the line after the label, so a value containing spaces
+		# is not truncated (the writer emits one "label: value" per line)
+		$user = $1 if ($line =~ /^username:[ \t]*(.+)$/);
+		$pw   = $1 if ($line =~ /^password:[ \t]*(.+)$/);
 	}
 	close($fh);
 	return (defined($user) && defined($pw)) ? ($user, $pw) : ();
@@ -986,7 +990,11 @@ sub ensure_admin_user
 # config is /etc/mongod.conf.
 sub set_mongo_authorization
 {
-	my ($mongod_conf, $mode) = @_;
+	my ($mongod_conf, $mode, %net) = @_;
+	# %net optionally adjusts net.bindIp / net.bindIpAll in the same edit, used by
+	# the reset to pin mongod to loopback while auth is off and restore it after.
+	# A key present with a value sets it; present with undef deletes it; absent
+	# leaves it untouched (so the fresh-install enable path never changes binding).
 
 	# backup $mongod_conf first - we use timestamp to keep multiple copies.
 	# fatal on failure, unlike the backticks this replaced: their '|| die' was
@@ -1010,6 +1018,12 @@ sub set_mongo_authorization
 	local $YAML::XS::Boolean="JSON::PP";
 	my $yaml=LoadFile($mongod_conf)||die "cannot LoadFile $mongod_conf: $!\n";
 	$yaml->{security}{authorization}=$mode;
+	for my $k (qw(bindIp bindIpAll))
+	{
+		next unless (exists $net{$k});
+		if (defined $net{$k}) { $yaml->{net}{$k} = $net{$k} }
+		else                  { delete $yaml->{net}{$k} }
+	}
 	DumpFile($mongod_conf,$yaml)||die "cannot DumpFile $mongod_conf: $!\n";
 
 	my $startup = system("service","mongod","restart") >> 8;
@@ -1055,7 +1069,9 @@ sub wait_for_mongod
 # path is to restart mongod without access control, change the password, then
 # re-enable auth. Standalone local server only; a replica set uses keyfile
 # internal auth that this does not disable, so it is refused. Runs as root.
-# The no-auth window trusts the configured bindIp (a host mongod is loopback).
+# For the no-auth window mongod is pinned to loopback (net.bindIp=127.0.0.1) and
+# the original binding is restored afterwards, so the briefly-unauthenticated
+# server is never reachable off the host even if it is normally network-bound.
 sub reset_admin_password
 {
 	my ($conn, $args, $dbserver, $port, $islocal, $mongod_conf) = @_;
@@ -1085,13 +1101,36 @@ sub reset_admin_password
 		$adminuser = (defined($fu) && $fu ne '') ? $fu : 'nmis9admin';
 	}
 
-	# new password: explicit arg, else prompt (empty answer = generate). Always
-	# recorded in the credential file afterwards.
-	my $newpw = $args->{newpassword};
-	if (!defined($newpw))
+	# new password source, in order:
+	#   newpasswordfile=<path>  read from a file (like patch_config.pl --value-file),
+	#                           so the secret never lands on argv / /proc/cmdline / ps
+	#                           / shell history / logs. This is the non-interactive
+	#                           way to supply a chosen password.
+	#   interactive prompt      read from the terminal (no preseed tag, so a preseed
+	#                           file can neither supply nor echo it)
+	#   empty / neither         generate a strong password
+	# A bare newpassword=<pw> on the command line is deliberately NOT accepted: it
+	# would expose the secret for the process lifetime.
+	my $newpw;
+	if (defined($args->{newpasswordfile}))
 	{
-		$newpw = input_text("Enter a new password for MongoDB admin \"$adminuser\", "
-			. "or hit Enter to generate one:", "7a1c");
+		open(my $nf, '<', $args->{newpasswordfile})
+			or die "ERROR: cannot read newpasswordfile \"$args->{newpasswordfile}\": $!\n";
+		local $/; $newpw = <$nf>; close($nf);
+		$newpw = '' if (!defined $newpw);
+		$newpw =~ s/\r?\n\z//;    # strip one trailing newline, keep any other content
+	}
+	elsif (!$noninteractive)
+	{
+		print "Enter a new password for MongoDB admin \"$adminuser\", or hit Enter to generate one: ";
+		$newpw = <STDIN>;
+		chomp $newpw if (defined $newpw);
+	}
+	if (defined($args->{newpassword}))
+	{
+		print "WARNING: ignoring newpassword= on the command line - it would expose the secret\n"
+			. "in the process arguments. Use newpasswordfile=<path>, the interactive prompt, or\n"
+			. "let it generate one.\n";
 	}
 	my $generated = 0;
 	if (!defined($newpw) || $newpw eq '')
@@ -1101,20 +1140,62 @@ sub reset_admin_password
 		$generated = 1;
 	}
 
-	print "\nWARNING: resetting the admin password restarts MongoDB with authentication\n"
-		. "DISABLED, changes the password, then re-enables authentication and restarts\n"
-		. "again. There is a brief window where MongoDB runs without access control.\n\n";
-	if (!$noninteractive && !input_yn("Proceed with resetting admin \"$adminuser\"?", "3e9d"))
+	# Where the new password will be recorded. Prove the file is writable BEFORE we
+	# touch MongoDB: this is a recovery tool, so it must not change the server
+	# password and then fail to record a generated one, which would lock the admin
+	# out again with an unknown password. A pre-flight write-then-restore of the
+	# real content is the check; if it fails we abort before changing anything.
+	my $pwfile = $ENV{NMIS_MONGO_ADMIN_PASSWORD_FILE}
+		|| '/usr/local/etc/firstwave/mongodb-admin-password';
 	{
-		print "Admin password reset aborted; nothing changed.\n";
+		my $probe = write_mongo_admin_password_file($pwfile, $dbserver, $port,
+			$adminuser, ($generated ? 'PENDING-RESET-PLACEHOLDER' : $newpw));
+		if ($probe)
+		{
+			$newpw = "x" x length($newpw); undef $newpw;
+			die "ERROR: the admin credential file $pwfile is not writable ($probe).\n"
+				. "Refusing to reset the password before it can be recorded. Fix the path "
+				. "(or set NMIS_MONGO_ADMIN_PASSWORD_FILE) and re-run.\n";
+		}
+	}
+
+	# Capture the current bindIp/bindIpAll so we can pin mongod to loopback for the
+	# no-auth window and restore the original binding afterwards. LoadFile dies on a
+	# bad file; that happens before any change, so it is safe.
+	my ($orig_bindip, $orig_bindipall);
+	{
+		local $YAML::XS::Boolean = "JSON::PP";
+		my $y = LoadFile($mongod_conf) || die "cannot read $mongod_conf: $!\n";
+		$orig_bindip    = $y->{net}{bindIp};
+		$orig_bindipall = $y->{net}{bindIpAll};
+	}
+
+	print "\nWARNING: resetting the admin password restarts MongoDB with authentication\n"
+		. "DISABLED (pinned to loopback for the window), changes the password, then\n"
+		. "restores the original binding, re-enables authentication and restarts again.\n\n";
+	# Confirm even in unattended mode: this is a destructive recovery action that
+	# briefly drops access control, so it must be explicitly acknowledged rather
+	# than proceeding silently. resetconfirm=1 is the non-interactive acknowledgement.
+	my $confirmed = $noninteractive
+		? NMISNG::Util::getbool($args->{resetconfirm})
+		: input_yn("Proceed with resetting admin \"$adminuser\"?", "3e9d");
+	if (!$confirmed)
+	{
+		print $noninteractive
+			? "Admin password reset NOT confirmed; pass resetconfirm=1 to proceed unattended. Nothing changed.\n"
+			: "Admin password reset aborted; nothing changed.\n";
 		$newpw = "x" x length($newpw); undef $newpw;
 		return;
 	}
 
 	# do the reset, but ALWAYS re-enable auth afterwards, even on failure, so a
 	# failure never leaves the server with authentication disabled.
+	my $pw_recorded = 0;
 	my $ok = eval {
-		set_mongo_authorization($mongod_conf, 'disabled') == 0
+		# pin to loopback while auth is off, so the unauthenticated window is never
+		# reachable off the host even if mongod is normally network-bound
+		set_mongo_authorization($mongod_conf, 'disabled',
+			bindIp => '127.0.0.1', bindIpAll => undef) == 0
 			or die "could not restart mongod with authentication disabled\n";
 		wait_for_mongod($dbserver, $port)
 			or die "mongod did not accept connections after the no-auth restart\n";
@@ -1125,12 +1206,24 @@ sub reset_admin_password
 		die "updateUser \"$adminuser\" failed: "
 			. (ref($r) eq 'HASH' ? ($r->{errmsg} // '') : $r) . "\n"
 			if (ref($r) ne 'HASH' || !$r->{ok});
+
+		# Record the new password NOW, immediately after it is changed on the server
+		# and before the fallible re-enable restart and verification below. If those
+		# later steps fail, the recorded file still matches the server, so the admin
+		# is never locked out with an unknown password. The pre-flight check above
+		# already proved the file is writable, so this should not fail.
+		my $ferr = write_mongo_admin_password_file($pwfile, $dbserver, $port, $adminuser, $newpw);
+		if ($ferr) { print "WARNING: could not record the new password in $pwfile ($ferr).\n"; }
+		else       { $pw_recorded = 1; }
 		1;
 	};
 	my $err = $@;
 
-	# restore auth no matter what
-	my $restart = set_mongo_authorization($mongod_conf, 'enabled');
+	# restore auth AND the original binding no matter what. Both keys are always
+	# passed (value or undef), so a key we removed for the window is restored to its
+	# exact prior state.
+	my $restart = set_mongo_authorization($mongod_conf, 'enabled',
+		bindIp => $orig_bindip, bindIpAll => $orig_bindipall);
 	wait_for_mongod($dbserver, $port);
 
 	if (!$ok)
@@ -1139,6 +1232,7 @@ sub reset_admin_password
 		die "ERROR: admin password reset failed ($err)"
 			. "Authentication has been re-enabled; the password was NOT changed.\n";
 	}
+	print "INFO: recorded the new password in $pwfile.\n" if ($pw_recorded);
 	die "ERROR: reset applied but re-enabling authentication did not restart mongod cleanly "
 		. "(exit $restart); verify the server state.\n" if ($restart != 0);
 
@@ -1147,17 +1241,10 @@ sub reset_admin_password
 		username => $adminuser, password => $newpw, db_name => 'admin') };
 	my $v = $c3 && eval { NMISNG::DB::run_command(db => $c3->get_database("admin"),
 		command => { ping => 1 }) };
+	$newpw = "x" x length($newpw); undef $newpw;
 	die "ERROR: reset ran but could not authenticate as \"$adminuser\" with the new password.\n"
 		if (ref($v) ne 'HASH' || !$v->{ok});
 	print "INFO: admin \"$adminuser\" password reset and verified.\n";
-
-	# record the new password so it is not lost again
-	my $pwfile = $ENV{NMIS_MONGO_ADMIN_PASSWORD_FILE}
-		|| '/usr/local/etc/firstwave/mongodb-admin-password';
-	my $ferr = write_mongo_admin_password_file($pwfile, $dbserver, $port, $adminuser, $newpw);
-	$newpw = "x" x length($newpw); undef $newpw;
-	if ($ferr) { print "WARNING: reset succeeded but could not record the new password in $pwfile ($ferr).\n"; }
-	else       { print "INFO: recorded the new password in $pwfile.\n"; }
 }
 
 # print question, return true if y (or in unattended mode).

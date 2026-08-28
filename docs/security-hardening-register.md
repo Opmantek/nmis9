@@ -898,10 +898,17 @@ Three follow-on fixes ship in the same change (review of the initial commit):
   remote server, a non-root caller, or a replica set (whose keyfile internal auth
   this does not disable). Auth is re-enabled even if the reset fails partway, so a
   failure never leaves the server permanently unauthenticated; the new password is
-  verified by logging in with it and recorded in the credential file. New password:
-  `newpassword=` arg, else prompt, else generated. The brief no-auth window trusts
-  the configured `bindIp` (a host mongod is loopback by default). NOT part of
-  OMK-12826 - added opportunistically while this area was open.
+  verified by logging in with it. It is recorded in the credential file, and the
+  file's writability is proved BEFORE MongoDB is touched, so a recovery run never
+  changes the server password and then fails to record a generated one. New
+  password source: `newpasswordfile=<path>` (a file, so the secret never reaches
+  argv/`ps`/`/proc/cmdline`/logs), else an interactive prompt, else generated; a
+  bare `newpassword=` on the command line is refused with a warning. Unattended
+  runs require `resetconfirm=1` to acknowledge the brief window. For that window
+  mongod is pinned to `net.bindIp=127.0.0.1` and the original binding is restored
+  afterwards, so a normally network-bound server is not exposed while
+  unauthenticated. NOT part of OMK-12826 - added opportunistically while this area
+  was open.
 - **The legacy (<2.0) MongoDB driver is no longer supported.** `lib/NMISNG/DB.pm`
   now requires the 2.x driver (`use MongoDB 2.0.0`) and fails at load otherwise, so
   the old run-time `authenticate()` loop (which hardcoded `('admin', $db_name)` and
