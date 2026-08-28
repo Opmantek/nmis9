@@ -1,0 +1,67 @@
+#!/bin/sh
+# OMK-12827 Slice B: encryption-of-secrets prerequisites.
+#
+# 1. Detect the crypto perl modules and report clearly when they are
+#    missing, WITHOUT aborting the install: offline sites must still
+#    complete upgrades (OMK-12827 item 2), they just cannot enable
+#    encryption until the modules are present. Runtime fails closed.
+# 2. Create the master key at the shipped default path if absent
+#    (items 3 and 4). Created here, at install time as root, because
+#    NMISNG::Util::_make_seed refuses to run for non-root processes, so
+#    the first process to need a key (apache CGI, the daemon) cannot
+#    create it and would fail closed instead.
+#
+# A custom master_key_file configured in Config.nmis is deliberately NOT
+# handled here: NMIS only ever creates a key at the shipped default path;
+# an operator who configures a custom location provisions the key there
+# themselves. An existing key is never modified, rotated or relocated:
+# values already encrypted with it would become permanently undecryptable.
+
+# find out where we are, and get common functions
+SCRIPTPATH=${0%/*}
+. $SCRIPTPATH/common_functions.sh
+. $SCRIPTPATH/common_masterkey.sh
+
+# guesses os flavour, sets OSFLAVOUR
+flavour
+
+if [ "$OSFLAVOUR" = "redhat" ]; then
+	WEBOWNER=apache
+else
+	WEBOWNER=www-data
+fi
+
+printBanner "Checking encryption-of-secrets prerequisites"
+
+# --- crypto module detection (OMK-12827 item 2): report, never abort ---
+MISSING_MODULES=""
+for m in Crypt::CBC Crypt::Cipher::AES Math::Random::Secure; do
+	if ! perl -e "require $m" >/dev/null 2>&1; then
+		MISSING_MODULES="$MISSING_MODULES $m"
+	fi
+done
+
+if [ -n "$MISSING_MODULES" ]; then
+	echolog "WARNING: the following Perl modules are not installed:$MISSING_MODULES"
+	echolog "Encryption of secrets cannot run until they are installed:"
+	echolog "  Debian/Ubuntu: apt-get install libcrypt-cbc-perl libcryptx-perl libmath-random-secure-perl"
+	echolog "  RedHat:        yum install perl-Crypt-CBC perl-CryptX perl-Math-Random-Secure"
+	echolog "The installation continues; secrets stay unencrypted until the modules are present."
+else
+	echolog "Crypto modules present (Crypt::CBC, Crypt::Cipher::AES, Math::Random::Secure)."
+fi
+
+# --- master key creation (items 3 and 4): default path only, only if absent ---
+if [ -e "$NMIS_MASTERKEY_DEFAULT_FILE" ]; then
+	echolog "Master key file $NMIS_MASTERKEY_DEFAULT_FILE already exists; leaving it untouched."
+elif [ -n "${SIMULATE:-}" ]; then
+	echolog "SIMULATION MODE: would create master key file $NMIS_MASTERKEY_DEFAULT_FILE"
+elif nmis_masterkey_provision "$WEBOWNER"; then
+	echolog "Created master key file $NMIS_MASTERKEY_DEFAULT_FILE for encryption of secrets."
+else
+	echolog "WARNING: could not create $NMIS_MASTERKEY_DEFAULT_FILE."
+	echolog "Encryption of secrets cannot be enabled until a master key exists."
+	echolog "Re-run this hook, or 'bin/nmis-cli act=enable-eos', as root to create it."
+fi
+
+exit 0
