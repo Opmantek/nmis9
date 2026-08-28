@@ -93,6 +93,10 @@ my %admin_only_rights = map { ($_ => 1) }
 				table_authldapprivs_rw table_privmap_rw table_tables_rw
 				table_services_rw table_logs_rw));
 
+# read-only view of the rights above, so callers derive the list instead of
+# keeping copies that drift. The hash itself stays private.
+sub admin_only_rights { return (sort keys %admin_only_rights); }
+
 # whether the %admin_only_rights guard is active. Default on; an admin can
 # set config auth_lock_sensitive_tables to an explicit false token to defer
 # these rights back to the Access matrix (the pre-OMK-12707 behaviour).
@@ -108,6 +112,10 @@ sub _lock_sensitive_tables
 	return 0 if (defined($val) and $val =~ /^\s*(false|no|0)\s*$/i);
 	return 1;
 }
+
+# public predicate for the same check, so callers outside the class do not
+# couple to a private method name.
+sub lock_sensitive_tables { return shift->_lock_sensitive_tables; }
 
 # Secure attribute for the session cookie. Fails OPEN (default off): a Secure
 # cookie over plain http is dropped by the browser, so a wrong true is an

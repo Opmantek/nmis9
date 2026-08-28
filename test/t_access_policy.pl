@@ -42,18 +42,18 @@ use NMISNG::Util;
 use NMISNG::Auth;
 use Compat::NMIS;
 
-# rights the code guard forces admin-only regardless of the Access matrix
-my @guard_rights = (qw(table_users_rw table_access_rw table_config_rw
-											 table_authldapprivs_rw table_privmap_rw
-											 table_tables_rw table_services_rw table_logs_rw));
+# rights the code guard forces admin-only regardless of the Access matrix.
+# Derived from NMISNG::Auth so a right added to the guard cannot be missed here.
+my @guard_rights = NMISNG::Auth::admin_only_rights();
+ok(scalar(@guard_rights), "admin_only_rights() returns a non-empty guard list");
 
-# rights whose conf-default grant this change tightens to admin-only.
-# table_services_rw is excluded on purpose: its default grant is owned by
-# PR #11; this change only adds it to the code guard.
-# table_logs_rw joined both lists for OMK-12823.
-my @default_admin_rights = (qw(table_users_rw table_access_rw table_config_rw
-															 table_authldapprivs_rw table_privmap_rw
-															 table_tables_rw table_logs_rw));
+# the guard list minus named exemptions, so a right added to the guard is
+# checked against the shipped defaults too.
+my %default_exempt = (
+	# default grant owned by PR #11; OMK-12707 only adds it to the code guard
+	table_services_rw => 1,
+);
+my @default_admin_rights = grep { !$default_exempt{$_} } @guard_rights;
 
 # part 1: shipped defaults in conf-default/Access.nmis are admin-only.
 # pass an explicit empty conf so readFiletoHash does not fall back to

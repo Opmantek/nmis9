@@ -24,12 +24,16 @@ if [ -f "$TARGETDIR/conf/Events.nmis" ]; then
 		execPrint $TARGETDIR/admin/updateconfig.pl $TARGETDIR/conf-default/Events.nmis $TARGETDIR/conf/Events.nmis
 fi
 
-# ...then the crucial auth-related files (if changed ones exist)
-for i in POSSIBLE in Users.nmis Access.nmis PrivMap.nmis; do
-		if [ -f "$TARGETDIR/conf/$POSSIBLE" ]; then
-				execPrint $TARGETDIR/admin/updateconfig.pl "$TARGETDIR/conf-default/$POSSIBLE" "$TARGETDIR/conf/$POSSIBLE"
-		fi
-done
+# ...but NOT the auth files. Merging Users.nmis/PrivMap.nmis re-adds default
+# administrator principals an operator deleted (OMK-12707). Access.nmis is
+# merged on upgrade by 05-postcopy-configfiles.
+
+# ...then align the guarded Access rights with conf-default. One-shot: it sets
+# config access_table_hardened and exits early on every later run, so an
+# operator re-grant is not undone (OMK-12707).
+if [ -x "$TARGETDIR/admin/harden_access_table.pl" ]; then
+		execPrint $TARGETDIR/admin/harden_access_table.pl --apply
+fi
 
 
 # then look for custom files, produce diffs in /tmp and report them to the user

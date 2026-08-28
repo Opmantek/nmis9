@@ -74,6 +74,7 @@ working_tests=(
     t_session_expiry.t
     t_auth_session_privs.t
     t_access_policy.pl
+    t_harden_access_table.pl
     t_cgi_tables_secret_passthrough.t
     t_mongo_exposure.t
     t_common_dbpassword.t
