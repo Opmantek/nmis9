@@ -143,6 +143,28 @@ dev_user_map() {
     -exec chown "$DEV_UID:$DEV_GID" {} +
 }
 
+provision_master_key() {
+  # OMK-12827 Slice B: dev/CI-only master key so encryption-of-secrets work
+  # and the dev daemons can run non-root. Production provisioning is the
+  # installer hook (21-postcopy-encryption) or the Slice C entrypoint work.
+  # Never touches an existing key. Dev-only liberty: the key is chowned to
+  # the dev user so the test suite (DEV_UID) can read it.
+  MASTERKEY_LIB="${NMIS_HOME}/installer_hooks/common_masterkey.sh"
+  if [[ ! -f "$MASTERKEY_LIB" ]]; then
+    echo "WARNING: $MASTERKEY_LIB missing; no master key provisioned for this container."
+    return 0
+  fi
+  # shellcheck disable=SC1090
+  . "$MASTERKEY_LIB"
+  if nmis_masterkey_provision www-data; then
+    chown "$DEV_UID:$DEV_GID" "$NMIS_MASTERKEY_DEFAULT_DIR" "$NMIS_MASTERKEY_DEFAULT_FILE"
+    chmod 0750 "$NMIS_MASTERKEY_DEFAULT_DIR"
+    chmod 0440 "$NMIS_MASTERKEY_DEFAULT_FILE"
+  else
+    echo "WARNING: could not provision a master key for this container."
+  fi
+}
+
 # Start any services required by NMIS
 start_apps() {
   services=("snmpd" "snmptrapd")
@@ -162,6 +184,7 @@ run() {
   setup_db
   start_apps
   dev_user_map
+  provision_master_key
   nmis_frontend
   # Tail something to keep the container alive
   tail -f /dev/null
