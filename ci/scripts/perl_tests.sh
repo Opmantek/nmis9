@@ -82,6 +82,9 @@ working_tests=(
     # OMK-12826 scoped-user coverage:
     t_setup_mongodb_hook_rc.t
     t_setup_mongodb_resetpw_refuse.t
+    # drives ensure_admin_user + credential-file helpers against the disposable
+    # no-auth mongo (NMIS_TEST_MONGO_URI); BAIL_OUTs red if the URI is unset
+    t_setup_mongodb_provisioning.t
     # t_setup_mongodb_scoped_user.t drives real provisioning against the disposable
     # no-auth mongo the CI Test step starts (NMIS_TEST_MONGO_URI). It BAIL_OUTs
     # (red) if that URI is unset, so a broken/absent fixture fails the pipeline

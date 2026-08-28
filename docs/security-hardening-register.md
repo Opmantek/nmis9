@@ -899,8 +899,10 @@ Three follow-on fixes ship in the same change (review of the initial commit):
   this does not disable). Auth is re-enabled even if the reset fails partway, so a
   failure never leaves the server permanently unauthenticated; the new password is
   verified by logging in with it. It is recorded in the credential file, and the
-  file's writability is proved BEFORE MongoDB is touched, so a recovery run never
-  changes the server password and then fails to record a generated one. New
+  file's writability is proved (non-destructively - a temp file beside the target,
+  never the target itself) after the confirmation gate but BEFORE MongoDB is
+  touched, so a recovery run never changes the server password and then fails to
+  record a generated one, and an aborted/declined run makes no filesystem change. New
   password source: `newpasswordfile=<path>` (a file, so the secret never reaches
   argv/`ps`/`/proc/cmdline`/logs), else an interactive prompt, else generated; a
   bare `newpassword=` on the command line is refused with a warning. Unattended

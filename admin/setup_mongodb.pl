@@ -55,6 +55,13 @@ use Data::Dumper;
 use YAML::XS qw(DumpFile LoadFile);
 use JSON::PP;
 
+# OMK-12826: modulino guard. When this file is `require`d (from a test), caller()
+# is truthy, so it returns here after the named subs below have been compiled -
+# the main provisioning flow does not run. When run as a script, caller() is
+# false and execution continues normally. This lets t_setup_mongodb_provisioning.t
+# drive ensure_admin_user and the credential-file helpers directly.
+return 1 if (caller());
+
 if (@ARGV == 1 && $ARGV[0] =~ /^--?(h|help|\?)$/i)
 {
 	die "Usage: ".basename($0). " [auto=0/1] [preseed=/some/file] [drop=dbname1,dbname2...]
@@ -907,6 +914,30 @@ FILE
 	return $err;
 }
 
+# OMK-12826: non-destructive writability check for the admin credential file.
+# Creates the parent dir (0700) if absent, then creates and removes a temp file
+# beside the target, proving a fresh 0600 file can be written there WITHOUT
+# touching the real credential file. Returns undef when writable, else an error
+# string. Used by the reset to fail before it changes MongoDB, without clobbering
+# any credential already recorded.
+sub mongo_admin_pwfile_writable
+{
+	my ($pwfile) = @_;
+	my $err;
+	eval {
+		my $pwdir = dirname($pwfile);
+		make_path($pwdir, { mode => 0700 }) if (!-d $pwdir);
+		my $probe = "$pwfile.probe.$$";
+		unlink($probe);
+		sysopen(my $pf, $probe, O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW, 0600)
+			or die "cannot create a file in " . $pwdir . ": $!\n";
+		close($pf);
+		unlink($probe);
+		1;
+	} or do { $err = $@ || "unknown error"; };
+	return $err;
+}
+
 # OMK-12826: read the admin credential NMIS recorded in write_mongo_admin_password_file,
 # so a re-run (or, by the same convention, another OMK product's install) can
 # authenticate without re-typing. Returns (username, password), or () when the file
@@ -1147,17 +1178,6 @@ sub reset_admin_password
 	# real content is the check; if it fails we abort before changing anything.
 	my $pwfile = $ENV{NMIS_MONGO_ADMIN_PASSWORD_FILE}
 		|| '/usr/local/etc/firstwave/mongodb-admin-password';
-	{
-		my $probe = write_mongo_admin_password_file($pwfile, $dbserver, $port,
-			$adminuser, ($generated ? 'PENDING-RESET-PLACEHOLDER' : $newpw));
-		if ($probe)
-		{
-			$newpw = "x" x length($newpw); undef $newpw;
-			die "ERROR: the admin credential file $pwfile is not writable ($probe).\n"
-				. "Refusing to reset the password before it can be recorded. Fix the path "
-				. "(or set NMIS_MONGO_ADMIN_PASSWORD_FILE) and re-run.\n";
-		}
-	}
 
 	# Capture the current bindIp/bindIpAll so we can pin mongod to loopback for the
 	# no-auth window and restore the original binding afterwards. LoadFile dies on a
@@ -1186,6 +1206,21 @@ sub reset_admin_password
 			: "Admin password reset aborted; nothing changed.\n";
 		$newpw = "x" x length($newpw); undef $newpw;
 		return;
+	}
+
+	# Prove the credential file can be written BEFORE touching MongoDB, so a
+	# recovery run never changes the server password and then fails to record a
+	# generated one. This is NON-destructive: it creates and removes a temp file in
+	# the target directory and never touches the real credential file, so an abort
+	# above (or a failure here) leaves any previously recorded credential intact.
+	# Placed after the confirmation gate so a declined run makes no filesystem
+	# change at all.
+	if (my $werr = mongo_admin_pwfile_writable($pwfile))
+	{
+		$newpw = "x" x length($newpw); undef $newpw;
+		die "ERROR: the admin credential file $pwfile is not writable ($werr).\n"
+			. "Refusing to reset the password before it can be recorded. Fix the path "
+			. "(or set NMIS_MONGO_ADMIN_PASSWORD_FILE) and re-run.\n";
 	}
 
 	# do the reset, but ALWAYS re-enable auth afterwards, even on failure, so a
