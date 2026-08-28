@@ -186,19 +186,34 @@ else
 
 # OMK-12826: the admin/bootstrap credential is SEPARATE from the app credential.
 # db_username/db_password now hold NMIS's own scoped app account, so setup must
-# not use them to authenticate as admin. Prefer env for unattended installs,
-# else the interactive prompt below, else default to the legacy shared admin.
+# not use them to authenticate as admin. Resolve the admin credential in order:
+# the NMIS_DB_ADMIN_* env vars, then the credential file NMIS wrote when it
+# provisioned the admin (so a re-run - and, by the same convention, another OMK
+# product's install - can pick it up without re-typing), then the interactive
+# prompt below, then the legacy shared-admin default.
 #
 # Once the install is MIGRATED (db_auth_source is set) db_password holds the
 # scoped APP secret, which is NOT the admin credential. Defaulting the admin
 # password to decrypt(db_password) would make an unattended re-run authenticate
-# as opUserRW with the app secret, fail, and later die with a misleading
-# "could not determine server version". So only fall back to decrypt(db_password)
-# on a fresh / first-migration install.
+# with the app secret, fail, and later die with a misleading "could not determine
+# server version". So only fall back to decrypt(db_password) on a fresh /
+# first-migration install.
 my $already_migrated = (defined($conf->{db_auth_source}) && $conf->{db_auth_source} ne '');
 
-my $adminuser = $ENV{NMIS_DB_ADMIN_USERNAME} // 'opUserRW';
+my $adminuser = $ENV{NMIS_DB_ADMIN_USERNAME};
 my $adminpwd  = $ENV{NMIS_DB_ADMIN_PASSWORD};
+my $admin_from_file = 0;
+if (!defined($adminuser) || !defined($adminpwd))
+{
+	my ($fu, $fp) = read_mongo_admin_password_file();
+	if (defined($fu) && defined($fp))
+	{
+		$adminuser //= $fu;
+		$adminpwd  //= $fp;
+		$admin_from_file = 1;
+	}
+}
+$adminuser //= 'opUserRW';    # legacy default when nothing else supplied one
 if (!defined($adminpwd))
 {
 	$adminpwd = $already_migrated
@@ -222,6 +237,7 @@ if (!$isnoauth)
 	if ($already_migrated && $noninteractive
 			&& !defined($ENV{NMIS_DB_ADMIN_USERNAME})
 			&& !defined($ENV{NMIS_DB_ADMIN_PASSWORD})
+			&& !$admin_from_file
 			&& !$preseed_has_admin)
 	{
 		print "INFO: this install is already migrated (db_auth_source=\"$conf->{db_auth_source}\")\n"
@@ -229,8 +245,10 @@ if (!$isnoauth)
 			. "application secret, not an administrator credential, so this unattended re-run\n"
 			. "cannot (and need not) re-provision. Nothing to do.\n"
 			. "To force re-provisioning, re-run with NMIS_DB_ADMIN_USERNAME and\n"
-			. "NMIS_DB_ADMIN_PASSWORD set to a MongoDB administrator, with a preseed file\n"
-			. "supplying admin answers (tags d92b/18ba), or run interactively.\n";
+			. "NMIS_DB_ADMIN_PASSWORD set to a MongoDB administrator, provide the admin\n"
+			. "credential file (default /usr/local/etc/firstwave/mongodb-admin-password,\n"
+			. "override with NMIS_MONGO_ADMIN_PASSWORD_FILE), supply a preseed file with\n"
+			. "admin answers (tags d92b/18ba), or run interactively.\n";
 		exit 0;
 	}
 
@@ -872,6 +890,26 @@ FILE
 		1;
 	} or do { $err = $@ || "unknown error"; };
 	return $err;
+}
+
+# OMK-12826: read the admin credential NMIS recorded in write_mongo_admin_password_file,
+# so a re-run (or, by the same convention, another OMK product's install) can
+# authenticate without re-typing. Returns (username, password), or () when the file
+# is absent, unreadable (e.g. not root), or does not contain both fields. The file
+# is 0600 root-only, so a non-root caller simply gets () and falls back to the prompt.
+sub read_mongo_admin_password_file
+{
+	my $pwfile = $ENV{NMIS_MONGO_ADMIN_PASSWORD_FILE}
+		|| '/usr/local/etc/firstwave/mongodb-admin-password';
+	open(my $fh, '<', $pwfile) or return ();
+	my ($user, $pw);
+	while (my $line = <$fh>)
+	{
+		$user = $1 if ($line =~ /^username:\s*(\S+)/);
+		$pw   = $1 if ($line =~ /^password:\s*(\S+)/);
+	}
+	close($fh);
+	return (defined($user) && defined($pw)) ? ($user, $pw) : ();
 }
 
 # OMK-12826: ensure MongoDB has an administrative user before auth is enabled, so

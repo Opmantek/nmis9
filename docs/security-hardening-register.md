@@ -871,6 +871,22 @@ Three follow-on fixes ship in the same change (review of the initial commit):
   back: decline the prompt interactively, or preseed `116b "no"`, and setup
   leaves auth off (that decline is a success; an auth-enable the operator *asked*
   for but that fails now exits non-zero so installer hook 24 aborts).
+- **The admin credential file is also a credential *source*, not just a record.**
+  When auth is already on, `setup_mongodb.pl` resolves the admin/bootstrap
+  credential in order: `NMIS_DB_ADMIN_USERNAME`/`NMIS_DB_ADMIN_PASSWORD`, then the
+  `mongodb-admin-password` file (parsed for its `username:`/`password:` lines),
+  then the interactive prompt, then the legacy default. So a NMIS re-run on an
+  authenticated server picks up the `nmis9admin` credential it recorded without
+  re-typing, instead of no-op'ing. This also defines the cross-product handoff
+  convention: another OMK product installed after NMIS on the same host can read
+  the same file (0600, so root only) to authenticate and provision its own scoped
+  user, rather than relying on a shared known-default password. The file being a
+  dependency for later installs is the trade-off for dropping the shared default;
+  a site that installs only NMIS can still record-and-delete it. **Open
+  cross-product item:** OMK/opmojo `setup_mongodb.pl` must adopt this same file
+  convention (and the separate-admin model) for a fresh NMIS-first multi-product
+  install to be turnkey; that is not verified here and belongs to the epic-wide
+  work, not this NMIS change.
 - **The legacy (<2.0) MongoDB driver is no longer supported.** `lib/NMISNG/DB.pm`
   now requires the 2.x driver (`use MongoDB 2.0.0`) and fails at load otherwise, so
   the old run-time `authenticate()` loop (which hardcoded `('admin', $db_name)` and
