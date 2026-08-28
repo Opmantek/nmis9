@@ -95,6 +95,13 @@ working_tests=(
     t_ci_perl_tests.t
     t_util_encryption_failclosed.t
     t_util_verify_selftest_failclosed.t
+    t_util_seed_resolution.t
+    t_util_decrypt_disabled_failclosed.t
+    t_util_crypto_contract.t
+    t_util_crypto_disabled.t
+    t_node_secret_guard.pl
+    t_selftest_crypto.pl
+    t_masterkey_generate.t
     t_plugin_nodevalidation.pl
     notify_depend.t
     t_nmisng_node_nomodel.pl

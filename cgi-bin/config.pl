@@ -246,6 +246,7 @@ sub typeSect {
 		}
 		next if ($section eq "authentication" && $k eq "auth_require"); # fixed true
 		next if ($section eq "system" and $k eq "severity_by_roletype"); # not gui-modifyable
+		next if ($section eq "system" and $k eq "master_key_file"); # not gui-modifyable: crypto master key location, changing it post-encryption breaks existing secrets (OMK-12827)
 		my $showOut = $value;
 		$showOut = '**************' if ($eachRef->{display} =~ /password/);
 
