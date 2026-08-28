@@ -4921,6 +4921,11 @@ sub decrypt {
 		return $original;
 	}
 	$password = substr($password, 3, $strLen);
+	if (!defined($password) or $password eq "")
+	{
+		$logger->error("Password decryption failure: corrupted payload (empty extraction), possible master key change; returning the stored value unchanged.");
+		return $original;
+	}
 	# Encryption is disabled, unencrypt whatever we encounter.
 	if (!$encryption_enabled) {
 		# If we have an encrypted password in the configuration file, then we unencrypt it.

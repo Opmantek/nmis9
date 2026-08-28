@@ -77,6 +77,29 @@ my $tampered = '!!' . $flipped;
 is(NMISNG::Util::decrypt($tampered), $tampered,
 	"decrypt of a tampered payload returns it unchanged (never '')");
 
+# corrupt payloads that decrypt "successfully" but carry a broken length
+# prefix must also come back unchanged - never '' or undef (review finding:
+# a payload of exactly three digits, or a 000 prefix, or shorter than its
+# own prefix, previously returned '' / undef).
+{
+	open(my $kfh, '<', $keyfile) or die "cannot read $keyfile: $!";
+	my $seed = <$kfh>;
+	close $kfh;
+	chomp($seed);
+	my $handle = Crypt::CBC->new(-key => $seed, -cipher => 'Cipher::AES', -pbkdf => 'pbkdf2');
+	for my $raw ('123', '12', '000abc') {
+		my $evil = '!!' . $handle->encrypt_hex($raw);
+		my $got;
+		my @warnings;
+		{
+			local $SIG{__WARN__} = sub { push @warnings, @_; };
+			$got = NMISNG::Util::decrypt($evil);
+		}
+		is($got, $evil, "decrypt of a corrupt-prefix payload ('$raw') returns the input unchanged");
+		is(scalar(@warnings), 0, "and emits no runtime warnings") or diag(@warnings);
+	}
+}
+
 # --- phase 4: bad key permissions are refused, fail closed ---
 chmod(0660, $keyfile);
 is(NMISNG::Util::encrypt($secret), $secret,
