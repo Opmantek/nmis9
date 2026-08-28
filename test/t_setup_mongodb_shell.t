@@ -247,4 +247,36 @@ subtest 'no "null" default hiding undef from the defined test' => sub {
         'the value is read directly, so the defined test below it can fire');
 };
 
+# ---------------------------------------------------------------------------
+# 11. Static: an undecryptable db_password (still '!!'-prefixed after
+# decrypt) stops the script before it can set the MongoDB user's password
+# to the literal ciphertext (OMK-12827 Slice B).
+#
+# Static, not behavioural, because the check lives in the script's main
+# body, after the `return 1 if (caller())` modulino guard, so a `require`d
+# test (as t_setup_mongodb_provisioning.t does for the other subs) never
+# reaches it; exercising it live would mean running the whole provisioning
+# flow end to end, which is out of scope for this cheap regression pin.
+# ---------------------------------------------------------------------------
+subtest 'undecryptable db_password (still !!) is a fatal stop, not a stray password' => sub {
+    ok(-f $script, 'setup_mongodb.pl exists') or return;
+
+    like($content, qr/die\(\s*"FATAL:.*cannot be decrypted/s,
+        'a die names the undecryptable db_password as fatal');
+    like($content, qr/if\s*\(\s*substr\(\$curpw,\s*0,\s*2\)\s*eq\s*'!!'\s*\)/,
+        'the guard checks for the surviving !! ciphertext prefix');
+    like($content, qr/master_key_file/,
+        'the fatal message points the operator at master_key_file');
+
+    # ordering: the guard must run before $is_default is computed, otherwise
+    # a stuck '!!' value would be treated as a real (non-default) password
+    # and provisioning would proceed to set it on the MongoDB user.
+    my $guard_index    = index($content, "eq '!!')");
+    my $isdefault_index = index($content, 'my $is_default');
+    cmp_ok($guard_index, '>', -1, 'guard found in source');
+    cmp_ok($isdefault_index, '>', -1, '$is_default computation found in source');
+    ok($guard_index < $isdefault_index,
+        'the !! guard runs before $is_default is computed');
+};
+
 done_testing;
