@@ -687,7 +687,12 @@ sub doEditConfig
 	if (($section eq "database" and $item eq "db_password") or ($section eq "email" and $item eq "mail_password")) {
 		return validation_abort($item, "passwords don't match") if ($value ne $confirm);
 		$value = NMISNG::Util::encrypt($value) if ((defined($value)) && ($value ne "") &&  (substr($value, 0, 2) ne "!!"));
-		return validation_abort($item, "passwords update failure") if ($value eq '');
+		# OMK-12827 Slice B: encrypt fails closed by returning the plaintext
+		# unchanged, so an empty result is impossible; instead, refuse the save
+		# when encryption is enabled but the value did not encrypt, and say why.
+		return validation_abort($item, "password could not be encrypted: encryption of secrets is enabled but the encryption self-test fails. Check the crypto modules and the master key (config 'master_key_file'). The value was NOT saved.")
+			if (NMISNG::Util::getbool($C->{'global_enable_password_encryption'})
+				&& defined($value) && $value ne "" && substr($value, 0, 2) ne "!!");
 	}
 	# no validation or success, so let's update the config
 	$CC->{$section}{$item} = ref($value) eq "ARRAY" ? $value : decode_entities($value);
