@@ -5050,6 +5050,82 @@ sub encrypt {
 }
 
 ########################################################################
+# _resolve_seed - resolve and read the master key for encrypt/decrypt. #
+########################################################################
+# The key location comes from the config key 'master_key_file' (default
+# /usr/local/etc/firstwave/master.key, shipped in conf-default;
+# NMIS_MASTER_KEY_FILE overrides it through the normal env mechanism).
+#
+# Creation policy (OMK-12827 Slice B): NMIS only ever CREATES a key at the
+# shipped default path - installer_hooks/21-postcopy-encryption at install
+# time, or _make_seed lazily for a root process. A custom path is
+# read-only to NMIS: never created, chowned or chmodded, so a config
+# writer cannot point us at a symlink and have a root process follow it
+# on create. Never rotate or relocate an existing key: values already
+# encrypted with it would become permanently undecryptable.
+#
+# Returns ($seed, undef) on success, (undef, $why) on failure. Callers
+# fail closed on failure: log $why and return their input unchanged.
+sub _resolve_seed
+{
+	my ($logger) = @_;
+	my $config  = loadConfTable();
+	my $default = '/usr/local/etc/firstwave/master.key';
+
+	my $seedfile = $config->{'master_key_file'};
+	$seedfile = $default if (!defined($seedfile) or $seedfile eq '');
+
+	if (!-f $seedfile)
+	{
+		if ($seedfile eq $default and $< == 0)
+		{
+			_make_seed($seedfile, $logger);
+			return (undef, "master key file '$seedfile' could not be created")
+				if (!-f $seedfile);
+		}
+		elsif ($seedfile eq $default)
+		{
+			return (undef, "master key file '$seedfile' does not exist and this process is not root so it cannot create one. Run the installer, or 'nmis-cli act=enable-eos' as root, to create it.");
+		}
+		else
+		{
+			return (undef, "master key file '$seedfile' does not exist. NMIS never creates a key at a custom master_key_file location; provision the key file there yourself.");
+		}
+	}
+
+	my @fstat = CORE::stat($seedfile);
+	return (undef, "cannot stat master key file '$seedfile': $!") if (!@fstat);
+	my $mode = $fstat[2] & 07777;
+	if ($mode & 022)
+	{
+		return (undef, sprintf("master key file '%s' is group- or world-writable (mode %04o); refusing to use it. chmod it to 0440 or stricter.", $seedfile, $mode));
+	}
+	$logger->warn("master key file '$seedfile' is world-readable; chmod it to 0440 or stricter.")
+		if ($mode & 004);
+
+	# a key inside the NMIS tree would be archived by configbackup right
+	# beside the config it protects; warn, it is the operator's call.
+	for my $treekey ('<nmis_base>', '<nmis_conf>')
+	{
+		my $tree = $config->{$treekey};
+		next if (!defined($tree) or $tree eq '');
+		$logger->warn("master key file '$seedfile' is inside $treekey ($tree); backups of that tree will include the key.")
+			if (File::Spec->rel2abs($seedfile) =~ m{^\Q$tree\E(/|$)});
+	}
+
+	my $fh;
+	if (!open($fh, '<', $seedfile))
+	{
+		return (undef, "cannot read master key file '$seedfile': $!");
+	}
+	my $seed = <$fh>;
+	close($fh);
+	chomp($seed) if (defined $seed);
+	return (undef, "master key file '$seedfile' is empty") if (!defined($seed) or $seed eq '');
+	return ($seed, undef);
+}
+
+########################################################################
 # _make_seed - Create an encryption seed file.                         #
 ########################################################################
 sub _make_seed {
