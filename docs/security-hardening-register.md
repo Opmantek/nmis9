@@ -887,6 +887,21 @@ Three follow-on fixes ship in the same change (review of the initial commit):
   convention (and the separate-admin model) for a fresh NMIS-first multi-product
   install to be turnkey; that is not verified here and belongs to the epic-wide
   work, not this NMIS change.
+- **Forgotten-admin-password recovery (`resetadminpw=1`).** Because NMIS now owns
+  the admin credential, `setup_mongodb.pl resetadminpw=1` gives an operator a
+  supported way to reset a forgotten one without hunting for the procedure
+  elsewhere. MongoDB has no in-place reset for a forgotten password (the localhost
+  exception only applies when *no* users exist), so the only supported mechanism is
+  to restart mongod with `security.authorization: disabled`, run `updateUser`, then
+  re-enable auth and restart - which is what this does (`reset_admin_password`,
+  `set_mongo_authorization`). It is standalone/local/root only: it refuses on a
+  remote server, a non-root caller, or a replica set (whose keyfile internal auth
+  this does not disable). Auth is re-enabled even if the reset fails partway, so a
+  failure never leaves the server permanently unauthenticated; the new password is
+  verified by logging in with it and recorded in the credential file. New password:
+  `newpassword=` arg, else prompt, else generated. The brief no-auth window trusts
+  the configured `bindIp` (a host mongod is loopback by default). NOT part of
+  OMK-12826 - added opportunistically while this area was open.
 - **The legacy (<2.0) MongoDB driver is no longer supported.** `lib/NMISNG/DB.pm`
   now requires the 2.x driver (`use MongoDB 2.0.0`) and fails at load otherwise, so
   the old run-time `authenticate()` loop (which hardcoded `('admin', $db_name)` and

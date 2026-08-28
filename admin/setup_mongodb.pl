@@ -60,7 +60,13 @@ if (@ARGV == 1 && $ARGV[0] =~ /^--?(h|help|\?)$/i)
 	die "Usage: ".basename($0). " [auto=0/1] [preseed=/some/file] [drop=dbname1,dbname2...]
 auto: non-interactive automatic mode
 preseed: pre-seeded non-interactive mode, answers come from the given file
-drop: drop listed databases\n\n";
+drop: drop listed databases
+
+resetadminpw=1: reset a forgotten MongoDB admin password (local, standalone server,
+  run as root). Optional adminuser=<name> (default: the recorded admin, else
+  nmis9admin) and newpassword=<pw> (default: prompt; an empty answer generates one).
+  Briefly restarts MongoDB with authentication disabled to change the password,
+  then re-enables it.\n\n";
 }
 
 print basename($0). " version $VERSION\n\n";
@@ -160,6 +166,14 @@ This script can start a MongoDB daemon if desired.\n\n";
 my $conn;
 eval { $conn = MongoDB::MongoClient->new(host => $dbserver, port => $port); };
 die("Error: Connection failure for $dbserver:$port: $@\n") if ($@);
+
+# Recovery action (standalone, NOT part of normal setup): reset a forgotten admin
+# password and exit, before the provisioning flow. See reset_admin_password.
+if (NMISNG::Util::getbool($args->{resetadminpw}))
+{
+	reset_admin_password($conn, $args, $dbserver, $port, $islocal, '/etc/mongod.conf');
+	exit 0;
+}
 
 # check if auth mode is off
 my $result = NMISNG::DB::run_command(command => { "getCmdLineOpts" => 1 },
@@ -964,13 +978,15 @@ sub ensure_admin_user
 		. "password is recorded in $pwfile");
 }
 
-# OMK-12826: turn on 'security.authorization: enabled' in mongod.conf and restart
-# mongod. Factored out of the enable-auth prompt so it runs only after an admin
-# user is guaranteed to exist. Backs the file up first (fatal on backup failure)
-# and preserves its mode and timestamps.
-sub enable_mongo_auth
+# OMK-12826: set 'security.authorization' in mongod.conf to $mode ('enabled' or
+# 'disabled') and restart mongod. Backs the file up first (fatal on backup
+# failure), preserving its mode and timestamps. Returns the restart exit code
+# (0 = ok) so callers can propagate a failed restart. `service` wraps systemd and
+# SysV; NMIS installs the mongodb-org packages, whose service is `mongod` and
+# config is /etc/mongod.conf.
+sub set_mongo_authorization
 {
-	my ($mongod_conf) = @_;
+	my ($mongod_conf, $mode) = @_;
 
 	# backup $mongod_conf first - we use timestamp to keep multiple copies.
 	# fatal on failure, unlike the backticks this replaced: their '|| die' was
@@ -993,15 +1009,155 @@ sub enable_mongo_auth
 
 	local $YAML::XS::Boolean="JSON::PP";
 	my $yaml=LoadFile($mongod_conf)||die "cannot LoadFile $mongod_conf: $!\n";
-	$yaml->{security}{authorization}="enabled";
+	$yaml->{security}{authorization}=$mode;
 	DumpFile($mongod_conf,$yaml)||die "cannot DumpFile $mongod_conf: $!\n";
 
 	my $startup = system("service","mongod","restart") >> 8;
 	print "ERROR: failed to restart MongoDB, exit code $startup\n" if ($startup);
 	sleep 3;
-	# non-zero so the caller can propagate a still-unauthenticated server to the
-	# process exit code rather than reporting success
 	return $startup;
+}
+
+# OMK-12826: enable auth. Thin wrapper over set_mongo_authorization, kept so the
+# enable-auth caller reads clearly. Returns the restart exit code (0 = ok), so a
+# non-zero restart can be propagated to a still-unauthenticated exit.
+sub enable_mongo_auth
+{
+	my ($mongod_conf) = @_;
+	return set_mongo_authorization($mongod_conf, 'enabled');
+}
+
+# Poll until mongod at $dbserver:$port accepts connections again after a restart.
+# Uses `hello`, which is allowed before authentication, so this detects readiness
+# whether or not auth is on. Returns 1 when up, 0 on timeout.
+sub wait_for_mongod
+{
+	my ($dbserver, $port, $tries) = @_;
+	$tries //= 30;
+	for my $i (1 .. $tries)
+	{
+		my $c = eval { MongoDB::MongoClient->new(host => $dbserver, port => $port,
+			connect_timeout_ms => 2000, server_selection_timeout_ms => 2000) };
+		if ($c)
+		{
+			my $h = eval { NMISNG::DB::run_command(db => $c->get_database("admin"),
+				command => { hello => 1 }) };
+			return 1 if (ref($h) eq 'HASH' && $h->{ok});
+		}
+		sleep 1;
+	}
+	return 0;
+}
+
+# Recovery helper (NOT part of OMK-12826): reset a forgotten MongoDB admin
+# password. MongoDB has no in-place reset for a forgotten credential - the
+# localhost exception only applies when no users exist - so the only supported
+# path is to restart mongod without access control, change the password, then
+# re-enable auth. Standalone local server only; a replica set uses keyfile
+# internal auth that this does not disable, so it is refused. Runs as root.
+# The no-auth window trusts the configured bindIp (a host mongod is loopback).
+sub reset_admin_password
+{
+	my ($conn, $args, $dbserver, $port, $islocal, $mongod_conf) = @_;
+
+	die "ERROR: admin password reset is only supported for a LOCAL MongoDB (db_server is \"$dbserver\").\n"
+		. "Reset a remote server on its own host.\n" if (!$islocal);
+	die "ERROR: admin password reset must run as the root user (to edit $mongod_conf and restart mongod).\n"
+		if ($< != 0);
+	die "ERROR: could not find $mongod_conf; cannot manage authentication to reset the password.\n"
+		if (!-f $mongod_conf);
+
+	# refuse on a replica set: the keyfile still enforces internal auth, so
+	# disabling authorization would not open the server for the reset.
+	my $hello = NMISNG::DB::run_command(command => { hello => 1 },
+		db => $conn->get_database("admin"));
+	die "ERROR: this MongoDB is a replica set (setName=\"$hello->{setName}\"). The disable-auth\n"
+		. "reset does not apply to replica sets (keyfile internal auth); use a replica-set\n"
+		. "member recovery procedure instead.\n"
+		if (ref($hello) eq 'HASH' && $hello->{setName});
+
+	# which admin: explicit arg, else the recorded credential file's username, else
+	# NMIS's own admin.
+	my $adminuser = $args->{adminuser};
+	if (!defined($adminuser) || $adminuser eq '')
+	{
+		my ($fu) = read_mongo_admin_password_file();
+		$adminuser = (defined($fu) && $fu ne '') ? $fu : 'nmis9admin';
+	}
+
+	# new password: explicit arg, else prompt (empty answer = generate). Always
+	# recorded in the credential file afterwards.
+	my $newpw = $args->{newpassword};
+	if (!defined($newpw))
+	{
+		$newpw = input_text("Enter a new password for MongoDB admin \"$adminuser\", "
+			. "or hit Enter to generate one:", "7a1c");
+	}
+	my $generated = 0;
+	if (!defined($newpw) || $newpw eq '')
+	{
+		$newpw = generate_password()
+			or die "ERROR: could not generate a password (need /dev/urandom or Math::Random::Secure).\n";
+		$generated = 1;
+	}
+
+	print "\nWARNING: resetting the admin password restarts MongoDB with authentication\n"
+		. "DISABLED, changes the password, then re-enables authentication and restarts\n"
+		. "again. There is a brief window where MongoDB runs without access control.\n\n";
+	if (!$noninteractive && !input_yn("Proceed with resetting admin \"$adminuser\"?", "3e9d"))
+	{
+		print "Admin password reset aborted; nothing changed.\n";
+		$newpw = "x" x length($newpw); undef $newpw;
+		return;
+	}
+
+	# do the reset, but ALWAYS re-enable auth afterwards, even on failure, so a
+	# failure never leaves the server with authentication disabled.
+	my $ok = eval {
+		set_mongo_authorization($mongod_conf, 'disabled') == 0
+			or die "could not restart mongod with authentication disabled\n";
+		wait_for_mongod($dbserver, $port)
+			or die "mongod did not accept connections after the no-auth restart\n";
+
+		my $c2 = MongoDB::MongoClient->new(host => $dbserver, port => $port);
+		my $r = NMISNG::DB::run_command(db => $c2->get_database("admin"),
+			command => Tie::IxHash->new("updateUser" => $adminuser, "pwd" => $newpw));
+		die "updateUser \"$adminuser\" failed: "
+			. (ref($r) eq 'HASH' ? ($r->{errmsg} // '') : $r) . "\n"
+			if (ref($r) ne 'HASH' || !$r->{ok});
+		1;
+	};
+	my $err = $@;
+
+	# restore auth no matter what
+	my $restart = set_mongo_authorization($mongod_conf, 'enabled');
+	wait_for_mongod($dbserver, $port);
+
+	if (!$ok)
+	{
+		$newpw = "x" x length($newpw); undef $newpw;
+		die "ERROR: admin password reset failed ($err)"
+			. "Authentication has been re-enabled; the password was NOT changed.\n";
+	}
+	die "ERROR: reset applied but re-enabling authentication did not restart mongod cleanly "
+		. "(exit $restart); verify the server state.\n" if ($restart != 0);
+
+	# verify the new credential actually authenticates
+	my $c3 = eval { MongoDB::MongoClient->new(host => $dbserver, port => $port,
+		username => $adminuser, password => $newpw, db_name => 'admin') };
+	my $v = $c3 && eval { NMISNG::DB::run_command(db => $c3->get_database("admin"),
+		command => { ping => 1 }) };
+	die "ERROR: reset ran but could not authenticate as \"$adminuser\" with the new password.\n"
+		if (ref($v) ne 'HASH' || !$v->{ok});
+	print "INFO: admin \"$adminuser\" password reset and verified.\n";
+
+	# record the new password so it is not lost again
+	my $pwfile = $ENV{NMIS_MONGO_ADMIN_PASSWORD_FILE}
+		|| '/usr/local/etc/firstwave/mongodb-admin-password';
+	my $ferr = write_mongo_admin_password_file($pwfile, $dbserver, $port, $adminuser, $newpw);
+	$newpw = "x" x length($newpw); undef $newpw;
+	if ($ferr) { print "WARNING: reset succeeded but could not record the new password in $pwfile ($ferr).\n"; }
+	else       { print "INFO: recorded the new password in $pwfile.\n"; }
 }
 
 # print question, return true if y (or in unattended mode).
