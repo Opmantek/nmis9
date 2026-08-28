@@ -271,7 +271,7 @@ subtest 'undecryptable db_password (still !!) is a fatal stop, not a stray passw
     # ordering: the guard must run before $is_default is computed, otherwise
     # a stuck '!!' value would be treated as a real (non-default) password
     # and provisioning would proceed to set it on the MongoDB user.
-    my $guard_index    = index($content, "eq '!!')");
+    my $guard_index    = index($content, "substr(\$curpw, 0, 2) eq '!!'");
     my $isdefault_index = index($content, 'my $is_default');
     cmp_ok($guard_index, '>', -1, 'guard found in source');
     cmp_ok($isdefault_index, '>', -1, '$is_default computation found in source');

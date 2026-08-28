@@ -686,6 +686,11 @@ sub doEditConfig
 	}
 	if (($section eq "database" and $item eq "db_password") or ($section eq "email" and $item eq "mail_password")) {
 		return validation_abort($item, "passwords don't match") if ($value ne $confirm);
+		# an empty password submission was always refused; keep refusing it
+		# (the encrypt-failure refusal below cannot catch it, encrypt is
+		# skipped for empty values)
+		return validation_abort($item, "password cannot be empty")
+			if (!defined($value) or $value eq '');
 		$value = NMISNG::Util::encrypt($value) if ((defined($value)) && ($value ne "") &&  (substr($value, 0, 2) ne "!!"));
 		# OMK-12827 Slice B: encrypt fails closed by returning the plaintext
 		# unchanged, so an empty result is impossible; instead, refuse the save

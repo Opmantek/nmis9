@@ -383,7 +383,9 @@ my $curpw = NMISNG::Util::decrypt($conf->{db_password}, 'database', 'db_password
 die("FATAL: the configured db_password is encrypted but cannot be decrypted "
 	. "(master key missing, unreadable, or changed). Fix the master key "
 	. "(config 'master_key_file', default /usr/local/etc/firstwave/master.key) "
-	. "and re-run.\n")
+	. "and re-run. Recovery: restore the original master key file, or set "
+	. "database/db_password in conf/Config.nmis to its known plaintext value, "
+	. "then re-run.\n")
 	if (substr($curpw, 0, 2) eq '!!');
 
 my $is_default = ($curpw eq '' || $curpw eq 'op42flow42' || $curpw eq 'example'

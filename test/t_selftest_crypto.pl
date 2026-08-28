@@ -77,5 +77,12 @@ like($entry->[1] // '', qr/self-test failed/,
 is($allok, 0, "selftest overall result is failure while crypto is broken");
 Test::Without::Module->unimport(qw(Crypt::CBC Crypt::Cipher::AES Math::Random::Secure));
 
+# --- encryption disabled: no crypto entry at all (spec: disabled -> no check) ---
+my %conf_disabled = %$C;
+$conf_disabled{global_enable_password_encryption} = 'false';
+my $nmisng_disabled = NMISNG->new(config => \%conf_disabled, log => $logger);
+($allok, $tests) = NMISNG::Util::selftest(nmisng => $nmisng_disabled, delay_is_ok => 1);
+is(crypto_entry($tests), undef, "no 'Encryption of secrets' entry while encryption is disabled");
+
 $nmisng->get_db()->drop();
 done_testing();
