@@ -36,6 +36,17 @@ use NMISNG::Node;
 use NMISNG::Log;
 use NMISNG::Util;
 
+# Neutralise config writes for the whole process. With the encryption flag
+# forced on, NMISNG::DB's decrypt(db_password, 'database', 'db_password')
+# up-migration would otherwise re-encrypt the REAL conf/Config.nmis
+# db_password with this test's ephemeral key, breaking Mongo auth for every
+# later run. This test needs no config writes; node saves go through the
+# nodes collection, not writeConfData.
+{
+	no warnings 'redefine';
+	*NMISNG::Util::writeConfData = sub { return; };
+}
+
 my $C = NMISNG::Util::loadConfTable();
 $C->{db_name} = "t_nodeguard-" . time;
 
