@@ -98,7 +98,13 @@ is(scalar(grep { $_->{user} eq 'nmis9admin' } admin_users()), 1,
 # ---------------------------------------------------------------------------
 drop_admin();
 {
-	local $ENV{NMIS_MONGO_ADMIN_PASSWORD_FILE} = "/etc/hostname/nope/mongodb-admin-password";
+	# an unwritable path entirely under our tempdir: a plain file stands where a
+	# directory would need to be, so make_path/create fails - no dependence on host
+	# state outside $tmp
+	my $blocker = "$tmp/not-a-dir";
+	open(my $bfh, '>', $blocker) or BAIL_OUT("cannot seed $blocker: $!");
+	close($bfh);
+	local $ENV{NMIS_MONGO_ADMIN_PASSWORD_FILE} = "$blocker/nope/mongodb-admin-password";
 	my ($rstatus, $rmsg) = main::ensure_admin_user($conn, $dbserver, $dbport);
 	is($rstatus, 'error', "ensure_admin_user returns 'error' when the file cannot be written");
 	is(scalar(grep { $_->{user} eq 'nmis9admin' } admin_users()), 0,
@@ -133,6 +139,49 @@ drop_admin();
 	is($werr, undef, "writable check passes for a writable path");
 	my $after = do { local (@ARGV,$/) = $keep; open(my $r,'<',$keep); <$r> };
 	is($after, $before, "writability check did NOT modify the existing credential file");
+}
+
+# ---------------------------------------------------------------------------
+# 6. resolve_admin_credential precedence (pure; no Mongo needed, but exercised
+#    here via the same modulino seam). env beats file beats the legacy default,
+#    and the legacy decrypt fallback is gated on !already_migrated.
+# ---------------------------------------------------------------------------
+{
+	# env wins over file, and env is not "from file"
+	my ($u, $p, $ff) = main::resolve_admin_credential(
+		env_user => 'envadmin', env_pwd => 'envpw',
+		file_user => 'fileadmin', file_pwd => 'filepw',
+		already_migrated => 0, legacy_pwd_cb => sub { 'LEGACY' });
+	is_deeply([$u, $p, $ff], ['envadmin', 'envpw', 0], "env credential wins over file");
+
+	# file used when env absent, flagged as from_file
+	($u, $p, $ff) = main::resolve_admin_credential(
+		env_user => undef, env_pwd => undef,
+		file_user => 'fileadmin', file_pwd => 'filepw',
+		already_migrated => 0, legacy_pwd_cb => sub { 'LEGACY' });
+	is_deeply([$u, $p, $ff], ['fileadmin', 'filepw', 1], "file credential used when env absent");
+
+	# nothing supplied, not migrated -> legacy user + decrypt callback for pwd
+	my $called = 0;
+	($u, $p, $ff) = main::resolve_admin_credential(
+		already_migrated => 0, legacy_pwd_cb => sub { $called++; 'DECRYPTED' });
+	is_deeply([$u, $p, $ff, $called], ['opUserRW', 'DECRYPTED', 0, 1],
+		"legacy default user + decrypt fallback when nothing else supplied and not migrated");
+
+	# migrated install: decrypt callback must NOT be invoked, pwd stays undef
+	$called = 0;
+	($u, $p, $ff) = main::resolve_admin_credential(
+		already_migrated => 1, legacy_pwd_cb => sub { $called++; 'DECRYPTED' });
+	is($called, 0, "decrypt fallback is NOT called on a migrated install");
+	ok(!defined($p), "migrated install leaves the admin password undef (not the app secret)");
+
+	# a file credential on a migrated install is still honoured (no decrypt needed)
+	$called = 0;
+	($u, $p, $ff) = main::resolve_admin_credential(
+		file_user => 'fileadmin', file_pwd => 'filepw',
+		already_migrated => 1, legacy_pwd_cb => sub { $called++; 'DECRYPTED' });
+	is_deeply([$u, $p, $ff, $called], ['fileadmin', 'filepw', 1, 0],
+		"file credential is used on a migrated install without invoking decrypt");
 }
 
 # tidy

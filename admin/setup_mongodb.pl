@@ -222,26 +222,24 @@ else
 # first-migration install.
 my $already_migrated = (defined($conf->{db_auth_source}) && $conf->{db_auth_source} ne '');
 
-my $adminuser = $ENV{NMIS_DB_ADMIN_USERNAME};
-my $adminpwd  = $ENV{NMIS_DB_ADMIN_PASSWORD};
-my $admin_from_file = 0;
-if (!defined($adminuser) || !defined($adminpwd))
+# Read the recorded credential file only when the env pair is not fully supplied,
+# so it is not touched unnecessarily. The precedence, the legacy-user default, and
+# the migrated-install decrypt gate all live in resolve_admin_credential (pure,
+# unit-tested); decrypt is passed as a callback so it stays lazy and is never
+# called on a migrated install.
+my ($file_user, $file_pwd);
+if (!defined($ENV{NMIS_DB_ADMIN_USERNAME}) || !defined($ENV{NMIS_DB_ADMIN_PASSWORD}))
 {
-	my ($fu, $fp) = read_mongo_admin_password_file();
-	if (defined($fu) && defined($fp))
-	{
-		$adminuser //= $fu;
-		$adminpwd  //= $fp;
-		$admin_from_file = 1;
-	}
+	($file_user, $file_pwd) = read_mongo_admin_password_file();
 }
-$adminuser //= 'opUserRW';    # legacy default when nothing else supplied one
-if (!defined($adminpwd))
-{
-	$adminpwd = $already_migrated
-		? undef
-		: NMISNG::Util::decrypt($conf->{db_password}, 'database', 'db_password');
-}
+my ($adminuser, $adminpwd, $admin_from_file) = resolve_admin_credential(
+	env_user         => $ENV{NMIS_DB_ADMIN_USERNAME},
+	env_pwd          => $ENV{NMIS_DB_ADMIN_PASSWORD},
+	file_user        => $file_user,
+	file_pwd         => $file_pwd,
+	already_migrated => $already_migrated,
+	legacy_pwd_cb    => sub { NMISNG::Util::decrypt($conf->{db_password}, 'database', 'db_password') },
+);
 
 if (!$isnoauth)
 {
@@ -914,6 +912,38 @@ FILE
 	return $err;
 }
 
+# OMK-12826: resolve the admin/bootstrap credential by precedence, pure and
+# testable. Order: NMIS_DB_ADMIN_* env, then the recorded credential file, then
+# the legacy 'opUserRW' username. The password legacy fallback (decrypt of
+# db_password) is taken ONLY when nothing else supplied a password AND the install
+# is not already migrated - on a migrated install db_password is the scoped APP
+# secret, not an admin credential, so using it would authenticate as the wrong
+# thing. decrypt is passed as legacy_pwd_cb so it stays lazy (decrypt has config
+# side effects) and is never invoked on a migrated install.
+# Returns ($username, $password_or_undef, $came_from_file).
+sub resolve_admin_credential
+{
+	my (%a) = @_;
+	my $user      = $a{env_user};
+	my $pwd       = $a{env_pwd};
+	my $from_file = 0;
+	if (!defined($user) || !defined($pwd))
+	{
+		if (defined($a{file_user}) && defined($a{file_pwd}))
+		{
+			$user //= $a{file_user};
+			$pwd  //= $a{file_pwd};
+			$from_file = 1;
+		}
+	}
+	$user //= 'opUserRW';    # legacy default when nothing else supplied one
+	if (!defined($pwd) && !$a{already_migrated})
+	{
+		$pwd = $a{legacy_pwd_cb} ? $a{legacy_pwd_cb}->() : undef;
+	}
+	return ($user, $pwd, $from_file);
+}
+
 # OMK-12826: non-destructive writability check for the admin credential file.
 # Creates the parent dir (0700) if absent, then creates and removes a temp file
 # beside the target, proving a fresh 0600 file can be written there WITHOUT
@@ -1171,11 +1201,10 @@ sub reset_admin_password
 		$generated = 1;
 	}
 
-	# Where the new password will be recorded. Prove the file is writable BEFORE we
-	# touch MongoDB: this is a recovery tool, so it must not change the server
-	# password and then fail to record a generated one, which would lock the admin
-	# out again with an unknown password. A pre-flight write-then-restore of the
-	# real content is the check; if it fails we abort before changing anything.
+	# Where the new password will be recorded. Its writability is checked further
+	# below (after the confirmation gate, before MongoDB is touched) with a
+	# non-destructive probe - see mongo_admin_pwfile_writable - so a recovery run
+	# never changes the server password and then fails to record a generated one.
 	my $pwfile = $ENV{NMIS_MONGO_ADMIN_PASSWORD_FILE}
 		|| '/usr/local/etc/firstwave/mongodb-admin-password';
 

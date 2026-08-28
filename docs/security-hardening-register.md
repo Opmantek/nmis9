@@ -909,8 +909,11 @@ Three follow-on fixes ship in the same change (review of the initial commit):
   runs require `resetconfirm=1` to acknowledge the brief window. For that window
   mongod is pinned to `net.bindIp=127.0.0.1` and the original binding is restored
   afterwards, so a normally network-bound server is not exposed while
-  unauthenticated. NOT part of OMK-12826 - added opportunistically while this area
-  was open.
+  unauthenticated. Accepted residual: after `updateUser` succeeds the record write
+  only warns-and-continues if it fails (a disk-full / O_EXCL race in the narrow
+  window between the passing pre-flight probe and the write); dying there would be
+  worse than warning, so it is a conscious choice, not an open bug. NOT part of
+  OMK-12826 - added opportunistically while this area was open.
 - **The legacy (<2.0) MongoDB driver is no longer supported.** `lib/NMISNG/DB.pm`
   now requires the 2.x driver (`use MongoDB 2.0.0`) and fails at load otherwise, so
   the old run-time `authenticate()` loop (which hardcoded `('admin', $db_name)` and
@@ -918,6 +921,10 @@ Three follow-on fixes ship in the same change (review of the initial commit):
   fixed. On the 2.x driver authentication is done at connection creation from the
   authSource client arg (`_auth_source_args`), which is the path the scoped user
   actually uses. The 1.x driver cannot talk to the shipped MongoDB 7.0 anyway.
+  Residual: `installer_hooks/30-pre-dependencies` still installs the distro
+  `libmongodb-perl` (1.x on older distros) with no forced upgrade to 2.x, so an
+  upgraded host retaining a 1.x driver would fail at load with no clear message.
+  Near-zero population (1.x cannot reach MongoDB 7.0); tracked as **OMK-12924**.
 - **Installer hook 24 now fails on a failed mandatory setup.** It captures
   `setup_mongodb.pl`'s exit code and returns non-zero, so `run_hooks` aborts the
   install rather than completing it as successful while NMIS cannot authenticate.
