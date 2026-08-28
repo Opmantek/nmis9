@@ -18,9 +18,12 @@ sub generate
 
 my $key1 = generate();
 is(length($key1), 256, "generated key is exactly 256 characters");
-like($key1, qr/^[A-Za-z0-9]{256}$/, "key charset is [A-Za-z0-9] only");
+# OMK-12827 Slice B: like()/isnt() print the actual key value in their TAP
+# diagnostic on failure. ok() with a boolean expression asserts the same
+# thing without ever embedding the key material in test output.
+ok($key1 =~ /^[A-Za-z0-9]{256}$/, "key charset is [A-Za-z0-9] only and length 256");
 
 my $key2 = generate();
-isnt($key1, $key2, "two generated keys differ");
+ok($key1 ne $key2, "two generated keys differ");
 
 done_testing();
