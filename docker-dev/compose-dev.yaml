@@ -12,10 +12,13 @@ services:
     healthcheck:
       # probes the service name, so a loopback-only mongod shows as unhealthy
       test: echo 'db.runCommand("ping").ok' | mongosh mongo:${MONGODB_PORT:-27017}/test --quiet
-      interval: 60s
-      timeout: 60s
-      retries: 5
-      start_period: 60s
+      # Fast probe so `depends_on: service_healthy` gates nmis startup quickly:
+      # the entrypoint's setup_mongodb.pl must run against a ready mongo to
+      # create the scoped nmis9RW user (OMK-12826).
+      interval: 5s
+      timeout: 5s
+      retries: 24
+      start_period: 10s
     environment:
       MONGO_INITDB_ROOT_USERNAME: ${MONGODB_USERNAME}
       MONGO_INITDB_ROOT_PASSWORD: ${MONGODB_PASSWORD}
@@ -38,8 +41,23 @@ services:
     platform: linux/amd64
     restart: always
     environment:
-      NMIS_DB_USERNAME: ${MONGODB_USERNAME}
-      NMIS_DB_PASSWORD: ${MONGODB_PASSWORD}
+      # OMK-12826: the container runs as the scoped app user, not the mongo
+      # root user. setup_mongodb.pl (run by the entrypoint's setup_db)
+      # authenticates as admin using the NMIS_DB_ADMIN_* pair below, and
+      # creates/updates nmis9RW with the effective NMIS_DB_PASSWORD value.
+      # The scoped app secret (MONGODB_APP_PASSWORD) is DISTINCT from the mongo
+      # root/admin secret (MONGODB_PASSWORD), matching production. Both are fixed
+      # working dev values and both must stay off setup_mongodb.pl's deny set
+      # ('', 'example', 'password', 'op42flow42', CHANGE_ME*); if the app value
+      # were a denied one, setup would GENERATE a random password for nmis9RW
+      # instead of honouring the supplied one, and the app would keep
+      # authenticating with the old value while the stored user has a different
+      # password.
+      NMIS_DB_USERNAME: nmis9RW
+      NMIS_DB_PASSWORD: ${MONGODB_APP_PASSWORD}
+      NMIS_DB_ADMIN_USERNAME: ${MONGODB_USERNAME}
+      NMIS_DB_ADMIN_PASSWORD: ${MONGODB_PASSWORD}
+      NMIS_DB_AUTH_SOURCE: nmisng
       # NMIS overrides any config key from NMIS_<KEY> in the environment
       # (NMISNG::Util::_apply_env_overrides). These are the container-side
       # values: do NOT point them at MONGODB_HOST_PORT, which is the host side.
@@ -56,7 +74,10 @@ services:
       DEV_GID: ${DEV_GID}
       CONTAINER: 1
     depends_on:
-      - mongo
+      # Wait for mongo to be healthy so the entrypoint's setup_mongodb.pl can
+      # provision the scoped nmis9RW user on first boot (OMK-12826).
+      mongo:
+        condition: service_healthy
     volumes:
       - ../:/usr/local/nmis9
     ports:

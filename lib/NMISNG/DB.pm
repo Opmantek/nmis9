@@ -39,7 +39,10 @@ use Data::Dumper;
 use JSON::XS;
 use Try::Tiny;
 use boolean;         # do NOT use -truth! deprecated, segfaults in perl 5.20 and impossible with 5.22+
-use MongoDB 1.2.3;	 # we require a reasonably new Mongodb driver
+# OMK-12826: NMIS supports only the 2.x MongoDB driver. The 1.x driver cannot
+# talk to the shipped MongoDB 7.0 and is not tested, so require 2.0.0+ and fail
+# at load rather than run a half-working legacy authentication path.
+use MongoDB 2.0.0;
 use Safe::Isa;       # provides $_isa, recommended by MongoDB driver for error handling
 use Time::HiRes ();
 use Time::Moment;    # opCharts needs times (for TTL) and using this is much faster
@@ -1002,6 +1005,42 @@ sub connection_of_db
 # if query_timeout is given, the xxx_db_query_timeout config is ignored.
 # both are given in ms. -1 means no timeout.
 #
+# OMK-12826: the MongoDB auth source (the db the user's credential lives in).
+# When db_auth_source is set the runtime authenticates against it (the driver's
+# db_name attribute / authSource). When empty or absent the driver defaults to
+# 'admin', which is the pre-OMK-12826 behaviour, so legacy installs are unchanged.
+sub _auth_source_args
+{
+	my ($CONF) = @_;
+	my $src = $CONF->{db_auth_source};
+	return () unless (defined($src) && $src ne '');
+	return (db_name => $src);
+}
+
+# OMK-12826: given a usersInfo result (arrayref of user documents), returns true
+# if any user can still administer authentication after auth is enabled, i.e.
+# holds root or userAdminAnyDatabase, or userAdmin on the admin database.
+# setup_mongodb.pl uses this to refuse to enable auth on a fresh no-auth server
+# when the only user is the scoped nmis9RW (dbOwner on nmisng), which would
+# otherwise close the localhost exception with no one able to manage users.
+sub has_admin_capable_user
+{
+	my ($users) = @_;
+	return 0 unless (ref($users) eq 'ARRAY');
+	for my $u (@$users)
+	{
+		next unless (ref($u) eq 'HASH' && ref($u->{roles}) eq 'ARRAY');
+		for my $role (@{$u->{roles}})
+		{
+			next unless (ref($role) eq 'HASH');
+			my $name = $role->{role} // '';
+			return 1 if ($name eq 'root' || $name eq 'userAdminAnyDatabase');
+			return 1 if ($name eq 'userAdmin' && ($role->{db} // '') eq 'admin');
+		}
+	}
+	return 0;
+}
+
 # returns the db handle, or undef in case of errors (and then $error_string is set)
 sub get_db_connection
 {
@@ -1019,7 +1058,6 @@ sub get_db_connection
 
 	my $server  = $CONF->{db_server} // 'localhost';
 	my $port    = $CONF->{db_port}   // '27017';
-	my $db_name = $CONF->{db_name}   // 'nmisng';
 	my $username = $CONF->{db_username};
 	my $password = NMISNG::Util::decrypt($CONF->{db_password}, 'database', 'db_password');
 
@@ -1046,6 +1084,7 @@ sub get_db_connection
 		username           => $username,
 		password           => $password,
 		connect_timeout_ms => $timeout,
+		_auth_source_args($CONF),
 
 		app_name => "nmis-$version",
 
@@ -1090,37 +1129,9 @@ sub get_db_connection
 	undef $password;
 	return if ($error_string);
 
-	# If we can't authenticate we must be using the new driver
-	if ( $username eq '' || !$new_conn->can("authenticate") )
-	{
-		$password = "wqewqdckqcoqefk34trgdfefegeegegefefegrht4t3fdbg.nrlhrhrwr";
-		undef $password;
-		return $new_conn;
-	}
-	# authenticate to the dbs
-	foreach my $db ('admin',$db_name)
-	{
-		try
-		{
-			# authenticate to admin so we can run serverStatus
-			my $auth = $new_conn->authenticate( $db, $username, $password );
-			if ( $auth =~ /auth fail/ || ref($auth) eq "HASH" && $auth->{ok} != 1 )
-			{
-				$error_string = "Error authenticating to MongoDB db:$db database\n";
-				$password = "wqewqdckqcoqefk34trgdfefegeegegefefegrht4t3fdbg.nrlhrhrwr";
-				undef $password;
-				return;
-			}
-		}
-		catch
-		{
-			$error_string = "Error attempting to authenticate, parameters incorrect.\nError info:$_";
-		};
-		
-		$password = "wqewqdckqcoqefk34trgdfefegeegegefefegrht4t3fdbg.nrlhrhrwr";
-		undef $password;
-		return if ($error_string);
-	}
+	# 2.x driver only (enforced by the load-time guard above): authentication is
+	# done at connection creation from the username/password/authSource client args
+	# (see _auth_source_args), so there is no per-db runtime authenticate() step.
 	$password = "wqewqdckqcoqefk34trgdfefegeegegefefegrht4t3fdbg.nrlhrhrwr";
 	undef $password;
 	return $new_conn;

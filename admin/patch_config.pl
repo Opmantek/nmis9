@@ -72,10 +72,43 @@ exit codes for -r: 0 ok, 1 key doesn't exist, 2 value is undef,
 
 -R: show all existing config entries
 
+--value-file <path>: read the value for a single key from the contents of
+<path> instead of argv, so a secret never appears in /proc/<pid>/cmdline. Give
+the key WITHOUT an '=value' suffix; the value is the whole file with at most
+one trailing newline stripped. Scalar overwrite only (op '='), and cannot be
+combined with -r/-R.
+E.g. patch_config.pl Config.nmis --value-file /path/to/secretfile /database/db_password
+
 E.g. Create empty array: patch_config.pl -a Config.nmis /new/key=
 E.g. Add element to array: patch_config.pl Config.nmis /new/key+=value
 E.g. Set empty existing array: patch_config.pl -af Config.nmis /new/key=
 \n\n";
+
+# --value-file <path>: read the (secret) value for a single key from the
+# contents of a file instead of argv, so it never appears in
+# /proc/<pid>/cmdline. The key is given WITHOUT an '=value' suffix; the value
+# is the whole file with at most one trailing newline stripped. Only a scalar
+# overwrite (op '=') is supported this way.
+# Strip the flag (and its argument) before getopts (Getopt::Std does not do
+# long options).
+my $value_file;
+{
+	my @kept;
+	for (my $i = 0; $i < @ARGV; $i++)
+	{
+		if ($ARGV[$i] eq '--value-file')
+		{
+			die "--value-file requires a path argument\n" if ($i + 1 >= @ARGV);
+			$value_file = $ARGV[$i + 1];
+			$i++; # skip the consumed path too
+		}
+		else
+		{
+			push @kept, $ARGV[$i];
+		}
+	}
+	@ARGV = @kept;
+}
 
 my %opts;
 die $usage if (!getopts("jfbnrRao",\%opts) or !@ARGV or !-f $ARGV[0]);
@@ -120,6 +153,25 @@ if ($opts{R})
 }
 
 my @patches;
+
+if (defined $value_file)
+{
+	die "--value-file takes exactly one key argument and cannot be combined with -r/-R\n"
+			if (@ARGV != 1 or $opts{r} or $opts{R});
+	my $key = $ARGV[0];
+	die "--value-file key \"$key\" must be a /section/... path\n"
+			if ($key !~ m!^/!);
+	# read the value from the file, never from argv, so it stays out of the
+	# process command line. Strip at most one trailing newline.
+	open(my $vf, '<', $value_file) or die "cannot open value file \"$value_file\": $!\n";
+	my $value = do { local $/; <$vf> };
+	close($vf);
+	$value = '' if (!defined $value);
+	$value =~ s/\n\z//;
+	push @patches, [ $key, '=', $value ];
+}
+else
+{
 for my $token (@ARGV)
 {
 	if ($opts{r})
@@ -217,8 +269,9 @@ for my $token (@ARGV)
 			die "cannot parse patch expression \"$token\"!\n";
 		}
 	}
-	
+
 }
+} # end else (not --value-file)
 
 exit "No patches given!\n" if (!@patches && $opts{o});
 die "No patches given!\n" if (!@patches);

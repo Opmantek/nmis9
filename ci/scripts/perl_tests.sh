@@ -76,6 +76,20 @@ working_tests=(
     t_access_policy.pl
     t_cgi_tables_secret_passthrough.t
     t_mongo_exposure.t
+    t_common_dbpassword.t
+    t_db_auth_source.t
+    t_patch_config_value_file.t
+    # OMK-12826 scoped-user coverage:
+    t_setup_mongodb_hook_rc.t
+    t_setup_mongodb_resetpw_refuse.t
+    # drives ensure_admin_user + credential-file helpers against the disposable
+    # no-auth mongo (NMIS_TEST_MONGO_URI); BAIL_OUTs red if the URI is unset
+    t_setup_mongodb_provisioning.t
+    # t_setup_mongodb_scoped_user.t drives real provisioning against the disposable
+    # no-auth mongo the CI Test step starts (NMIS_TEST_MONGO_URI). It BAIL_OUTs
+    # (red) if that URI is unset, so a broken/absent fixture fails the pipeline
+    # rather than skipping green.
+    t_setup_mongodb_scoped_user.t
     t_csrf.t
     t_csrf_cgi.t
     t_ci_perl_tests.t

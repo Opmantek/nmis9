@@ -40,6 +40,9 @@ use lib "$FindBin::Bin/../lib";
 use MongoDB;
 use File::Basename;
 use File::Copy;
+use File::Path qw(make_path);
+use File::Temp ();
+use Fcntl qw(:DEFAULT O_NOFOLLOW);
 use version 0.77;
 use Tie::IxHash;
 
@@ -52,12 +55,26 @@ use Data::Dumper;
 use YAML::XS qw(DumpFile LoadFile);
 use JSON::PP;
 
+# OMK-12826: modulino guard. When this file is `require`d (from a test), caller()
+# is truthy, so it returns here after the named subs below have been compiled -
+# the main provisioning flow does not run. When run as a script, caller() is
+# false and execution continues normally. This lets t_setup_mongodb_provisioning.t
+# drive ensure_admin_user and the credential-file helpers directly.
+return 1 if (caller());
+
 if (@ARGV == 1 && $ARGV[0] =~ /^--?(h|help|\?)$/i)
 {
 	die "Usage: ".basename($0). " [auto=0/1] [preseed=/some/file] [drop=dbname1,dbname2...]
 auto: non-interactive automatic mode
 preseed: pre-seeded non-interactive mode, answers come from the given file
-drop: drop listed databases\n\n";
+drop: drop listed databases
+
+resetadminpw=1: reset a forgotten MongoDB admin password (local, standalone server,
+  run as root). Optional adminuser=<name> (default: the recorded admin, else
+  nmis9admin). The new password comes from newpasswordfile=<path> (a 0600 file,
+  so the secret never reaches argv), else an interactive prompt, else it is
+  generated. Add resetconfirm=1 to proceed unattended (auto=1). Briefly restarts
+  MongoDB with authentication disabled to change the password, then re-enables it.\n\n";
 }
 
 print basename($0). " version $VERSION\n\n";
@@ -158,6 +175,14 @@ my $conn;
 eval { $conn = MongoDB::MongoClient->new(host => $dbserver, port => $port); };
 die("Error: Connection failure for $dbserver:$port: $@\n") if ($@);
 
+# Recovery action (standalone, NOT part of normal setup): reset a forgotten admin
+# password and exit, before the provisioning flow. See reset_admin_password.
+if (NMISNG::Util::getbool($args->{resetadminpw}))
+{
+	reset_admin_password($conn, $args, $dbserver, $port, $islocal, '/etc/mongod.conf');
+	exit 0;
+}
+
 # check if auth mode is off
 my $result = NMISNG::DB::run_command(command => { "getCmdLineOpts" => 1 },
 																		 db => $conn->get_database("admin"));
@@ -181,23 +206,83 @@ else
 	print "INFO: failed to retrieve server status from MongoDB, assuming auth is on.\n";
 }
 
-my $adminuser = $conf->{db_username};
+# OMK-12826: the admin/bootstrap credential is SEPARATE from the app credential.
+# db_username/db_password now hold NMIS's own scoped app account, so setup must
+# not use them to authenticate as admin. Resolve the admin credential in order:
+# the NMIS_DB_ADMIN_* env vars, then the credential file NMIS wrote when it
+# provisioned the admin (so a re-run - and, by the same convention, another OMK
+# product's install - can pick it up without re-typing), then the interactive
+# prompt below, then the legacy shared-admin default.
+#
+# Once the install is MIGRATED (db_auth_source is set) db_password holds the
+# scoped APP secret, which is NOT the admin credential. Defaulting the admin
+# password to decrypt(db_password) would make an unattended re-run authenticate
+# with the app secret, fail, and later die with a misleading "could not determine
+# server version". So only fall back to decrypt(db_password) on a fresh /
+# first-migration install.
+my $already_migrated = (defined($conf->{db_auth_source}) && $conf->{db_auth_source} ne '');
 
-
-my $adminpwd = NMISNG::Util::decrypt($conf->{db_password}, 'database', 'db_password');
-
+# Read the recorded credential file only when the env pair is not fully supplied,
+# so it is not touched unnecessarily. The precedence, the legacy-user default, and
+# the migrated-install decrypt gate all live in resolve_admin_credential (pure,
+# unit-tested); decrypt is passed as a callback so it stays lazy and is never
+# called on a migrated install.
+my ($file_user, $file_pwd);
+if (!defined($ENV{NMIS_DB_ADMIN_USERNAME}) || !defined($ENV{NMIS_DB_ADMIN_PASSWORD}))
+{
+	($file_user, $file_pwd) = read_mongo_admin_password_file();
+}
+my ($adminuser, $adminpwd, $admin_from_file) = resolve_admin_credential(
+	env_user         => $ENV{NMIS_DB_ADMIN_USERNAME},
+	env_pwd          => $ENV{NMIS_DB_ADMIN_PASSWORD},
+	file_user        => $file_user,
+	file_pwd         => $file_pwd,
+	already_migrated => $already_migrated,
+	legacy_pwd_cb    => sub { NMISNG::Util::decrypt($conf->{db_password}, 'database', 'db_password') },
+);
 
 if (!$isnoauth)
 {
 	print "INFO: Your MongoDB seems to be running with authentication required.\n";
 
+	# already-migrated + unattended + no admin creds supplied: we cannot
+	# authenticate, because the app secret in db_password is NOT the admin
+	# credential. No-op idempotently with an actionable message rather than
+	# failing auth and dying later with a misleading "could not determine
+	# server version". A preseed file (tags d92b/18ba, read further below via
+	# input_text) can also legitimately supply admin creds in unattended mode,
+	# so check for those too before deciding there is nothing to do.
+	my $preseed_has_admin = (ref($answers) eq 'HASH'
+			&& (defined($answers->{d92b}) || defined($answers->{'18ba'})));
+	if ($already_migrated && $noninteractive
+			&& !defined($ENV{NMIS_DB_ADMIN_USERNAME})
+			&& !defined($ENV{NMIS_DB_ADMIN_PASSWORD})
+			&& !$admin_from_file
+			&& !$preseed_has_admin)
+	{
+		print "INFO: this install is already migrated (db_auth_source=\"$conf->{db_auth_source}\")\n"
+			. "and MongoDB requires authentication. The value in db_password is the scoped\n"
+			. "application secret, not an administrator credential, so this unattended re-run\n"
+			. "cannot (and need not) re-provision. Nothing to do.\n"
+			. "To force re-provisioning, re-run with NMIS_DB_ADMIN_USERNAME and\n"
+			. "NMIS_DB_ADMIN_PASSWORD set to a MongoDB administrator, provide the admin\n"
+			. "credential file (default /usr/local/etc/firstwave/mongodb-admin-password,\n"
+			. "override with NMIS_MONGO_ADMIN_PASSWORD_FILE), supply a preseed file with\n"
+			. "admin answers (tags d92b/18ba), or run interactively.\n";
+		exit 0;
+	}
+
 	print "\n";
+	# defaults for the prompt below: the env/legacy resolution above, captured
+	# before the loop starts overwriting $adminuser/$adminpwd with entered values.
+	my $default_adminuser = $adminuser;
+	my $default_adminpwd  = $adminpwd // '';
 	my $confirm;
 	do
 	{
 		# let's default to our standard user for both admin and operational use...
-		$adminuser = input_text("Enter your MongoDB ADMIN user for $dbserver:$port [default: $conf->{db_username}]:","d92b");
-		$adminuser = $conf->{db_username} if ($adminuser eq "");
+		$adminuser = input_text("Enter your MongoDB ADMIN user for $dbserver:$port [default: $default_adminuser]:","d92b");
+		$adminuser = $default_adminuser if ($adminuser eq "");
 
 		$confirm = $noninteractive? 1 : input_yn("You entered \"$adminuser\" - is this correct?","9f20");
 		print "\n";
@@ -206,8 +291,8 @@ if (!$isnoauth)
 
 	do
 	{
-		$adminpwd = input_text("Enter your MongoDB ADMIN password [default: " . NMISNG::Util::decrypt($conf->{db_password}, 'database', 'db_password') . "]:","18ba");
-		$adminpwd = NMISNG::Util::decrypt($conf->{db_password}, 'database', 'db_password') if ($adminpwd eq "");
+		$adminpwd = input_text("Enter your MongoDB ADMIN password [default: $default_adminpwd]:","18ba");
+		$adminpwd = $default_adminpwd if ($adminpwd eq "");
 
 		$confirm = $noninteractive? 1 : input_yn("You entered \"$adminpwd\" - is this correct?","3937");
 		print "\n";
@@ -240,8 +325,11 @@ if (!$isnoauth)
 		$authfailed = $verify->{err} if (!$verify->{ok});
 	}
 
-	print $authfailed? "ERROR $authfailed\nWill attempt to continue!\n"
-			: "INFO: authentication succeeded.\n";
+	die("ERROR: MongoDB admin authentication failed: $authfailed\n"
+			. "Set NMIS_DB_ADMIN_USERNAME and NMIS_DB_ADMIN_PASSWORD to a MongoDB\n"
+			. "administrator credential (or re-run interactively and supply one) and try again.\n")
+		if ($authfailed);
+	print "INFO: authentication succeeded.\n";
 }
 my $admindb = $conn->get_database("admin");
 
@@ -266,90 +354,98 @@ for my $dbname (@dropthese)
 
 print "INFO: server version is $mongod_version.\n";
 
-# check whether the user exists already, if so grant full privileges for all dbs and ensure the password is set
-my $userlist = NMISNG::DB::run_command(db => $admindb,
-																			 command => {
-																				 "usersInfo" => { user => $adminuser, db => "admin" }, });
-# returns users->[0], roles are array of hashes in users->[0]->roles, keys db and role
-if (ref($userlist) ne "HASH" or ref($userlist->{users}) ne "ARRAY" or !@{$userlist->{users}})
-{
-	print "INFO: adding user $adminuser to admin db\n";
-	# create the user
-	my $create_result =	NMISNG::DB::run_command(db => $admindb,
-																					 command => Tie::IxHash->new(
-																						 "createUser" => $adminuser,
-																						 "pwd" => $adminpwd,
-																						 "roles" => ['root'] ) );
+# OMK-12826: NMIS no longer creates, rotates, or grants root to the shared
+# admin account (opUserRW). $adminuser/$adminpwd above are used only to
+# authenticate this bootstrap connection when auth is required; management of
+# that account is out of scope and belongs to whatever provisioned it.
 
-	warn "creating $adminuser with root role failed: $create_result\n"
-			if (ref($create_result) ne "HASH");
-	warn "creating $adminuser with root role failed: $create_result->{errmsg}\n"
-			if (!$create_result->{ok});
-}
-else
-{
-	print "INFO: user $adminuser already exists in admin db, granting root role\n";
-	my $cmd = Tie::IxHash->new("grantRolesToUser" => $adminuser, "roles" => ['root'] );
-	my $privl_result = NMISNG::DB::run_command(db => $admindb, command => $cmd);
-	warn "upgrade to root role for $adminuser failed: $privl_result\n"
-			if (ref($privl_result) ne "HASH");
-	warn "upgrade to root role for $adminuser failed: $privl_result->{errmsg}\n"
-			if (!$privl_result->{ok});
-
-	print "INFO: setting password for user $adminuser\n";
-	$cmd = Tie::IxHash->new("updateUser" => $adminuser, "pwd" => $adminpwd);
-	my $pwd_result =  NMISNG::DB::run_command(db => $admindb, command => $cmd);
-	warn "setting password for $adminuser failed: $pwd_result\n"
-			if (ref($pwd_result) ne "HASH");
-	warn "setting password for $adminuser failed: $pwd_result->{errmsg}\n"
-			if (!$pwd_result->{ok});
-}
-
-# then add or update the correct user in the relevant database(s)
-# and grant it dbOwner rights
-my $dbname = $conf->{db_name};
+# OMK-12826/OMK-12709: NMIS's own scoped app user in the nmisng database.
+my $dbname   = $conf->{db_name} // 'nmisng';
 my $dbhandle = $conn->get_database($dbname);
 
-# nmis9: just one db, one user
-my $dbuser = $adminuser;
-my $password = $adminpwd;
+# Target app username: migrate the shared opUserRW to nmis9RW; keep any other
+# existing choice (a site may already have a custom scoped user).
+my $target_user = ($conf->{db_username} // 'opUserRW');
+$target_user = 'nmis9RW' if ($target_user eq 'opUserRW' || $target_user eq '');
 
-$userlist = NMISNG::DB::run_command(db => $dbhandle,
-																 command => { "usersInfo" =>
-																							{ user => $dbuser, db => $dbname }, });
-# returns users->[0], roles are array of hashes in users->[0]->roles, keys db and role
+# App password. Honour an operator- or env-supplied value; generate one only
+# when the effective value is a shipped default or the ship placeholder. This
+# keeps the docker/env path (which supplies NMIS_DB_PASSWORD) and a real install
+# (which ships a placeholder) both correct, and never overwrites a deliberate
+# password. The default set mirrors installer_hooks/common_dbpassword.sh.
+my $curpw = NMISNG::Util::decrypt($conf->{db_password}, 'database', 'db_password') // '';
+my $is_default = ($curpw eq '' || $curpw eq 'op42flow42' || $curpw eq 'example'
+	|| $curpw eq 'password' || $curpw =~ /^CHANGE_ME/);
+my $genpw = $curpw;
+my $generated = 0;
+if ($is_default)
+{
+	$genpw = generate_password()
+		or die "ERROR: could not generate a database password (need /dev/urandom or Math::Random::Secure)\n";
+	$generated = 1;
+}
+
+my $userlist = NMISNG::DB::run_command(db => $dbhandle,
+	command => { "usersInfo" => { user => $target_user, db => $dbname } });
 if (!$userlist or !$userlist->{users} or !@{$userlist->{users}})
 {
-	print "INFO: adding user $dbuser to database $dbname\n";
-		my $create_result =	NMISNG::DB::run_command(db => $dbhandle,
-																						 command => Tie::IxHash->new(
-																							 "createUser" => $dbuser,
-																							 "pwd" => $password,
-																							 "roles" => ['dbOwner'] ) );
-	warn "creating $dbuser with root dbOwner failed: $create_result\n"
-			if (ref($create_result) ne "HASH");
-	warn "creating $dbuser with root dbOwner failed: $create_result->{errmsg}\n"
-			if (!$create_result->{ok});
+	print "INFO: creating scoped user $target_user in $dbname (dbOwner)\n";
+	my $r = NMISNG::DB::run_command(db => $dbhandle,
+		command => Tie::IxHash->new("createUser" => $target_user, "pwd" => $genpw,
+			"roles" => [ { role => 'dbOwner', db => $dbname } ]));
+	die "creating $target_user failed: " . (ref($r) eq 'HASH' ? $r->{errmsg} : $r) . "\n"
+		if (ref($r) ne 'HASH' || !$r->{ok});
 }
 else
 {
-	print "INFO: user $dbuser already exists in database $dbname, granting dbOwner role\n";
-	my $cmd = Tie::IxHash->new("grantRolesToUser" => $dbuser, "roles" => ['dbOwner'] );
-	my $privl_result = NMISNG::DB::run_command(db => $dbhandle, command => $cmd);
-	warn "upgrade to dbOwner role for $dbuser failed: $privl_result\n"
-			if (ref($privl_result) ne "HASH");
-	warn "upgrade to dbOwner role for $dbuser failed: $privl_result->{errmsg}\n"
-			if (!$privl_result->{ok});
-
-	print "INFO: setting password for user $dbuser\n";
-	$cmd = Tie::IxHash->new("updateUser" => $dbuser, "pwd" => $password);
-	my $pwd_result =  NMISNG::DB::run_command(db => $dbhandle, command => $cmd);
-	warn "setting password for $dbuser failed: $pwd_result\n"
-			if (ref($pwd_result) ne "HASH");
-	warn "setting password for $dbuser failed: $pwd_result->{errmsg}\n"
-			if (!$pwd_result->{ok});
-
+	print "INFO: updating scoped user $target_user in $dbname (dbOwner, new password)\n";
+	my $r1 = NMISNG::DB::run_command(db => $dbhandle,
+		command => Tie::IxHash->new("updateUser" => $target_user, "pwd" => $genpw,
+			"roles" => [ { role => 'dbOwner', db => $dbname } ]));
+	die "updating $target_user failed: " . (ref($r1) eq 'HASH' ? $r1->{errmsg} : $r1) . "\n"
+		if (ref($r1) ne 'HASH' || !$r1->{ok});
 }
+
+# Only now that the user exists, switch the live config over. patch_config.pl
+# writes conf/Config.nmis. A failed provisioning above dies before this point,
+# so a broken run never leaves the config pointing at a user that was not made.
+my $cfgfile   = $conf->{configfile};
+my $patchtool = $conf->{'<nmis_base>'} . "/admin/patch_config.pl";
+
+# Order matters (OMK-12826). Persist db_password FIRST (when we generated it),
+# then the db_username/db_auth_source pointers. --value-file takes only one key,
+# so the secret write is necessarily a separate patch_config.pl call from the
+# pointers, and the two cannot be one atomic write. Writing the credential before
+# the pointers means a failure between them leaves db_auth_source still unset, so
+# the config still names the pre-migration user; a re-run detects that (it is not
+# yet migrated), reads the already-stored generated password, and completes
+# idempotently. The reverse order would point the app at nmis9RW with a stale
+# password and report the install as migrated.
+#
+# Feed the secret via a 0600 temp file so it never lands in the process command
+# line (/proc/<pid>/cmdline) or a shell pipe. An operator/env-supplied value is
+# honoured for the user above but not written to disk, so an env-only secret is
+# not persisted here.
+if ($generated)
+{
+	my $pwtmp = File::Temp->new(UNLINK => 1);
+	chmod 0600, $pwtmp->filename;
+	print $pwtmp $genpw;
+	$pwtmp->flush;
+	my $rc = system($patchtool, $cfgfile, "--value-file", $pwtmp->filename, "/database/db_password");
+	$rc == 0 or die "ERROR: failed to write db_password to $cfgfile\n";	# name only the key, never the value
+}
+$genpw = "x" x 64; undef $genpw;
+
+# Then switch the pointer keys over in a SINGLE patch_config.pl call: it reads,
+# edits both in memory, and writes once, so db_username and db_auth_source land
+# all-or-nothing with no half state. Non-secret, so they go via argv; on failure
+# name only the KEYS, never any value.
+system($patchtool, $cfgfile,
+	"/database/db_username=$target_user",
+	"/database/db_auth_source=$dbname") == 0
+	or die "ERROR: failed to write db_username/db_auth_source to $cfgfile\n";
+print "INFO: NMIS is now configured to use scoped user $target_user in $dbname.\n";
 
 my $mongod_conf = '/etc/mongod.conf';
 if ( ($islocal) and (! -f $mongod_conf) )
@@ -359,6 +455,12 @@ if ( ($islocal) and (! -f $mongod_conf) )
 my $islocal_and_mongod_3_4_or_newer = ( ($islocal) and (version->parse($mongod_version) >= version->parse("3.4.0")) );
 
 # warn about auth being very much recommended!
+# OMK-12826: track whether an auth-enable that the operator ASKED for actually
+# succeeded. A failure on this mandatory-hardening path must exit non-zero (so
+# installer hook 24 aborts) instead of reporting success with Mongo left
+# unauthenticated. Declining the offer (116b "no") is a deliberate no-auth choice
+# and stays a success.
+my $auth_enable_failed = 0;
 if ($isnoauth)
 {
 	# only root privileges can edit $mongod_conf
@@ -377,33 +479,29 @@ production use.\n\n";
 
 		if (input_yn("Should we add the setting 'authorization: enabled' to your ${mongod_conf}?","116b"))
 		{
-			# backup $mongod_conf first - we use timestamp to keep multiple copies.
-			# fatal on failure, unlike the backticks this replaced: their '|| die' was
-			# unreachable, so a failed backup used to be ignored
-			my $mongod_conf_backup = "$mongod_conf." . time;
-			# stat before the copy, which would otherwise bump the source access time.
-			# fatal if it fails, or the mode arithmetic below chmods the backup to 0000:
-			my @mongod_conf_stat = stat($mongod_conf);
-			@mongod_conf_stat
-				or die ("Error: cannot stat $mongod_conf for backup (1): $!\n");
-			copy($mongod_conf, $mongod_conf_backup)
-				or die ("Error: making backup (1) of $mongod_conf failed: $!\n");
-			# preserve mode and timestamps, as 'cp -a' did. the backup is already on
-			# disk, so lost metadata only warrants a warning:
-			chmod(($mongod_conf_stat[2] & 07777), $mongod_conf_backup)
-				or warn ("WARNING: could not preserve mode on $mongod_conf_backup: $!\n");
-			utime($mongod_conf_stat[8], $mongod_conf_stat[9], $mongod_conf_backup)
-				or warn ("WARNING: could not preserve timestamps on $mongod_conf_backup: $!\n");
-			print "\nbacked up $mongod_conf to $mongod_conf_backup\n";
-
-			local $YAML::XS::Boolean="JSON::PP";
-			my $yaml=LoadFile($mongod_conf)||die "cannot LoadFile $mongod_conf: $!\n";
-			$yaml->{security}{authorization}="enabled";
-			DumpFile($mongod_conf,$yaml)||die "cannot DumpFile $mongod_conf: $!\n";
-
-			my $startup = system("service","mongod","restart") >> 8;
-			print "ERROR: failed to restart MongoDB, exit code $startup\n" if ($startup);
-			sleep 3;
+			# OMK-12826: enabling auth closes MongoDB's localhost exception, so an
+			# administrative user must already exist or nobody can manage the server
+			# afterwards. NMIS provisions only the scoped nmis9RW (no admin role), so
+			# create a separate admin with a generated password when none exists.
+			# ensure_admin_user refuses (returns 'error') rather than leave an admin
+			# whose password could not be recorded, and we then do NOT enable auth.
+			my ($astatus, $amsg) = ensure_admin_user($conn, $dbserver, $port);
+			print "INFO: $amsg\n" if ($astatus eq 'created');
+			if ($astatus eq 'error')
+			{
+				print "\nERROR: $amsg\n"
+					. "NOT enabling authentication: doing so without a usable administrative\n"
+					. "credential would lock MongoDB administration out via the closed\n"
+					. "localhost exception. Resolve the above and re-run.\n\n";
+				input_ok("Hit enter to continue:");
+				$auth_enable_failed = 1;
+			}
+			# a non-zero restart means mongod.conf says authorization:enabled but the
+			# running daemon has not picked it up, so the server is still unauthenticated
+			elsif (enable_mongo_auth($mongod_conf) != 0)
+			{
+				$auth_enable_failed = 1;
+			}
 		}
 		else
 		{
@@ -730,9 +828,488 @@ EOF
 }
 
 
+# OMK-12826: an auth-enable the operator asked for but that failed (admin could
+# not be provisioned/recorded, or mongod did not restart) must not report success:
+# exit non-zero so installer hook 24 aborts rather than leaving a fresh install
+# unauthenticated while claiming it is done.
+if ($auth_enable_failed)
+{
+	print "\nERROR: MongoDB authentication could not be enabled, so the server is left\n"
+		. "unauthenticated. Fix the cause reported above and re-run this helper as root.\n\n";
+	exit 1;
+}
+
 print "\nMongoDB server at $dbserver:$port setup completed\n\n";
 
 exit 0;
+
+# OMK-12826: true if MongoDB already has a user that can administer auth after it
+# is enabled (root, userAdminAnyDatabase, or userAdmin on admin). Queried on the
+# admin db, where those users live. On any failure it returns false, so setup
+# fails safe and declines to enable auth rather than risk locking administration
+# out. The role decision itself lives in NMISNG::DB::has_admin_capable_user.
+sub admin_user_present
+{
+	my ($conn) = @_;
+	my $r = NMISNG::DB::run_command(
+		db      => $conn->get_database("admin"),
+		command => { "usersInfo" => 1 });
+	my $users = (ref($r) eq 'HASH' && ref($r->{users}) eq 'ARRAY') ? $r->{users} : [];
+	return NMISNG::DB::has_admin_capable_user($users);
+}
+
+# OMK-12826: generate a 64-hex-char (32-byte) password from the kernel CSPRNG,
+# falling back to Math::Random::Secure, as nmis_authkey_generate does. Returns
+# the hex string, or undef if neither source is available.
+sub generate_password
+{
+	my $pw = '';
+	if (open(my $ur, '<:raw', '/dev/urandom'))
+	{
+		my $b; $pw = unpack('H*', $b) if (read($ur, $b, 32) == 32);
+		close($ur);
+	}
+	if (length($pw) != 64)
+	{
+		eval { require Math::Random::Secure;
+		       $pw = join('', map { sprintf('%08x', Math::Random::Secure::irand()) } 1..8); 1 }
+			or $pw = '';
+	}
+	return (length($pw) == 64) ? $pw : undef;
+}
+
+# OMK-12826: record a generated MongoDB admin password in a root-only file, the
+# same convention as the nmis GUI initial password (dir 0700, file 0600,
+# root-owned, O_EXCL|O_NOFOLLOW). Returns undef on success or an error string.
+sub write_mongo_admin_password_file
+{
+	my ($pwfile, $server, $port, $user, $pw) = @_;
+	my $err;
+	eval {
+		my $pwdir = dirname($pwfile);
+		make_path($pwdir, { mode => 0700 }) if (!-d $pwdir);
+		# re-tighten even if the dir pre-existed with looser perms, so a
+		# world-readable parent cannot expose the filename
+		chmod(0700, $pwdir) or warn "WARNING: could not chmod $pwdir to 0700: $!\n";
+		unlink($pwfile);
+		sysopen(my $pfh, $pwfile, O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW, 0600)
+			or die "open $pwfile: $!\n";
+		print $pfh <<"FILE" or die "write $pwfile: $!\n";
+NMIS-provisioned MongoDB administrator
+server:   $server:$port
+username: $user
+password: $pw
+
+This is the administrative credential for your MongoDB. NMIS itself runs as a
+separate, scoped user (see db_username in conf/Config.nmis) and does not use this
+account. Record this password somewhere safe, then secure or delete this file.
+FILE
+		close($pfh) or die "close $pwfile: $!\n";
+		chown(0, -1, $pwfile)    # best effort, needs root
+			or warn "WARNING: could not chown $pwfile to root: $!\n";
+		1;
+	} or do { $err = $@ || "unknown error"; };
+	return $err;
+}
+
+# OMK-12826: resolve the admin/bootstrap credential by precedence, pure and
+# testable. Order: NMIS_DB_ADMIN_* env, then the recorded credential file, then
+# the legacy 'opUserRW' username. The password legacy fallback (decrypt of
+# db_password) is taken ONLY when nothing else supplied a password AND the install
+# is not already migrated - on a migrated install db_password is the scoped APP
+# secret, not an admin credential, so using it would authenticate as the wrong
+# thing. decrypt is passed as legacy_pwd_cb so it stays lazy (decrypt has config
+# side effects) and is never invoked on a migrated install.
+# Returns ($username, $password_or_undef, $came_from_file).
+sub resolve_admin_credential
+{
+	my (%a) = @_;
+	my $user      = $a{env_user};
+	my $pwd       = $a{env_pwd};
+	my $from_file = 0;
+	if (!defined($user) || !defined($pwd))
+	{
+		if (defined($a{file_user}) && defined($a{file_pwd}))
+		{
+			$user //= $a{file_user};
+			$pwd  //= $a{file_pwd};
+			$from_file = 1;
+		}
+	}
+	$user //= 'opUserRW';    # legacy default when nothing else supplied one
+	if (!defined($pwd) && !$a{already_migrated})
+	{
+		$pwd = $a{legacy_pwd_cb} ? $a{legacy_pwd_cb}->() : undef;
+	}
+	return ($user, $pwd, $from_file);
+}
+
+# OMK-12826: non-destructive writability check for the admin credential file.
+# Creates the parent dir (0700) if absent, then creates and removes a temp file
+# beside the target, proving a fresh 0600 file can be written there WITHOUT
+# touching the real credential file. Returns undef when writable, else an error
+# string. Used by the reset to fail before it changes MongoDB, without clobbering
+# any credential already recorded.
+sub mongo_admin_pwfile_writable
+{
+	my ($pwfile) = @_;
+	my $err;
+	eval {
+		my $pwdir = dirname($pwfile);
+		make_path($pwdir, { mode => 0700 }) if (!-d $pwdir);
+		my $probe = "$pwfile.probe.$$";
+		unlink($probe);
+		sysopen(my $pf, $probe, O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW, 0600)
+			or die "cannot create a file in " . $pwdir . ": $!\n";
+		close($pf);
+		unlink($probe);
+		1;
+	} or do { $err = $@ || "unknown error"; };
+	return $err;
+}
+
+# OMK-12826: read the admin credential NMIS recorded in write_mongo_admin_password_file,
+# so a re-run (or, by the same convention, another OMK product's install) can
+# authenticate without re-typing. Returns (username, password), or () when the file
+# is absent, unreadable (e.g. not root), or does not contain both fields. The file
+# is 0600 root-only, so a non-root caller simply gets () and falls back to the prompt.
+sub read_mongo_admin_password_file
+{
+	my $pwfile = $ENV{NMIS_MONGO_ADMIN_PASSWORD_FILE}
+		|| '/usr/local/etc/firstwave/mongodb-admin-password';
+	open(my $fh, '<', $pwfile) or return ();
+	my ($user, $pw);
+	while (my $line = <$fh>)
+	{
+		$line =~ s/\r?\n\z//;    # strip only the line ending, not internal spaces
+		# capture the rest of the line after the label, so a value containing spaces
+		# is not truncated (the writer emits one "label: value" per line)
+		$user = $1 if ($line =~ /^username:[ \t]*(.+)$/);
+		$pw   = $1 if ($line =~ /^password:[ \t]*(.+)$/);
+	}
+	close($fh);
+	return (defined($user) && defined($pw)) ? ($user, $pw) : ();
+}
+
+# OMK-12826: ensure MongoDB has an administrative user before auth is enabled, so
+# turning auth on does not close the localhost exception with nobody able to
+# manage users. Called only on a fresh no-auth local server. NMIS provisions only
+# the scoped nmis9RW (no admin role), so this creates a separate admin with a
+# generated password when none exists. Returns ($status, $message):
+#   'exists'  an admin-capable user already exists, nothing done
+#   'created' a scoped admin was created and its password recorded
+#   'error'   could not provision/record one; the caller must NOT enable auth
+# If the generated password cannot be recorded the just-created user is dropped,
+# so a half-provisioned admin with an unknown password is never left behind.
+sub ensure_admin_user
+{
+	my ($conn, $server, $port) = @_;
+
+	return ('exists', undef) if (admin_user_present($conn));
+
+	my $adminuser = 'nmis9admin';
+	my $adminpw   = generate_password()
+		or return ('error', "could not generate an administrator password "
+			. "(need /dev/urandom or Math::Random::Secure)");
+
+	my $cr = NMISNG::DB::run_command(
+		db      => $conn->get_database("admin"),
+		command => Tie::IxHash->new("createUser" => $adminuser, "pwd" => $adminpw,
+			"roles" => [ { role => 'root', db => 'admin' } ]));
+	if (ref($cr) ne 'HASH' || !$cr->{ok})
+	{
+		$adminpw = 'x' x 64; undef $adminpw;
+		return ('error', "creating administrator '$adminuser' failed: "
+			. (ref($cr) eq 'HASH' ? ($cr->{errmsg} // '') : $cr));
+	}
+
+	my $pwfile = $ENV{NMIS_MONGO_ADMIN_PASSWORD_FILE}
+		|| '/usr/local/etc/firstwave/mongodb-admin-password';
+	my $ferr = write_mongo_admin_password_file($pwfile, $server, $port, $adminuser, $adminpw);
+	$adminpw = 'x' x 64; undef $adminpw;
+
+	if ($ferr)
+	{
+		# roll back: never leave an admin whose generated password nobody recorded
+		my $dr = NMISNG::DB::run_command(db => $conn->get_database("admin"),
+			command => { "dropUser" => $adminuser });
+		my $dropped = (ref($dr) eq 'HASH' && $dr->{ok})
+			? "dropped it again"
+			: "and FAILED to drop it - remove '$adminuser' from the admin db by hand";
+		return ('error', "created administrator '$adminuser' but could not record its "
+			. "password ($ferr); $dropped");
+	}
+	return ('created', "created MongoDB administrator '$adminuser'; its generated "
+		. "password is recorded in $pwfile");
+}
+
+# OMK-12826: set 'security.authorization' in mongod.conf to $mode ('enabled' or
+# 'disabled') and restart mongod. Backs the file up first (fatal on backup
+# failure), preserving its mode and timestamps. Returns the restart exit code
+# (0 = ok) so callers can propagate a failed restart. `service` wraps systemd and
+# SysV; NMIS installs the mongodb-org packages, whose service is `mongod` and
+# config is /etc/mongod.conf.
+sub set_mongo_authorization
+{
+	my ($mongod_conf, $mode, %net) = @_;
+	# %net optionally adjusts net.bindIp / net.bindIpAll in the same edit, used by
+	# the reset to pin mongod to loopback while auth is off and restore it after.
+	# A key present with a value sets it; present with undef deletes it; absent
+	# leaves it untouched (so the fresh-install enable path never changes binding).
+
+	# backup $mongod_conf first - we use timestamp to keep multiple copies.
+	# fatal on failure, unlike the backticks this replaced: their '|| die' was
+	# unreachable, so a failed backup used to be ignored
+	my $mongod_conf_backup = "$mongod_conf." . time;
+	# stat before the copy, which would otherwise bump the source access time.
+	# fatal if it fails, or the mode arithmetic below chmods the backup to 0000:
+	my @mongod_conf_stat = stat($mongod_conf);
+	@mongod_conf_stat
+		or die ("Error: cannot stat $mongod_conf for backup (1): $!\n");
+	copy($mongod_conf, $mongod_conf_backup)
+		or die ("Error: making backup (1) of $mongod_conf failed: $!\n");
+	# preserve mode and timestamps, as 'cp -a' did. the backup is already on
+	# disk, so lost metadata only warrants a warning:
+	chmod(($mongod_conf_stat[2] & 07777), $mongod_conf_backup)
+		or warn ("WARNING: could not preserve mode on $mongod_conf_backup: $!\n");
+	utime($mongod_conf_stat[8], $mongod_conf_stat[9], $mongod_conf_backup)
+		or warn ("WARNING: could not preserve timestamps on $mongod_conf_backup: $!\n");
+	print "\nbacked up $mongod_conf to $mongod_conf_backup\n";
+
+	local $YAML::XS::Boolean="JSON::PP";
+	my $yaml=LoadFile($mongod_conf)||die "cannot LoadFile $mongod_conf: $!\n";
+	$yaml->{security}{authorization}=$mode;
+	for my $k (qw(bindIp bindIpAll))
+	{
+		next unless (exists $net{$k});
+		if (defined $net{$k}) { $yaml->{net}{$k} = $net{$k} }
+		else                  { delete $yaml->{net}{$k} }
+	}
+	DumpFile($mongod_conf,$yaml)||die "cannot DumpFile $mongod_conf: $!\n";
+
+	my $startup = system("service","mongod","restart") >> 8;
+	print "ERROR: failed to restart MongoDB, exit code $startup\n" if ($startup);
+	sleep 3;
+	return $startup;
+}
+
+# OMK-12826: enable auth. Thin wrapper over set_mongo_authorization, kept so the
+# enable-auth caller reads clearly. Returns the restart exit code (0 = ok), so a
+# non-zero restart can be propagated to a still-unauthenticated exit.
+sub enable_mongo_auth
+{
+	my ($mongod_conf) = @_;
+	return set_mongo_authorization($mongod_conf, 'enabled');
+}
+
+# Poll until mongod at $dbserver:$port accepts connections again after a restart.
+# Uses `hello`, which is allowed before authentication, so this detects readiness
+# whether or not auth is on. Returns 1 when up, 0 on timeout.
+sub wait_for_mongod
+{
+	my ($dbserver, $port, $tries) = @_;
+	$tries //= 30;
+	for my $i (1 .. $tries)
+	{
+		my $c = eval { MongoDB::MongoClient->new(host => $dbserver, port => $port,
+			connect_timeout_ms => 2000, server_selection_timeout_ms => 2000) };
+		if ($c)
+		{
+			my $h = eval { NMISNG::DB::run_command(db => $c->get_database("admin"),
+				command => { hello => 1 }) };
+			return 1 if (ref($h) eq 'HASH' && $h->{ok});
+		}
+		sleep 1;
+	}
+	return 0;
+}
+
+# Recovery helper (NOT part of OMK-12826): reset a forgotten MongoDB admin
+# password. MongoDB has no in-place reset for a forgotten credential - the
+# localhost exception only applies when no users exist - so the only supported
+# path is to restart mongod without access control, change the password, then
+# re-enable auth. Standalone local server only; a replica set uses keyfile
+# internal auth that this does not disable, so it is refused. Runs as root.
+# For the no-auth window mongod is pinned to loopback (net.bindIp=127.0.0.1) and
+# the original binding is restored afterwards, so the briefly-unauthenticated
+# server is never reachable off the host even if it is normally network-bound.
+sub reset_admin_password
+{
+	my ($conn, $args, $dbserver, $port, $islocal, $mongod_conf) = @_;
+
+	die "ERROR: admin password reset is only supported for a LOCAL MongoDB (db_server is \"$dbserver\").\n"
+		. "Reset a remote server on its own host.\n" if (!$islocal);
+	die "ERROR: admin password reset must run as the root user (to edit $mongod_conf and restart mongod).\n"
+		if ($< != 0);
+	die "ERROR: could not find $mongod_conf; cannot manage authentication to reset the password.\n"
+		if (!-f $mongod_conf);
+
+	# refuse on a replica set: the keyfile still enforces internal auth, so
+	# disabling authorization would not open the server for the reset.
+	my $hello = NMISNG::DB::run_command(command => { hello => 1 },
+		db => $conn->get_database("admin"));
+	die "ERROR: this MongoDB is a replica set (setName=\"$hello->{setName}\"). The disable-auth\n"
+		. "reset does not apply to replica sets (keyfile internal auth); use a replica-set\n"
+		. "member recovery procedure instead.\n"
+		if (ref($hello) eq 'HASH' && $hello->{setName});
+
+	# which admin: explicit arg, else the recorded credential file's username, else
+	# NMIS's own admin.
+	my $adminuser = $args->{adminuser};
+	if (!defined($adminuser) || $adminuser eq '')
+	{
+		my ($fu) = read_mongo_admin_password_file();
+		$adminuser = (defined($fu) && $fu ne '') ? $fu : 'nmis9admin';
+	}
+
+	# new password source, in order:
+	#   newpasswordfile=<path>  read from a file (like patch_config.pl --value-file),
+	#                           so the secret never lands on argv / /proc/cmdline / ps
+	#                           / shell history / logs. This is the non-interactive
+	#                           way to supply a chosen password.
+	#   interactive prompt      read from the terminal (no preseed tag, so a preseed
+	#                           file can neither supply nor echo it)
+	#   empty / neither         generate a strong password
+	# A bare newpassword=<pw> on the command line is deliberately NOT accepted: it
+	# would expose the secret for the process lifetime.
+	my $newpw;
+	if (defined($args->{newpasswordfile}))
+	{
+		open(my $nf, '<', $args->{newpasswordfile})
+			or die "ERROR: cannot read newpasswordfile \"$args->{newpasswordfile}\": $!\n";
+		local $/; $newpw = <$nf>; close($nf);
+		$newpw = '' if (!defined $newpw);
+		$newpw =~ s/\r?\n\z//;    # strip one trailing newline, keep any other content
+	}
+	elsif (!$noninteractive)
+	{
+		print "Enter a new password for MongoDB admin \"$adminuser\", or hit Enter to generate one: ";
+		$newpw = <STDIN>;
+		chomp $newpw if (defined $newpw);
+	}
+	if (defined($args->{newpassword}))
+	{
+		print "WARNING: ignoring newpassword= on the command line - it would expose the secret\n"
+			. "in the process arguments. Use newpasswordfile=<path>, the interactive prompt, or\n"
+			. "let it generate one.\n";
+	}
+	my $generated = 0;
+	if (!defined($newpw) || $newpw eq '')
+	{
+		$newpw = generate_password()
+			or die "ERROR: could not generate a password (need /dev/urandom or Math::Random::Secure).\n";
+		$generated = 1;
+	}
+
+	# Where the new password will be recorded. Its writability is checked further
+	# below (after the confirmation gate, before MongoDB is touched) with a
+	# non-destructive probe - see mongo_admin_pwfile_writable - so a recovery run
+	# never changes the server password and then fails to record a generated one.
+	my $pwfile = $ENV{NMIS_MONGO_ADMIN_PASSWORD_FILE}
+		|| '/usr/local/etc/firstwave/mongodb-admin-password';
+
+	# Capture the current bindIp/bindIpAll so we can pin mongod to loopback for the
+	# no-auth window and restore the original binding afterwards. LoadFile dies on a
+	# bad file; that happens before any change, so it is safe.
+	my ($orig_bindip, $orig_bindipall);
+	{
+		local $YAML::XS::Boolean = "JSON::PP";
+		my $y = LoadFile($mongod_conf) || die "cannot read $mongod_conf: $!\n";
+		$orig_bindip    = $y->{net}{bindIp};
+		$orig_bindipall = $y->{net}{bindIpAll};
+	}
+
+	print "\nWARNING: resetting the admin password restarts MongoDB with authentication\n"
+		. "DISABLED (pinned to loopback for the window), changes the password, then\n"
+		. "restores the original binding, re-enables authentication and restarts again.\n\n";
+	# Confirm even in unattended mode: this is a destructive recovery action that
+	# briefly drops access control, so it must be explicitly acknowledged rather
+	# than proceeding silently. resetconfirm=1 is the non-interactive acknowledgement.
+	my $confirmed = $noninteractive
+		? NMISNG::Util::getbool($args->{resetconfirm})
+		: input_yn("Proceed with resetting admin \"$adminuser\"?", "3e9d");
+	if (!$confirmed)
+	{
+		print $noninteractive
+			? "Admin password reset NOT confirmed; pass resetconfirm=1 to proceed unattended. Nothing changed.\n"
+			: "Admin password reset aborted; nothing changed.\n";
+		$newpw = "x" x length($newpw); undef $newpw;
+		return;
+	}
+
+	# Prove the credential file can be written BEFORE touching MongoDB, so a
+	# recovery run never changes the server password and then fails to record a
+	# generated one. This is NON-destructive: it creates and removes a temp file in
+	# the target directory and never touches the real credential file, so an abort
+	# above (or a failure here) leaves any previously recorded credential intact.
+	# Placed after the confirmation gate so a declined run makes no filesystem
+	# change at all.
+	if (my $werr = mongo_admin_pwfile_writable($pwfile))
+	{
+		$newpw = "x" x length($newpw); undef $newpw;
+		die "ERROR: the admin credential file $pwfile is not writable ($werr).\n"
+			. "Refusing to reset the password before it can be recorded. Fix the path "
+			. "(or set NMIS_MONGO_ADMIN_PASSWORD_FILE) and re-run.\n";
+	}
+
+	# do the reset, but ALWAYS re-enable auth afterwards, even on failure, so a
+	# failure never leaves the server with authentication disabled.
+	my $pw_recorded = 0;
+	my $ok = eval {
+		# pin to loopback while auth is off, so the unauthenticated window is never
+		# reachable off the host even if mongod is normally network-bound
+		set_mongo_authorization($mongod_conf, 'disabled',
+			bindIp => '127.0.0.1', bindIpAll => undef) == 0
+			or die "could not restart mongod with authentication disabled\n";
+		wait_for_mongod($dbserver, $port)
+			or die "mongod did not accept connections after the no-auth restart\n";
+
+		my $c2 = MongoDB::MongoClient->new(host => $dbserver, port => $port);
+		my $r = NMISNG::DB::run_command(db => $c2->get_database("admin"),
+			command => Tie::IxHash->new("updateUser" => $adminuser, "pwd" => $newpw));
+		die "updateUser \"$adminuser\" failed: "
+			. (ref($r) eq 'HASH' ? ($r->{errmsg} // '') : $r) . "\n"
+			if (ref($r) ne 'HASH' || !$r->{ok});
+
+		# Record the new password NOW, immediately after it is changed on the server
+		# and before the fallible re-enable restart and verification below. If those
+		# later steps fail, the recorded file still matches the server, so the admin
+		# is never locked out with an unknown password. The pre-flight check above
+		# already proved the file is writable, so this should not fail.
+		my $ferr = write_mongo_admin_password_file($pwfile, $dbserver, $port, $adminuser, $newpw);
+		if ($ferr) { print "WARNING: could not record the new password in $pwfile ($ferr).\n"; }
+		else       { $pw_recorded = 1; }
+		1;
+	};
+	my $err = $@;
+
+	# restore auth AND the original binding no matter what. Both keys are always
+	# passed (value or undef), so a key we removed for the window is restored to its
+	# exact prior state.
+	my $restart = set_mongo_authorization($mongod_conf, 'enabled',
+		bindIp => $orig_bindip, bindIpAll => $orig_bindipall);
+	wait_for_mongod($dbserver, $port);
+
+	if (!$ok)
+	{
+		$newpw = "x" x length($newpw); undef $newpw;
+		die "ERROR: admin password reset failed ($err)"
+			. "Authentication has been re-enabled; the password was NOT changed.\n";
+	}
+	print "INFO: recorded the new password in $pwfile.\n" if ($pw_recorded);
+	die "ERROR: reset applied but re-enabling authentication did not restart mongod cleanly "
+		. "(exit $restart); verify the server state.\n" if ($restart != 0);
+
+	# verify the new credential actually authenticates
+	my $c3 = eval { MongoDB::MongoClient->new(host => $dbserver, port => $port,
+		username => $adminuser, password => $newpw, db_name => 'admin') };
+	my $v = $c3 && eval { NMISNG::DB::run_command(db => $c3->get_database("admin"),
+		command => { ping => 1 }) };
+	$newpw = "x" x length($newpw); undef $newpw;
+	die "ERROR: reset ran but could not authenticate as \"$adminuser\" with the new password.\n"
+		if (ref($v) ne 'HASH' || !$v->{ok});
+	print "INFO: admin \"$adminuser\" password reset and verified.\n";
+}
 
 # print question, return true if y (or in unattended mode).
 # default is yes, except in preseed mode where the default

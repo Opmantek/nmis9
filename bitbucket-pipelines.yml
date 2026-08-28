@@ -33,6 +33,17 @@ pipelines:
             - sed -i "s/^DEV_UID=.*/DEV_UID=$(id -u)/; s/^DEV_GID=.*/DEV_GID=$(id -g)/" docker-dev/.env-dev
             - echo "$BB_PKG_TOKEN" | docker login crg.apkg.io -u "$BB_EMAIL" --password-stdin
             - docker compose --file docker-dev/compose-dev.yaml --env-file docker-dev/.env-dev up -d
+            # OMK-12826: `up -d` returns before the entrypoint's setup_mongodb.pl
+            # has provisioned the scoped nmis9RW user, so the Test step could race
+            # it. Wait until the app can actually authenticate before proceeding.
+            - |
+              for i in $(seq 1 48); do
+                if docker exec nmis bash -c 'mongosh "mongodb://$NMIS_DB_USERNAME:$NMIS_DB_PASSWORD@$NMIS_DB_SERVER:$NMIS_DB_PORT/?authSource=$NMIS_DB_AUTH_SOURCE" --quiet --eval "db.runCommand({ping:1})" >/dev/null 2>&1'; then
+                  echo "nmis scoped DB user ready after ~$((i*5))s"; ready=1; break
+                fi
+                echo "waiting for nmis DB provisioning ($i)..."; sleep 5
+              done
+              [ -n "$ready" ] || { echo "ERROR: nmis DB user not ready in time"; docker logs --tail 100 nmis || true; exit 1; }
       - step:
           name: Test NMIS
           runs-on:
@@ -47,7 +58,28 @@ pipelines:
             # extra nodes so multi-node tests (e.g. t_event.pl needs >=3) have enough to run
             - docker exec nmis bash -c "/usr/local/nmis9/admin/node_admin.pl act=import file=/usr/local/nmis9/ci/fixtures/ci-testnode-2.json"
             - docker exec nmis bash -c "/usr/local/nmis9/admin/node_admin.pl act=import file=/usr/local/nmis9/ci/fixtures/ci-testnode-3.json"
-            - docker exec nmis bash -c "/usr/local/nmis9/ci/scripts/perl_tests.sh"
+            # OMK-12826: t_setup_mongodb_scoped_user.t drives real scoped-user
+            # provisioning, so give it a throwaway no-auth mongo on the nmis
+            # container's network. The test BAIL_OUTs (red) if NMIS_TEST_MONGO_URI
+            # is unset, so a broken fixture fails the pipeline rather than skipping
+            # green. runner_cleanup.sh (after-script + next Sanitise) removes it.
+            - |
+              NET=$(docker inspect -f '{{range $k,$v := .NetworkSettings.Networks}}{{$k}}{{"\n"}}{{end}}' nmis | head -n1)
+              docker rm -f nmis-testmongo >/dev/null 2>&1 || true
+              docker run -d --name nmis-testmongo --network "$NET" mongo:7.0 >/dev/null
+              for i in $(seq 1 24); do
+                if docker exec nmis-testmongo mongosh --quiet --eval 'db.runCommand({ping:1}).ok' 2>/dev/null | grep -q 1; then
+                  echo "testmongo ready after ~$((i*2))s"; tmready=1; break
+                fi
+                echo "waiting for testmongo ($i)..."; sleep 2
+              done
+              [ -n "$tmready" ] || { echo "ERROR: testmongo not ready"; docker logs --tail 50 nmis-testmongo || true; exit 1; }
+            # OMK-12826: the suite spins up throwaway t_<name>-<timestamp> databases,
+            # which the scoped runtime user (nmis9RW, dbOwner on nmisng only) is not
+            # authorized to create. Run the suite as the admin identity already present
+            # in the container (NMIS_DB_ADMIN_*); the app process itself stays scoped.
+            # NMIS_TEST_MONGO_URI points the scoped-user test at the throwaway mongo.
+            - docker exec nmis bash -c 'NMIS_TEST_MONGO_URI=mongodb://nmis-testmongo:27017 NMIS_DB_USERNAME="$NMIS_DB_ADMIN_USERNAME" NMIS_DB_PASSWORD="$NMIS_DB_ADMIN_PASSWORD" NMIS_DB_AUTH_SOURCE=admin /usr/local/nmis9/ci/scripts/perl_tests.sh'
           after-script:
             - ci/scripts/runner_cleanup.sh  
   custom:

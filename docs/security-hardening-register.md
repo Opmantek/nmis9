@@ -818,6 +818,184 @@ than per field.
 
 ---
 
+### H13 / OMK-12826 / OMK-12709 — MongoDB app account is no longer the shared root identity
+
+**Files:** `conf-default/Config.nmis`, `conf-default/Table-Config.nmis`,
+`admin/setup_mongodb.pl`, `lib/NMISNG/DB.pm`,
+`installer_hooks/common_dbpassword.sh`,
+`installer_hooks/24-postcopy-setup-mongodb`, `docker-dev/compose-dev.yaml`,
+`docker-dev/.env-dev`, `conf-default/docker/compose.yaml`,
+`conf-default/docker/.env`, the root `compose.yaml` and `.env`, `Makefile`
+
+**What changed**
+
+| Key | Before | After |
+|-----|--------|-------|
+| `db_username` | `opUserRW` | `nmis9RW` |
+| `db_password` | `op42flow42` (a live, working shipped default) | `CHANGE_ME_RUN_setup_mongodb` (a placeholder; `setup_mongodb.pl` generates a random 64-hex password when the effective value is still a shipped default) |
+| `db_auth_source` (new) | did not exist | `nmisng`, written by `setup_mongodb.pl` once it provisions the scoped user; absent otherwise, so the driver keeps defaulting to `admin` on an install that has not migrated (phased, matching the authSource work in OMK-12826 Tasks 2/3) |
+| `opUserRW` on `admin` | created/rotated by `setup_mongodb.pl`, granted `root` | untouched: `setup_mongodb.pl` no longer creates, rotates, or grants it anything |
+| container app password | shared `${MONGODB_PASSWORD}` with the mongo root/admin identity in every compose file | its own `${MONGODB_APP_PASSWORD}`, distinct from the root/admin secret, in all three compose files, so reading the app config or env no longer yields the root password |
+| root `compose.yaml` app identity | ran NMIS as the mongo root identity (`NMIS_DB_USERNAME=${MONGODB_USERNAME}`, no authSource, no admin split) | scoped `nmis9RW` with `db_auth_source=nmisng` and a separate `NMIS_DB_ADMIN_*` bootstrap pair, matching `conf-default/docker/compose.yaml` (plus the `service_healthy` startup gate) |
+
+`setup_mongodb.pl` now authenticates its bootstrap connection with a separate
+admin credential (`NMIS_DB_ADMIN_USERNAME`/`NMIS_DB_ADMIN_PASSWORD`, falling
+back to the interactive prompt, defaulting to `opUserRW`), and provisions
+`nmis9RW` as a `dbOwner` of `nmisng` only — no `admin`-database role, no
+`root`. `db_password` is written back to `conf/Config.nmis` only when
+`setup_mongodb.pl` generated it; an operator- or env-supplied password is
+honoured for the created user but never persisted to disk. When it does write,
+it persists the generated `db_password` first and then `db_username` and
+`db_auth_source` in a single (atomic) `patch_config.pl` call, so a mid-sequence
+write failure never leaves the config naming `nmis9RW` with a stale password and
+the install marked migrated.
+
+Three follow-on fixes ship in the same change (review of the initial commit):
+
+- **Fresh no-auth server: provision a per-install admin, then enable auth.**
+  Enabling auth closes MongoDB's localhost exception, so an administrative user
+  must exist first or nobody can manage the server. NMIS provisions only the
+  scoped `nmis9RW` (no `admin`/`root` role), so on a fresh no-auth local server
+  `setup_mongodb.pl` now creates a separate admin, `nmis9admin` (role `root` on
+  `admin`), with a *generated* password, records it root-only in
+  `/usr/local/etc/firstwave/mongodb-admin-password` (0600, overridable via
+  `NMIS_MONGO_ADMIN_PASSWORD_FILE`), and only then enables auth. This is NOT the
+  old shared-identity behaviour: the account is per-install and its password is
+  random, never the shipped default, and it is never written into the app config
+  (`conf/Config.nmis` holds only the scoped `nmis9RW` credentials). If the
+  generated password cannot be recorded the just-created admin is dropped and
+  auth is left off, so an admin with an unrecoverable password is never left
+  behind (`ensure_admin_user`, using `NMISNG::DB::has_admin_capable_user` to
+  detect an existing admin). An existing admin is reused, not duplicated. A site
+  that deliberately runs Mongo without authentication keeps its config-gated way
+  back: decline the prompt interactively, or preseed `116b "no"`, and setup
+  leaves auth off (that decline is a success; an auth-enable the operator *asked*
+  for but that fails now exits non-zero so installer hook 24 aborts).
+- **The admin credential file is also a credential *source*, not just a record.**
+  When auth is already on, `setup_mongodb.pl` resolves the admin/bootstrap
+  credential in order: `NMIS_DB_ADMIN_USERNAME`/`NMIS_DB_ADMIN_PASSWORD`, then the
+  `mongodb-admin-password` file (parsed for its `username:`/`password:` lines),
+  then the interactive prompt, then the legacy default. So a NMIS re-run on an
+  authenticated server picks up the `nmis9admin` credential it recorded without
+  re-typing, instead of no-op'ing. This also defines the cross-product handoff
+  convention: another OMK product installed after NMIS on the same host can read
+  the same file (0600, so root only) to authenticate and provision its own scoped
+  user, rather than relying on a shared known-default password. The file being a
+  dependency for later installs is the trade-off for dropping the shared default;
+  a site that installs only NMIS can still record-and-delete it. **Open
+  cross-product item:** OMK/opmojo `setup_mongodb.pl` must adopt this same file
+  convention (and the separate-admin model) for a fresh NMIS-first multi-product
+  install to be turnkey; that is not verified here and belongs to the epic-wide
+  work, not this NMIS change.
+- **Forgotten-admin-password recovery (`resetadminpw=1`).** Because NMIS now owns
+  the admin credential, `setup_mongodb.pl resetadminpw=1` gives an operator a
+  supported way to reset a forgotten one without hunting for the procedure
+  elsewhere. MongoDB has no in-place reset for a forgotten password (the localhost
+  exception only applies when *no* users exist), so the only supported mechanism is
+  to restart mongod with `security.authorization: disabled`, run `updateUser`, then
+  re-enable auth and restart - which is what this does (`reset_admin_password`,
+  `set_mongo_authorization`). It is standalone/local/root only: it refuses on a
+  remote server, a non-root caller, or a replica set (whose keyfile internal auth
+  this does not disable). Auth is re-enabled even if the reset fails partway, so a
+  failure never leaves the server permanently unauthenticated; the new password is
+  verified by logging in with it. It is recorded in the credential file, and the
+  file's writability is proved (non-destructively - a temp file beside the target,
+  never the target itself) after the confirmation gate but BEFORE MongoDB is
+  touched, so a recovery run never changes the server password and then fails to
+  record a generated one, and an aborted/declined run makes no filesystem change. New
+  password source: `newpasswordfile=<path>` (a file, so the secret never reaches
+  argv/`ps`/`/proc/cmdline`/logs), else an interactive prompt, else generated; a
+  bare `newpassword=` on the command line is refused with a warning. Unattended
+  runs require `resetconfirm=1` to acknowledge the brief window. For that window
+  mongod is pinned to `net.bindIp=127.0.0.1` and the original binding is restored
+  afterwards, so a normally network-bound server is not exposed while
+  unauthenticated. Accepted residual: after `updateUser` succeeds the record write
+  only warns-and-continues if it fails (a disk-full / O_EXCL race in the narrow
+  window between the passing pre-flight probe and the write); dying there would be
+  worse than warning, so it is a conscious choice, not an open bug. NOT part of
+  OMK-12826 - added opportunistically while this area was open.
+- **The legacy (<2.0) MongoDB driver is no longer supported.** `lib/NMISNG/DB.pm`
+  now requires the 2.x driver (`use MongoDB 2.0.0`) and fails at load otherwise, so
+  the old run-time `authenticate()` loop (which hardcoded `('admin', $db_name)` and
+  would not reach a scoped user living only in `nmisng`) is removed rather than
+  fixed. On the 2.x driver authentication is done at connection creation from the
+  authSource client arg (`_auth_source_args`), which is the path the scoped user
+  actually uses. The 1.x driver cannot talk to the shipped MongoDB 7.0 anyway.
+  Residual: `installer_hooks/30-pre-dependencies` still installs the distro
+  `libmongodb-perl` (1.x on older distros) with no forced upgrade to 2.x, so an
+  upgraded host retaining a 1.x driver would fail at load with no clear message.
+  Near-zero population (1.x cannot reach MongoDB 7.0); tracked as **OMK-12924**.
+- **Installer hook 24 now fails on a failed mandatory setup.** It captures
+  `setup_mongodb.pl`'s exit code and returns non-zero, so `run_hooks` aborts the
+  install rather than completing it as successful while NMIS cannot authenticate.
+  The container path already fails hard because `docker-entrypoint.sh` runs under
+  `set -e`.
+
+**Why:** `opUserRW` was one MongoDB identity with the `root` role, shared by
+NMIS and every other OMK product on the host, all authenticating with the
+same shipped default password (`op42flow42`). Anyone who read the published
+default, or a config file from any one OMK product, had root on every OMK
+product's database on that host. Rotating that shared identity from NMIS
+alone would have broken the other products immediately (and their next
+install would rotate it back and break NMIS), so the supported fix is a
+per-product scoped user rather than a rotation of the shared one. The
+detect-only warning in `installer_hooks/common_dbpassword.sh` (OMK-12709)
+makes the exposure visible on an un-migrated install without touching
+`db_password` itself, since this hook must never rotate or block.
+
+**Delegated functionality affected.** A site that relied on the shared
+`opUserRW`/`root` identity to let one MongoDB login administer the databases
+of several OMK products now needs the per-product scoped-user setup for
+each; there is no single shared credential to fall back to. The MongoDB
+administrative/bootstrap credential is now supplied separately from the
+app's own credential (`NMIS_DB_ADMIN_USERNAME`/`NMIS_DB_ADMIN_PASSWORD` in
+the Docker path, or the interactive prompt on a host install), so a caller
+that only ever set `db_username`/`db_password` and expected it to double as
+the admin login must now supply the admin pair too.
+
+**Upgrade note.** An existing install migrates automatically the next time
+`admin/setup_mongodb.pl` is run: it maps `db_username eq 'opUserRW'` (or
+empty) to `nmis9RW`, provisions that user, and generates a password only if
+the effective one is still a shipped default. `opUserRW` itself is left
+exactly as it was, so the migration is additive rather than destructive.
+`db_auth_source` is phased in the same run: it is only written once the
+scoped user is provisioned, so an install that has not yet run setup keeps
+authenticating against `admin` with no config change required.
+
+**Two distinct passwords in the container path.** Every compose file now feeds
+the scoped app user its own `${MONGODB_APP_PASSWORD}`, separate from the mongo
+root/admin `${MONGODB_PASSWORD}`. In production, `make prod-setup` generates both
+as distinct random values into `conf-default/docker/.env`, and `make prod-up`
+refuses to start while either is still empty or a known default (the deny-set is
+shared from `installer_hooks/common_dbpassword.sh`, not just a `CHANGE_ME`
+check). The root `compose.yaml`/`.env` (not driven by the Makefile) ship both
+empty for the operator to fill with distinct strong values before first start.
+
+**`docker-dev/.env-dev` ships working credentials, deliberately.** Unlike
+`conf-default/docker/.env` (which ships the `CHANGE_ME_run_make_prod-setup`
+placeholders and refuses to start until `make prod-setup` replaces them, see the
+root `Makefile`), the dev compose env fixes `MONGODB_PASSWORD=nmis9devMongoRW`
+(root/admin) and `MONGODB_APP_PASSWORD=nmis9devAppRW` (scoped app) so the stack
+comes up without an extra setup step. This is not a hardening gap: `MONGODB_BIND_ADDR`
+defaults to `127.0.0.1` in that file (H12 / OMK-12708), so the Mongo it
+authenticates is not reachable off the host, and the values are not secrets. Both
+must stay off `setup_mongodb.pl`'s deny-set (`''`, `example`, `password`,
+`op42flow42`, `CHANGE_ME*`), or setup would generate a random password for
+`nmis9RW` while the app keeps authenticating with the fixed one.
+
+**Mitigations to investigate (not implemented)**
+
+- *TLS/certificate auth for the admin bootstrap connection:* the admin
+  credential still travels as a plaintext env var or interactive prompt for
+  that one bootstrap connection. Related to the transport work in H14
+  (OMK-12710).
+- *Per-product credential rotation tooling:* nothing here gives an operator a
+  supported way to rotate `nmis9RW`'s password after initial provisioning
+  short of re-running `setup_mongodb.pl` with a new `db_password` already in
+  place. Worth a dedicated rotation path if this comes up in practice.
+
+---
+
 ## Open threads to investigate (epic-wide, not tied to one change)
 
 These came up while reviewing OMK-12707 and are recorded so they are not lost.
