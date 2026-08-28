@@ -4841,19 +4841,22 @@ sub decrypt {
 	if($@)
 	{
 		$logger->error("ERROR: 'Crypt::CBC' and 'Crypt::Cipher::AES', and 'Math::Random::Secure' must be installed in order to enable password encryption!");
-		$logger->error("ERROR: Password encryption cannot be enabled!");
 		if ($encryption_enabled)
 		{
 			$logger->error("ERROR: 'global_enable_password_encryption' is 'true' but the crypto modules are missing. Encryption stays enabled and secrets cannot be decrypted. NMIS will not disable encryption for you; install the modules named above.");
-			# Fail closed WITHOUT wiping. Never rewrite the flag, and never
-			# return "" here: a decrypt-then-persist caller (NMISNG::Node::new,
-			# cgi-bin/tables.pl doeditTable) assigns decrypt's result straight
-			# back and saves, so "" would overwrite the stored secret. Return
-			# the value unchanged - a "!!" value handed back still fails auth, so
-			# reads stay fail closed, and re-persisting the same ciphertext is a
-			# no-op. This matches encrypt's fail-closed-without-wipe on this path.
-			return $password;
 		}
+		else
+		{
+			$logger->error("ERROR: encryption is disabled but this stored '!!' value cannot be decrypted without the crypto modules; returning it unchanged.");
+		}
+		# Fail closed WITHOUT wiping, in BOTH flag states (OMK-12827 Slice B:
+		# the disabled state used to fall through and die in _make_seed or
+		# Crypt::CBC->new). Never rewrite the flag, and never return "":
+		# a decrypt-then-persist caller (NMISNG::Node::new) assigns decrypt's
+		# result straight back and saves, so "" would overwrite the stored
+		# secret. A '!!' value handed back unchanged still fails auth, so
+		# reads stay fail closed, and re-persisting it is a no-op.
+		return $password;
 	}
 
 	$logger->debug("Encryption is '" . $encryption_enabled . "'.");
