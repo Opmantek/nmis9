@@ -2841,6 +2841,20 @@ sub selftest
 	push @details, [$testname, $result];
 	$allok = 0 if ($result);
 
+	# encryption of secrets: if enabled, the crypto stack must actually work
+	# (modules loadable, master key readable, round trip succeeds). This is
+	# the GUI-visible alert for a running-daemon crypto failure (OMK-12827
+	# Slice B scenario 2); encrypt/decrypt themselves fail closed silently.
+	$testname = "Encryption of secrets";
+	$result = undef;
+	if (NMISNG::Util::getbool($config->{'global_enable_password_encryption'})
+			and !testEncryption())
+	{
+		$result = "Encryption of secrets is enabled but the encryption self-test failed; secrets cannot be encrypted or decrypted. Check that the crypto modules (Crypt::CBC, Crypt::Cipher::AES, Math::Random::Secure) are installed and the master key file (config 'master_key_file') exists and is readable.";
+	}
+	push @details, [$testname, $result];
+	$allok = 0 if ($result);
+
 	# check the main/involved directories AND /tmp and /var
 	my $minfreepercent = $config->{selftest_min_diskfree_percent} || 10;
 	my $minfreemegs = $config->{selftest_min_diskfree_mb} || 25;
@@ -3151,7 +3165,6 @@ sub selftest
 	for my $op (qw(collect update))
 	{
 		$status = undef;
-		$allok = 1;
 		
 		my $max_jobs;
 		if ($op =~ /collect/) {
