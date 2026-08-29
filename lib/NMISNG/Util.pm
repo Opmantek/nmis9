@@ -4933,6 +4933,11 @@ sub decrypt {
 		$logger->error("Password decryption failure: corrupted payload (bad length prefix), possible master key change; returning the stored value unchanged.");
 		return $original;
 	}
+	if (length($password) != 3 + $strLen)
+	{
+		$logger->error("Password decryption failure: corrupted payload (length prefix does not match payload), possible master key change; returning the stored value unchanged.");
+		return $original;
+	}
 	$password = substr($password, 3, $strLen);
 	if (!defined($password) or $password eq "")
 	{

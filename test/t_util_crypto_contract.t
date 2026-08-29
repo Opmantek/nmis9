@@ -80,14 +80,17 @@ is(NMISNG::Util::decrypt($tampered), $tampered,
 # corrupt payloads that decrypt "successfully" but carry a broken length
 # prefix must also come back unchanged - never '' or undef (review finding:
 # a payload of exactly three digits, or a 000 prefix, or shorter than its
-# own prefix, previously returned '' / undef).
+# own prefix, previously returned '' / undef). Also (PR #73 review Critical
+# 1): a declared length exceeding the remaining bytes ('005abc', 3 short of
+# the 5 the prefix promises) or trailing bytes beyond the declared length
+# ('003abcdef') must not silently return the mismatched substring ('abc').
 {
 	open(my $kfh, '<', $keyfile) or die "cannot read $keyfile: $!";
 	my $seed = <$kfh>;
 	close $kfh;
 	chomp($seed);
 	my $handle = Crypt::CBC->new(-key => $seed, -cipher => 'Cipher::AES', -pbkdf => 'pbkdf2');
-	for my $raw ('123', '12', '000abc') {
+	for my $raw ('123', '12', '000abc', '005abc', '003abcdef') {
 		my $evil = '!!' . $handle->encrypt_hex($raw);
 		my $got;
 		my @warnings;
