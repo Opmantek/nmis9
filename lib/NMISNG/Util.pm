@@ -5093,11 +5093,26 @@ sub _resolve_seed
 		}
 	}
 
-	my @fstat = CORE::stat($seedfile);
-	return (undef, "cannot stat master key file '$seedfile': $!") if (!@fstat);
+	# Open first, then fstat the open handle rather than stat-by-path then
+	# open-by-path: the latter is TOCTOU-able (the path could be swapped
+	# between the two calls). Same precedent as _config_perms_error, which
+	# fstats an open handle before eval'ing a config file as root.
+	my $fh;
+	if (!open($fh, '<', $seedfile))
+	{
+		return (undef, "cannot read master key file '$seedfile': $!");
+	}
+
+	my @fstat = CORE::stat($fh);    # fstat on the open handle, not the path
+	if (!@fstat)
+	{
+		close($fh);
+		return (undef, "cannot stat master key file '$seedfile': $!");
+	}
 	my $mode = $fstat[2] & 07777;
 	if ($mode & 022)
 	{
+		close($fh);
 		return (undef, sprintf("master key file '%s' is group- or world-writable (mode %04o); refusing to use it. chmod it to 0440 or stricter.", $seedfile, $mode));
 	}
 	$logger->warn("master key file '$seedfile' is world-readable; chmod it to 0440 or stricter.")
@@ -5113,11 +5128,6 @@ sub _resolve_seed
 			if (File::Spec->rel2abs($seedfile) =~ m{^\Q$tree\E(/|$)});
 	}
 
-	my $fh;
-	if (!open($fh, '<', $seedfile))
-	{
-		return (undef, "cannot read master key file '$seedfile': $!");
-	}
 	my $seed = <$fh>;
 	close($fh);
 	chomp($seed) if (defined $seed);
