@@ -386,7 +386,7 @@ die("FATAL: the configured db_password is encrypted but cannot be decrypted "
 	. "and re-run. Recovery: restore the original master key file, or set "
 	. "database/db_password in conf/Config.nmis to its known plaintext value, "
 	. "then re-run.\n")
-	if (substr($curpw, 0, 2) eq '!!');
+	if (db_password_is_undecryptable($curpw));
 
 my $is_default = ($curpw eq '' || $curpw eq 'op42flow42' || $curpw eq 'example'
 	|| $curpw eq 'password' || $curpw =~ /^CHANGE_ME/);
@@ -856,6 +856,17 @@ if ($auth_enable_failed)
 print "\nMongoDB server at $dbserver:$port setup completed\n\n";
 
 exit 0;
+
+# OMK-12827 Slice B: decrypt fails closed by returning the stored
+# ciphertext unchanged, so a '!!' survivor here means the master key
+# cannot decrypt the configured db_password. Proceeding would set the
+# MongoDB user's password to the literal ciphertext and strand the
+# install. Extracted to a file-scope sub, testable via the modulino seam.
+sub db_password_is_undecryptable
+{
+	my ($curpw) = @_;
+	return (defined($curpw) && substr($curpw, 0, 2) eq '!!') ? 1 : 0;
+}
 
 # OMK-12826: true if MongoDB already has a user that can administer auth after it
 # is enabled (root, userAdminAnyDatabase, or userAdmin on admin). Queried on the
