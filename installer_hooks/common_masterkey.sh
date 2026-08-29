@@ -71,6 +71,10 @@ nmis_masterkey_xtrace_restore()
 nmis_masterkey_provision()
 {
 	nmis_masterkey_owner="${1:-root}"
+	if [ -n "${SIMULATE:-}" ]; then
+		echo "SIMULATION: would create master key file $NMIS_MASTERKEY_DEFAULT_FILE if absent" >&2
+		return 0
+	fi
 	if [ -e "$NMIS_MASTERKEY_DEFAULT_FILE" ]; then
 		return 0
 	fi

@@ -1,0 +1,52 @@
+#!/usr/bin/perl
+# OMK-12827 Slice B (PR 73 review Important 4): behavioural coverage for
+# nmis_masterkey_provision - idempotence (an existing key stays
+# byte-identical), SIMULATE creates nothing, noclobber refuses a
+# pre-planted tmp file, and the created key has the right shape and mode.
+use strict;
+use warnings;
+use FindBin;
+use File::Temp;
+use Test::More;
+
+my $lib = "$FindBin::Bin/../installer_hooks/common_masterkey.sh";
+ok(-f $lib, "common_masterkey.sh exists") or BAIL_OUT("$lib missing");
+my $tempdir = File::Temp::tempdir(CLEANUP => 1);
+
+sub provision
+{
+	my (%opt) = @_;
+	my $env = $opt{simulate} ? "SIMULATE=1 " : "";
+	my $pre = $opt{pre} // '';
+	return system("sh -c '$env . $lib; NMIS_MASTERKEY_DEFAULT_DIR=$tempdir/keys; NMIS_MASTERKEY_DEFAULT_FILE=\$NMIS_MASTERKEY_DEFAULT_DIR/master.key; $pre nmis_masterkey_provision root' >/dev/null 2>&1") >> 8;
+}
+my $keyfile = "$tempdir/keys/master.key";
+
+# SIMULATE creates nothing
+is(provision(simulate => 1), 0, "SIMULATE run returns success");
+ok(!-e $keyfile, "SIMULATE created no key file");
+
+# real run creates a well-formed key
+is(provision(), 0, "provision creates a key");
+ok(-f $keyfile, "key file exists");
+my $mode = (stat($keyfile))[2] & 07777;
+is($mode, 0440, "key file mode is 0440");
+open(my $fh, '<', $keyfile) or die $!;
+my $key1 = <$fh>; close $fh; chomp $key1;
+ok($key1 =~ /^[A-Za-z0-9]{256}$/, "key is 256 chars of [A-Za-z0-9]");
+my @leftover = glob("$tempdir/keys/*.tmp.*");
+is(scalar(@leftover), 0, "no tmp remnant after a successful run");
+
+# idempotence: second run leaves the key byte-identical
+is(provision(), 0, "second provision run returns success");
+open($fh, '<', $keyfile) or die $!;
+my $key2 = <$fh>; close $fh; chomp $key2;
+ok($key1 eq $key2, "an existing key is left byte-identical");
+
+# noclobber: a pre-planted file at the tmp name blocks the write
+unlink($keyfile);
+is(provision(pre => 'touch "$NMIS_MASTERKEY_DEFAULT_FILE.tmp.$$";'), 1,
+	"a pre-planted tmp file makes provisioning fail instead of writing through it");
+ok(!-e $keyfile, "and no key file was created");
+
+done_testing();
