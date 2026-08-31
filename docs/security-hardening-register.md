@@ -1032,6 +1032,177 @@ must stay off `setup_mongodb.pl`'s deny-set (`''`, `example`, `password`,
 
 ---
 
+### SEC-1, SEC-2 / OMK-12695, OMK-12713 — device and config secrets encrypted at rest by default
+
+**Files:** `conf-default/Config.nmis`,
+`conf-default/docker/Config.nmis.docker`
+
+**What changed**
+
+| Key | Before | After |
+|-----|--------|-------|
+| `global_enable_password_encryption` in `conf-default/Config.nmis` | `'false'` | `'true'` |
+| `global_enable_password_encryption` in `conf-default/docker/Config.nmis.docker` | `'false'` | `'true'` |
+
+Nothing else moves. The machinery this switches on is already shipped and
+already tested (OMK-12827 Slices A to C, fail-closed crypto, `master_key_file`
+resolution, the `NMISNG::Node::new` write guard, the install-time and
+container master-key provisioning). This entry is the flip of the two shipped
+defaults and nothing more.
+
+With the flag on, two classes of secret change form on disk:
+
+- **SEC-1, device credentials.** `NMISNG::Node::new` converts a node's
+  `community`, `authpassword`, `privpassword`, `authkey`, `privkey` and
+  `wmipassword` to `!!`-prefixed ciphertext the first time the node is loaded,
+  and saves. The node object then carries the stored ciphertext, and
+  `NMISNG::Snmp` decrypts each credential at the point it builds the session.
+- **SEC-2, config secrets.** `NMISNG::Util::decrypt`, when it is handed a
+  section and a keyword, brings the stored form of that field in
+  `conf/Config.nmis` into line with the current setting. Every
+  `PasswordFields.nmis` entry therefore moves to `!!` as it is used, starting
+  with `db_password` on the first database connect of every process.
+
+**Why:** until now a shipped NMIS stored every device credential and every
+config secret as cleartext, in `conf/Config.nmis` (mode 0660, group `nmis`, so
+readable by the web tier and by any local account in that group) and in the
+`nodes` collection in MongoDB. Any read of a config file, a support archive, a
+MongoDB dump or a filesystem backup yielded working SNMP, WMI and mail
+credentials for the whole estate. The encryption existed and was off, so the
+protection was available to every site that knew to look for it and to no site
+that did not. The default is the only part of that a release can fix.
+
+**Fresh installs only, and the mechanics that make it so.** An existing install
+does not start encrypting on upgrade, on any of the three delivery paths.
+
+- *Host install.* `installer_hooks/10-postcopy-confmerges` runs
+  `admin/updateconfig.pl conf-default/Config.nmis conf/Config.nmis`, which adds
+  only the entries the live config is missing and never overwrites one it
+  already has. `global_enable_password_encryption` has shipped in
+  `conf-default/Config.nmis` since January 2022, so an installed site's
+  `conf/Config.nmis` already carries its own explicit copy, put there by an
+  earlier upgrade's merge or by the GUI Config editor. The merge skips it and
+  the site stays disabled. The narrow exception is a site whose
+  `conf/Config.nmis` has no such entry at all, which would have the new `'true'`
+  merged in and would begin encrypting lazily. That is the correct outcome and
+  it is safe (already-plaintext values are read as-is and up-migrate as they are
+  touched), but it is an upgrade that changes behaviour without the operator
+  asking, so it belongs in the release note.
+- *Production container.* The image bakes
+  `conf-default/docker/Config.nmis.docker` to `conf/Config.nmis` at build time
+  and `conf/` is a named volume. A named volume copies image content only on
+  first use, so a fresh deployment gets the flipped config and a deployment
+  whose `nmis_conf_data` volume is already populated keeps the config it has.
+- *Dev container.* `docker-dev/docker-entrypoint-dev.sh` copies
+  `Config.nmis.docker` to `conf/Config.nmis` only when that file is absent.
+
+An existing site opts in with `bin/nmis-cli act=enable-eos` (root), restored by
+OMK-12927. That converts every protected config field and every node secret in
+one pass, rather than lazily.
+
+**Delegated functionality affected.** Nobody loses a permission here. What
+changes is that secrets stop being readable by anyone holding the data.
+
+- Reading a credential out of `conf/Config.nmis`, out of a MongoDB dump or out
+  of the `nodes` collection now yields `!!` ciphertext. Any runbook, script,
+  monitoring check or config diff that scraped a secret from a file stops
+  working, and there is no CLI that prints one back (`act=decrypt-password`
+  stays deliberately unrestored, see OMK-12927).
+- Config and node data stop being portable on their own. Copying a node
+  document or a config file to another install, or restoring a backup onto a
+  rebuilt host, produces unusable credentials unless the same master key goes
+  with it. Two installs cannot share encrypted values without sharing the key.
+- A support archive from an encrypted install carries ciphertext Firstwave
+  cannot read. That is the point, and it is also a diagnosis cost. Credential
+  problems now have to be reproduced on the customer's side.
+- If the crypto modules are absent, encryption fails closed rather than
+  silently degrading. Values stay plaintext, errors are logged per field and
+  the selftest banner reports it. `installer_hooks/21-postcopy-encryption`
+  warns at install time and names the packages. So a fresh install on a host
+  without `Crypt::CBC`, `Crypt::Cipher::AES` and `Math::Random::Secure` ships
+  with the flag on and nothing encrypted, which is visible but is not what the
+  operator will assume from the setting.
+
+**The master key becomes backup-critical material.** This is the operational
+change that matters most, and it is new for every fresh install as of this
+flip. The key is one line of 256 characters. Everything encrypted under it is
+permanently unreadable without it. Reads fail closed, so a lost key does not
+destroy data, it just makes those values unusable until they are re-entered by
+hand for every node and every config secret.
+
+The drill:
+
+1. *Host install.* The key is `/usr/local/etc/firstwave/master.key`, created by
+   `installer_hooks/21-postcopy-encryption` as `<webuser>:nmis` mode 0440. Back
+   up that file with the same care and the same schedule as `conf/`, and keep
+   it with the backup it belongs to. A backup of `conf/` and MongoDB without
+   the key is not restorable.
+2. *Container.* The key lives in the `nmis_master_key` volume mounted at
+   `/usr/local/etc/firstwave`. Back up that volume alongside `nmis_conf_data`.
+   Destroying it is the same as losing the key. Before removing a container,
+   `docker cp <container>:/usr/local/etc/firstwave/master.key .`. The entrypoint
+   warns loudly when it has generated a fresh key on a boot whose
+   `conf/Config.nmis` already contains `!!` values, which is exactly the shape
+   of a lost-volume accident.
+3. *Restore order.* The key goes back first, or with `conf/` and the MongoDB
+   dump, never after. A restore that brings back data and not the key looks
+   successful and then fails at every SNMP poll.
+4. *Never rotate or relocate an existing key.* There is no re-key path (see the
+   mitigations below). Replacing a key makes every value already encrypted
+   under the old one undecryptable.
+5. *An operator-supplied key* is honoured instead of the generated one via
+   `master_key_file` in the config or `NMIS_MASTER_KEY_FILE` in the
+   environment. NMIS only ever creates a key at the shipped default path, so a
+   custom location is provisioned and backed up by the operator.
+
+**The way back is config-gated, and the flag alone is not it.**
+`bin/nmis-cli act=disable-eos` (root) is the supported reversal. It walks every
+`PasswordFields.nmis` entry and every node secret, writes each back in
+plaintext, sets the flag to `'false'`, and, since OMK-12927, reports failure and
+names the fields when any `!!` value could not be decrypted rather than claiming
+success over ciphertext it cannot read.
+
+Hand-editing the flag to `'false'` is not equivalent and should not be
+documented as the way back. It converts nothing at the moment it is done.
+Stored values move back to plaintext only lazily, a node at a time as each is
+loaded and a config field at a time as each is passed through `decrypt` with its
+section and keyword, and only for as long as the master key is still readable.
+An install left in that state is half-converted, indefinitely, with no report of
+what did or did not come back. The same applies in reverse: turning the flag on
+by hand on an existing install encrypts new writes but leaves the existing
+plaintext until something touches it, where `act=enable-eos` sweeps the lot in
+one pass (and writes a root-only `NMIS-<epoch>` plaintext copy of every
+protected secret into `/usr/local/etc/firstwave` first, see the mitigations).
+
+**Mitigations to investigate (not implemented)**
+
+- *No key rotation.* There is no supported way to re-key an install. The only
+  route is `disable-eos` followed by `enable-eos`, which puts every secret back
+  on disk in cleartext in between, on a host where the previous key may still be
+  present. A `rotate-eos` that reads with the old key and writes with the new,
+  without a plaintext intermediate, is the right shape and does not exist.
+- *The `NMIS-<epoch>` plaintext dump is never cleaned up.* `enable-eos` writes a
+  root-only cleartext copy of every protected secret into
+  `/usr/local/etc/firstwave` before converting, and nothing expires or removes
+  it. That directory is also where the master key lives and, in the container,
+  is the volume operators are now told to back up. A backup of it therefore
+  carries both the key and a cleartext copy of everything the key protects.
+  Expiry, an opt-out, or a different location for the dump all want
+  investigating.
+- *Backing up the master key is documentation, not tooling.* Nothing in
+  `admin/support.pl` or in any shipped backup path knows the key exists. The
+  drill above depends entirely on the operator having read it. A backup
+  pre-flight that refuses, or at least warns, when `conf/` is being archived
+  without the key would make the dependency visible.
+- *No first-boot confirmation that encryption actually took.* The install hook
+  warns about missing modules and the runtime selftest raises an alert, but
+  neither answers "are this install's secrets encrypted right now". An operator
+  reading `global_enable_password_encryption => 'true'` will assume they are. A
+  status act reporting how many protected fields and node secrets are currently
+  `!!`, and how many are not, would close that gap.
+
+---
+
 ## Open threads to investigate (epic-wide, not tied to one change)
 
 These came up while reviewing OMK-12707 and are recorded so they are not lost.

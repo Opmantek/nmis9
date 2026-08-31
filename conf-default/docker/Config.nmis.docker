@@ -148,7 +148,7 @@
   'globals' => {
     'global_collect_Description' => '(CNOC|Collection)',
     'global_collect_ifDescr' => '',
-    'global_enable_password_encryption' => 'false',
+    'global_enable_password_encryption' => 'true',
     'global_events_bandwidth' => 'true',
     'global_nocollect_Description' => '',
     'global_nocollect_ifDescr' => '',
