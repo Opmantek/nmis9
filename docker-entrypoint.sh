@@ -104,6 +104,12 @@ setup() {
 }
 
 provision_master_key() {
+  # an operator-supplied key (NMIS_MASTER_KEY_FILE) makes the generated
+  # default-path key dead weight; skip provisioning entirely
+  if [ -n "${NMIS_MASTER_KEY_FILE:-}" ]; then
+    echo "NMIS_MASTER_KEY_FILE is set; skipping default master key provisioning."
+    return 0
+  fi
   # OMK-12827 Slice C: containers never run installer_hooks, so provision the
   # encryption-of-secrets master key on first boot, into the nmis_master_key
   # volume (see compose.yaml). Shared code with the installer hook and the
@@ -112,7 +118,7 @@ provision_master_key() {
   # creation (wrong ownership for this image) out of play.
   MASTERKEY_LIB="${NMIS_HOME}/installer_hooks/common_masterkey.sh"
   if [ ! -r "$MASTERKEY_LIB" ]; then
-    echo "WARNING: $MASTERKEY_LIB is missing; cannot provision a master key for this container."
+    echo "WARNING: $MASTERKEY_LIB is missing; cannot provision a master key for this container." >&2
     return 0
   fi
   # shellcheck disable=SC1090
@@ -135,15 +141,10 @@ provision_master_key() {
       echo "Generated a master key for this container (${NMIS_MASTERKEY_DEFAULT_FILE})."
       master_key_swap_warning
     else
-      # an existing key is never modified, so a wrongly-owned one (e.g. a
-      # root-owned docker cp restore) stays wrong silently unless we say so
-      MK_OWNER="$(nmis_masterkey_owner_ok "${NMIS_USER}")" && : || {
-        echo "WARNING: ${NMIS_MASTERKEY_DEFAULT_FILE} exists but is owned '${MK_OWNER:-unknown}', wanted '${NMIS_USER}:nmis'." >&2
-        echo "WARNING: the nmis daemons cannot read it; fix with: chown ${NMIS_USER}:nmis ${NMIS_MASTERKEY_DEFAULT_FILE} && chmod 0440 ${NMIS_MASTERKEY_DEFAULT_FILE}" >&2
-      }
+      master_key_existing_owner_warning
     fi
   else
-    echo "WARNING: could not provision a master key; encryption of secrets cannot run until ${NMIS_MASTERKEY_DEFAULT_FILE} exists and is readable by ${NMIS_USER}."
+    echo "WARNING: could not provision a master key; encryption of secrets cannot run until ${NMIS_MASTERKEY_DEFAULT_FILE} exists and is readable by ${NMIS_USER}." >&2
   fi
 }
 
@@ -182,6 +183,18 @@ master_key_swap_warning() {
     echo "WARNING: re-enter the affected secrets." >&2
     echo "WARNING: ############################################################" >&2
   fi
+}
+
+master_key_existing_owner_warning() {
+  # OMK-12827 Slice C: an existing key is never modified, so a wrongly-owned
+  # one (e.g. a root-owned docker cp restore) stays wrong silently unless we
+  # say so. Pure diagnostic: never chowns, never touches the key file; safe
+  # under set -e (nmis_masterkey_owner_ok's non-zero return is ordinary
+  # control flow here, caught by && / ||).
+  MK_OWNER="$(nmis_masterkey_owner_ok "${NMIS_USER}")" && : || {
+    echo "WARNING: ${NMIS_MASTERKEY_DEFAULT_FILE} exists but is owned '${MK_OWNER:-unknown}', wanted '${NMIS_USER}:nmis'." >&2
+    echo "WARNING: the nmis daemons cannot read it; fix with: chown ${NMIS_USER}:nmis ${NMIS_MASTERKEY_DEFAULT_FILE} && chmod 0440 ${NMIS_MASTERKEY_DEFAULT_FILE}" >&2
+  }
 }
 
 nmis_frontend() {

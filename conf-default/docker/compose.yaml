@@ -44,9 +44,11 @@ services:
       # encrypted under its key permanently undecryptable - back it up like
       # conf/. To supply your own key instead, mount it (e.g. compose
       # secrets:) and set NMIS_MASTER_KEY_FILE=/run/secrets/<name>; the
-      # generated key is then ignored. The image must never bake a key at
-      # this path: named volumes copy image content on first use, which
-      # would hand one shared key to every deployment. The directory also
+      # generated key is then ignored. (add NMIS_MASTER_KEY_FILE to this
+      # service's environment yourself; a .env entry alone is not enough)
+      # The image must never bake a key at this path: named volumes copy
+      # image content on first use, which would hand one shared key to
+      # every deployment. The directory also
       # holds the root-only NMIS-<epoch> plaintext backups an enable-eos run
       # writes, so they persist here too.
       - nmis_master_key:/usr/local/etc/firstwave
