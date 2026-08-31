@@ -134,7 +134,21 @@ sub viewOutage
 	# another form is discarded by the browser, breaking both add and delete.
 	if ($AU->CheckAccess("Table_Outages_rw",'check')) {
 
-		print start_form(-id=>"nmisOutages", -href=>url(-absolute=>1)."?")
+		# OMK-12926: -action is explicit and deliberately carries NO query string.
+		# CGI.pm's start_form defaults the action to request_uri || self_url, and
+		# self_url reserialises every parameter of the request into that URL. This
+		# script accepts auth_username and auth_password like every other CGI here,
+		# and NMISNG::Auth's login form posts them back to whichever script rendered
+		# it (lib/NMISNG/Auth.pm:1485), so a session-expiry login on this page put
+		# the operator's password into this attribute in cleartext. Dropping the
+		# query string loses nothing: this form POSTs, and CGI.pm ignores
+		# QUERY_STRING on a POST (its $APPEND_QUERY_STRING is 0), so every parameter
+		# the outage handlers read already has to be a form field, and is one.
+		# -href is what the widget-mode get() code reads and is unrelated to the
+		# action; it stays as it was. The per-row delete form below already passed
+		# an explicit action. Covered by test/t_csrf_cgi.t's outage_table_view block.
+		print start_form(-id=>"nmisOutages", -action=>url(-absolute=>1),
+										 -href=>url(-absolute=>1)."?")
 				. hidden(-override => 1, -name => "conf", -value => $Q->{conf})
 				. hidden(-override => 1, -name => "act", -value => "outage_table_doadd")
 				. $AU->csrf_hidden_field

@@ -293,6 +293,48 @@ for my $script (qw(model_policy.pl models.pl))
 # never reaches the DOM and its hidden act/csrf_token associate with the add
 # form instead, so both actions break whenever an outage exists.
 
+# OMK-12926: a rendered form must not carry a query string in its action.
+#
+# CGI.pm's start_form defaults the action to request_uri || self_url, and
+# self_url reserialises EVERY parameter of the request into that URL. On a
+# gateway that leaves REQUEST_URI unset - which Mojolicious::Plugin::CGI, the one
+# under this test, does - a POSTed value therefore comes straight back in the
+# page. Every CGI script accepts auth_username and auth_password, and
+# NMISNG::Auth's login form posts them back to whichever script rendered it
+# (lib/NMISNG/Auth.pm:1485), so on an ordinary session-expiry login this echoed
+# the operator's password into outages.pl's add-outage form.
+#
+# Structural on purpose rather than a search for a particular value. It catches
+# the reflection of any parameter, and it needs no secret in the test at all.
+#
+# The diagnostic prints the path only. Everything after the '?' is exactly the
+# material that must not be echoed anywhere, this test's own output included, so
+# it is reported by length and never by content. Same discipline as the
+# assertions in t_cgi_config_password_refusals.t and
+# t_cgi_tables_secret_passthrough.t.
+#
+# Always two assertions, on every path, so a caller's skip count stays honest
+# whether or not the form rendered.
+sub assert_clean_form_action
+{
+	my ($dom, $formid, $script, $desc) = @_;
+
+	my $form = $dom->at("form#$formid");
+	if (!$form)
+	{
+		fail("$desc: the response carries the $formid form");
+		fail("$desc: (its action was not checked, the form never rendered)");
+		return;
+	}
+	my $action = $form->attr('action') // '';
+	my ($path) = split(/\?/, $action, 2);
+	ok(index($action, '?') < 0, "$desc: the $formid form action carries no query string")
+			or diag("action path is '$path', followed by a "
+							. (length($action) - length($path) - 1)
+							. " byte query string that is not printed here");
+	like($path, qr{/\Q$script\E$}, "$desc: and the action still points at $script");
+}
+
 sub max_form_depth
 {
 	my $html = shift;
@@ -397,13 +439,21 @@ SKIP: {
 }
 
 SKIP: {
-	skip "no outage seeded", 3 if (!$OUTAGE_ID);
+	skip "no outage seeded", 5 if (!$OUTAGE_ID);
 
 	my ($code, $body) = fetch(GET =>
 		'/cgi-nmis9/outages.pl?conf=Config&act=outage_table_view&widget=false');
 	is($code, 200, 'the outages page renders');
 	like($body, qr/outagedel_\Q$OUTAGE_ID\E/, 'and lists a delete form for the seeded outage');
 	is(max_form_depth($body), 1, 'no mutation form is nested inside another form');
+
+	# OMK-12926. This block already drives the exact page that was reflecting, so
+	# the check costs one assertion pair and no extra request. viewOutage's
+	# add-outage form (cgi-bin/outages.pl:137) called start_form with no -action;
+	# the per-row delete form at :261 already passed one, which is why only the
+	# add form is named here.
+	assert_clean_form_action($t->tx->res->dom, 'nmisOutages', 'outages.pl',
+													 'outages add form');
 }
 
 done_testing();

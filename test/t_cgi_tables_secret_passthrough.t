@@ -82,6 +82,7 @@ use Digest::MD5 ();
 use Crypt::PasswdMD5 qw(apache_md5_crypt);
 
 use NMISNG;
+use NMISNG::DB;			# make_oid, for the queue cleanup in case 5
 use NMISNG::Log;
 use NMISNG::Node;
 use NMISNG::Util;
@@ -566,10 +567,10 @@ for my $f (grep { $_ ne 'community' } @SECRET_FIELDS)
 # This is the one response in tables.pl that renders a form AFTER a submission
 # carrying secrets, and it is an ordinary thing for an operator to do: retype the
 # SNMP and WMI credentials and press "Update Node" rather than "Edit". The button
-# sets the hidden "update" field to true (cgi-bin/tables.pl:632), doeditTable
+# sets the hidden "update" field to true (cgi-bin/tables.pl:647), doeditTable
 # takes its scheduling branch, and that branch prints its own form and returns 0,
 # so menuTable never runs and this page IS the whole response
-# (cgi-bin/tables.pl:1059-1094).
+# (cgi-bin/tables.pl:1074-1113).
 #
 # Every one of the six password-flagged Table-Nodes fields is retyped in plaintext,
 # not round-tripped as "!!" ciphertext, because that is the case where the
@@ -583,9 +584,11 @@ for my $f (grep { $_ ne 'community' } @SECRET_FIELDS)
 #
 # It also schedules a real update job, which is the one side effect this file has
 # gone out of its way to avoid elsewhere (the seed node is deliberately inactive,
-# see its comment). The job is therefore removed again immediately, and a removal
-# that fails turns the run red rather than leaving a job behind for nmisd to pick
-# up in CI.
+# see its comment). Cleaning that up is a race, not a delete: nmisd is a live
+# worker in the dev and CI containers, the job is priority 1 and due immediately,
+# so it can be consumed between the POST and the cleanup. The containment is
+# therefore in two parts, and only the second one is an assertion about the world.
+# See the comment at the cleanup below.
 
 {
 	my $form3 = fetch_edit_form("retyped secrets");
@@ -602,7 +605,11 @@ for my $f (grep { $_ ne 'community' } @SECRET_FIELDS)
 	# never rendered, and every assertion below would be about the wrong page.
 	my $marker = "User-initiated update of $NODENAME";
 	ok(index($body, $marker) >= 0, "case 5: the node update page rendered")
-			or diag("response was: " . substr($body, 0, 600));
+			# the response to this request contains six plaintext secrets whenever the
+			# defect is present, so it is described, never dumped. Same discipline as
+			# assert_no_reflection above.
+			or diag("marker '$marker' missing from a " . length($body) . " byte response, "
+							. "first line: " . ((split(/\r?\n/, $body, 2))[0] // ''));
 
 	for my $f (@SECRET_FIELDS)
 	{
@@ -610,17 +617,41 @@ for my $f (grep { $_ ne 'community' } @SECRET_FIELDS)
 	}
 	assert_clean_form_action($t->tx->res->dom, 'nmisNodes', 'tables.pl', "case 5");
 
-	# and put the queue back the way we found it
+	# ---- put the queue back the way we found it, without racing the worker -----
+	#
+	# nmisd runs in the dev and CI containers and this job is priority 1 with
+	# time => now, so a worker can take it between the POST above and this line.
+	# Deleting by _id is therefore best effort: "no matching queue entry found"
+	# means somebody got there first, which is the outcome we wanted, not a
+	# failure. Anything else from remove_queue is a real error and stays red.
+	#
+	# The assertion that actually closes this is the state check afterwards. It
+	# says what has to be true regardless of who did the removing - no update job
+	# for this node is left behind - so it is green whether the delete or a worker
+	# cleared it, and red on a genuine leftover.
+
 	my ($jobid) = $body =~ /job id ([0-9a-fA-F]{24})/;
-	ok($jobid, "case 5: the scheduled update job announced an id to clean up")
-			or diag("no job id in the response; a job may have been left in the queue");
+	ok($jobid, "case 5: the update job was scheduled and reported its id")
+			or diag("no job id in the response, so doeditTable's scheduling branch "
+							. "either did not run or did not report one - in which case the "
+							. "page just asserted on is probably not the page under test");
+
 	if ($jobid)
 	{
 		my $err = $nmisng->remove_queue(id => NMISNG::DB::make_oid($jobid));
-		ok(!$err, "case 5: the scheduled update job was removed again")
-				or diag("remove_queue said: $err - a job for the seed node is still queued, "
-								. "which nmisd will try to run");
+		# the driver's wording for "already gone"; see above for why that is a pass
+		$err = undef if (defined($err) && $err =~ /no matching queue entry found/);
+		ok(!$err, "case 5: the scheduled update job was removed, or already consumed")
+				or diag("remove_queue said: $err");
 	}
+
+	my $leftover = 0;
+	for my $job (@{$nmisng->get_queue_model()->data() // []})
+	{
+		++$leftover if (($job->{type} // '') eq 'update'
+										&& (($job->{args}->{uuid} // '') eq $node->uuid));
+	}
+	is($leftover, 0, "case 5: no update job for the seed node is left in the queue");
 }
 
 # ---- 4. the test must not have written conf/Config.nmis (round-4 review) -------
