@@ -145,7 +145,10 @@ sub restore_file
 {
 	my ($saved, $orig) = @_;
 	return if (!$saved || !-f $saved->{copy});
-	copy($saved->{copy}, $orig);
+	# a failed restore leaves the operator's config as this test rewrote it, so
+	# it must never be silent, even in END where nothing can be asserted
+	copy($saved->{copy}, $orig)
+		or diag("RESTORE FAILED: could not copy $saved->{copy} back to $orig: $!");
 	chmod($saved->{mode}, $orig);
 	chown($saved->{uid}, $saved->{gid}, $orig);   # best effort; a non-root run
 	unlink $saved->{copy};                        # never took ownership away
@@ -308,9 +311,24 @@ my $PLAIN = 'migrateMe12928';
 	is($died, '', "decrypt does not die when the migration write is refused");
 	is($got, $ENVVAL, "and still returns the value it was handed (fail-closed contract)");
 	is(file_md5($CONF_FILE), $md5_before, "conf/Config.nmis is byte-identical");
-	like(read_log(), qr/could not migrate the stored secret for '\Q$SECTION\E\/\Q$KEYWORD\E'/,
-		"and the refusal is logged, naming the property");
-	unlike(read_log(), qr/\Q$ENVVAL\E/, "without echoing the secret");
+
+	# The refusal must be VISIBLE but must not be an error. An ENV- or
+	# conf.d-managed property is refused by design, and with encryption on by
+	# default (OMK-12695) the shipped container meets this on every process's
+	# first connect, forever - NMIS_DB_PASSWORD makes database/db_password a
+	# layer-4 key. Logging that at error level would be permanent, unclearable
+	# noise in a flagship deployment, so it is info, and it still names the
+	# property and the source that owns it.
+	my $log = read_log();
+	like($log, qr/The stored secret for '\Q$SECTION\E\/\Q$KEYWORD\E' is managed by/,
+		"the refusal is logged, naming the property and its owner");
+	like($log, qr/\[info\].*is managed by/,
+		"at info level, because a managed property is refused by design, not by failure");
+	unlike($log, qr/\[error\].*\Q$SECTION\E\/\Q$KEYWORD\E/,
+		"and NOT at error level (this line would otherwise repeat forever in the shipped container)");
+	like($log, qr/ENV:NMIS_\U$KEYWORD/,
+		"naming the environment variable that owns it (a name, never a value)");
+	unlike($log, qr/\Q$ENVVAL\E/, "without echoing the secret");
 
 	delete $ENV{'NMIS_' . uc($KEYWORD)};
 }

@@ -4617,7 +4617,17 @@ sub _encryption_applied
 	return (defined($result) && substr($result, 0, 2) eq "!!" && $result ne $original);
 }
 
-# a real decryption result no longer carries the '!!' marker
+# a real decryption result no longer carries the '!!' marker.
+#
+# Known and accepted ambiguity: a legitimate plaintext that happens to BEGIN
+# with '!!' is indistinguishable here from a stored value decrypt could not
+# read and handed back unchanged. Such a secret is reported as an
+# undecryptable survivor and, in the disabled sweep, is left alone rather than
+# written back. That is the safe direction of the two - the alternative is to
+# call a genuinely unreadable value "decrypted" and report success over it -
+# and there is no marker in the stored form that would separate the cases. A
+# secret starting '!!' cannot be stored round-trippably by this scheme at all,
+# which is the underlying limitation.
 sub _decryption_applied
 {
 	my ($result) = @_;
@@ -4669,7 +4679,8 @@ sub verifyNMISEncryption {
 	{
 		$logger->error("ERROR: 'Crypt::CBC' and 'Crypt::Cipher::AES', and 'Math::Random::Secure' must be installed in order to enable password encryption!");
 		$logger->error("ERROR: Password encryption cannot be enabled!");
-		$logger->debug9(sub {"Config '" .  Dumper($fullConfig) . "'."});
+		# (no config dump here: $fullConfig carries every secret in the file,
+		# and a debug level is not a reason to write them all to disk.)
 		if ($nmis_encryption_enabled)
 		{
 			my $msg = "Encryption of secrets is enabled but the required Perl modules Crypt::CBC, Crypt::Cipher::AES and Math::Random::Secure are not installed. Install them (Debian: libcrypt-cbc-perl libcryptx-perl libmath-random-secure-perl. RedHat: perl-Crypt-CBC perl-CryptX perl-Math-Random-Secure). Encryption has NOT been changed.";
@@ -5006,9 +5017,40 @@ sub _migrate_config_secret
 		$logger->debug3(sub {"Migrating the stored secret for Section: '$section' Field: '$keyword'"});
 		$fullConfig->{$section}{$keyword} = $newvalue;
 		my $err = writeConfData(data => $fullConfig);
-		$logger->error("ERROR: could not migrate the stored secret for '$section/$keyword' "
-			. "to match the current encryption setting: $err. The value in use is unaffected.")
-				if ($err);
+		if ($err)
+		{
+			# Two very different things arrive here and they must not share a
+			# level. A property that conf.d (layer 3) or the environment
+			# (layer 4) owns is refused BY DESIGN: writeConfData will not
+			# overwrite a value the operator set somewhere else. With
+			# encryption on by default that is the shipped container's steady
+			# state - compose sets NMIS_DB_PASSWORD, so database/db_password
+			# is layer 4 - and every process's first connect would otherwise
+			# log an ERROR the operator can never clear. It still has to be
+			# visible, because it is the reason the stored value never
+			# changes, so it is logged at info. Anything else really is a
+			# failed write and stays an error.
+			#
+			# The level is decided from getConfigSources, NOT by parsing
+			# writeConfData's error string: the two stay independent that way.
+			# getConfigSources is keyed by the bare config key and each entry
+			# is {source, layer, section}; a layer-4 source is the NAME
+			# 'ENV:<varname>', never a value, so it is safe to log.
+			my $src   = getConfigSources()->{$keyword};
+			my $layer = (ref($src) eq 'HASH') ? $src->{layer} : undef;
+			if (defined($layer) && ($layer == 3 || $layer == 4))
+			{
+				$logger->info("The stored secret for '$section/$keyword' is managed by "
+					. (($src->{source} // "config layer $layer"))
+					. ", so it is not migrated to match the current encryption setting. "
+					. "The value in use is unaffected.");
+			}
+			else
+			{
+				$logger->error("ERROR: could not migrate the stored secret for '$section/$keyword' "
+					. "to match the current encryption setting: $err. The value in use is unaffected.");
+			}
+		}
 	};
 	if ($@)
 	{
@@ -5072,7 +5114,22 @@ sub decrypt {
 			# If the 'section and 'keyword' arguments are passed, it means we are
 			# dealing with the configuration file, so we we encrypt it in the file.
 			if (defined($section) && defined($keyword) && $section ne '' && $keyword ne '') {
-				_migrate_config_secret($logger, $section, $keyword, encrypt($password));
+				# encrypt fails closed by returning its input UNCHANGED, so an
+				# unguarded call here would hand the PLAINTEXT to the migration
+				# and write it back into conf/Config.nmis under an enabled
+				# flag - a write that says "migrated" over a secret that is
+				# still in the clear. Skip the migration and say so instead.
+				my $encrypted = encrypt($password);
+				if (_encryption_applied($password, $encrypted))
+				{
+					_migrate_config_secret($logger, $section, $keyword, $encrypted);
+				}
+				else
+				{
+					$logger->error("ERROR: could not encrypt the stored secret for '$section/$keyword'; "
+						. "leaving it as it is rather than writing it back unencrypted. "
+						. "Check the crypto modules and the master key (master_key_file).");
+				}
 			}
 		} else {
 			$logger->debug9(sub {"Encryption is disabled."});
