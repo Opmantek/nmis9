@@ -51,7 +51,9 @@ constraints that were missing, not reverting the default.
 
 ### H11 / OMK-12707 — sensitive table writes restricted to administrator
 
-**Files:** `conf-default/Access.nmis`, `lib/NMISNG/Auth.pm`, `cgi-bin/tables.pl`
+**Files:** `conf-default/Access.nmis`, `conf-default/Config.nmis`,
+`lib/NMISNG/Auth.pm`, `cgi-bin/tables.pl`, `admin/harden_access_table.pl`,
+`installer_hooks/10-postcopy-confmerges`
 
 **What changed**
 
@@ -90,6 +92,40 @@ is missing — `Util.pm:1395`). Any real install already has a live
 `conf/Access.nmis`, so the `conf-default` edit reaches fresh installs only. On
 every existing install the code guard is what actually enforces this. That is
 why the guard exists, and also why it needs the opt-out below.
+
+**Delivering the corrected matrix to existing installs.** The guard enforces
+the policy on an upgrade, but the live `conf/Access.nmis` keeps its old
+permissive values, so the matrix and the enforcement disagree and the matrix
+reads as if managers still hold these rights.
+`admin/harden_access_table.pl` closes that gap. It takes the guarded rights
+from `NMISNG::Auth::admin_only_rights()` and the target values from
+`conf-default/Access.nmis`, and reports by default. Only `--apply` writes, and
+it backs the live table up to `conf/Access.nmis.prepatch` first, keeping an
+existing `.prepatch` rather than overwriting it because the installer retries a
+failed command six times. It re-reads the file afterwards to confirm every
+value landed, and does nothing at all when `auth_lock_sensitive_tables` is off,
+since the operator has then chosen matrix-driven behaviour and the matrix is
+load-bearing. `installer_hooks/10-postcopy-confmerges` runs it with `--apply`
+on every upgrade, after `05-postcopy-configfiles` has merged in any newly
+shipped rights. A fresh install never reaches it: that hook exits early on
+`CLEANSLATE`, and a fresh install has no `conf/Access.nmis` at all, reading the
+already-corrected `conf-default` directly.
+
+**One-shot record, `access_table_hardened`** (config, default empty). Set to
+`true` once the corrections have been applied. On every later run the script
+exits before opening any file, so a deliberate operator re-grant is never
+undone by a subsequent upgrade. Note what this does and does not do: it
+protects your edit to the matrix, not the enforcement. The code guard still
+denies a re-granted right, so restoring a delegation this way only takes effect
+in combination with the `auth_lock_sensitive_tables` opt-out below.
+
+To run the correction again, clear the key or pass `--force`. A value written
+by an earlier release, a comma-separated list of the rights it had corrected,
+also counts as set. **A right added to the guard in a later release is not
+picked up on an install that already carries the flag**, so any future
+hardening that extends `%admin_only_rights` has to clear
+`access_table_hardened` in its own installer hook, or tell operators to run
+`--force`.
 
 **Operator opt-out — `auth_lock_sensitive_tables`** (config, default `true`).
 The guard is gated by this flag. Default (or any value that is not an exact
