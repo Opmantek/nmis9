@@ -70,6 +70,11 @@ RUN apt-get update  > /dev/null && \
     libsys-syslog-perl \
     libtest-deep-perl \
     libcrypt-des-perl \
+    # OMK-12695: encryption of secrets is on by default; nmisd's isEOSAvailable
+    # startup gate requires these crypto modules or it refuses to start
+    libcrypt-cbc-perl \
+    libcryptx-perl \
+    libmath-random-secure-perl \
     libdigest-hmac-perl \
     libclone-perl \
     libexcel-writer-xlsx-perl \

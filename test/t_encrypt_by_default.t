@@ -168,6 +168,32 @@ for my $pair ([$SHIPPED, 'conf-default/Config.nmis'],
 		"... and carries no leftover 'false' for it");
 }
 
+# ---- 1b. drift-pin: the production dockerfile carries the crypto packages --
+# The default-on flip above makes nmisd's isEOSAvailable startup gate mandatory
+# in every container: without Crypt::CBC (libcrypt-cbc-perl), Crypt::Cipher::AES
+# (libcryptx-perl) and Math::Random::Secure (libmath-random-secure-perl) the
+# gate cannot pass and nmisd exits 255 non-interactively (bin/nmisd ~:176-232).
+# So the production `dockerfile` (repo root) must install all three, same as
+# the dev image already does. This is RED-first by reasoning, not by a failing
+# run recorded here, because the packages are added to the dockerfile in this
+# same commit; the bite was proven instead against the pre-fix revision:
+#   git show 47b9d5d5:dockerfile | grep -c \
+#     'libcrypt-cbc-perl\|libcryptx-perl\|libmath-random-secure-perl'
+# -> 0, so every assertion below fails against that revision and none of this
+# is a tautology.
+{
+	my $DOCKERFILE = "$FindBin::Bin/../dockerfile";
+	my $df_text = slurp($DOCKERFILE);
+	if (ok(defined($df_text), "production dockerfile is readable"))
+	{
+		for my $pkg (qw(libcrypt-cbc-perl libcryptx-perl libmath-random-secure-perl))
+		{
+			like($df_text, qr/^\s*\Q$pkg\E\s*\\?\s*$/m,
+				"production dockerfile installs $pkg (isEOSAvailable gate requirement)");
+		}
+	}
+}
+
 # ---- 2. honesty: what supplies the effective value here ---------------------
 ok(!defined($ENV{NMIS_GLOBAL_ENABLE_PASSWORD_ENCRYPTION}),
 	"no NMIS_GLOBAL_ENABLE_PASSWORD_ENCRYPTION override is in this process's environment");
