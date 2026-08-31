@@ -224,7 +224,7 @@ sub fetch
 my $TOKEN;
 {
 	my ($code, $body) = fetch(GET =>
-		'/cgi-nmis9/tables.pl?conf=Config&act=config_table_view&table=Contacts&widget=false');
+		'/cgi-nmis9/tables.pl?conf=Config&act=config_table_view&table=Nodes&widget=false');
 	is($code, 200, 'a read act by GET returns 200');
 	unlike($body, $REFUSAL, 'a read act by GET is not refused');
 	unlike($body, qr/Invalid username\/password/, 'and the session is live, not the login page');
@@ -232,6 +232,15 @@ my $TOKEN;
 	# every converted form carries the token, so scrape one to drive the cases below
 	($TOKEN) = $body =~ /name="csrf_token"\s+value="([^"]+)"/;
 	ok($TOKEN, 'the read page renders a CSRF token to submit with');
+
+	# OMK-12926, PR 75 review: this is viewTable's own start_form
+	# (cgi-bin/tables.pl:291), reached by act=config_table_view with no key at
+	# all - nothing else in this file drives it. table=Nodes rather than Contacts
+	# gives the form the id assert_clean_form_action below looks for, at no cost
+	# of an extra request: the positive control above needs any read page, and
+	# this response already is one.
+	assert_clean_form_action($t->tx->res->dom, 'nmisNodes', 'tables.pl',
+													 'view table (Nodes) form');
 }
 
 # ---- the three refusals ----------------------------------------------------

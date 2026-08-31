@@ -435,6 +435,35 @@ sub assert_clean_form_action
 	like($path, qr{/\Q$script\E$}, "$desc: and the action still points at $script");
 }
 
+# OMK-12926, PR 75 review: the same check as assert_clean_form_action, for
+# dodeleteTable's Nodes confirmation page (cgi-bin/tables.pl:1198). That
+# start_form is called with -id=>"" rather than $formid, and CGI.pm renders
+# that as a literal id="" attribute, not the absence of one, so
+# "form#nmisNodes" never matches it. Compat::NMIS::pageStart, the only other
+# thing this page prints around the form, emits no form of its own, so the
+# page carries exactly one <form> - finding it by that fact is a fixture-sanity
+# check in its own right, since an error page or the wrong branch would not
+# carry exactly one.
+sub assert_clean_sole_form_action
+{
+	my ($dom, $script, $desc) = @_;
+
+	my $forms = $dom->find('form');
+	if ($forms->size != 1)
+	{
+		fail("$desc: the response carries exactly one form (found " . $forms->size . ")");
+		fail("$desc: (its action was not checked)");
+		return;
+	}
+	my $action = $forms->first->attr('action') // '';
+	my ($path) = split(/\?/, $action, 2);
+	ok(index($action, '?') < 0, "$desc: the form action carries no query string")
+			or diag("action path is '$path', followed by a "
+							. (length($action) - length($path) - 1)
+							. " byte query string that is not printed here");
+	like($path, qr{/\Q$script\E$}, "$desc: and the action still points at $script");
+}
+
 # ---- seed a node holding real ciphertext in all six secret fields -----------
 
 {
@@ -652,6 +681,89 @@ for my $f (grep { $_ ne 'community' } @SECRET_FIELDS)
 										&& (($job->{args}->{uuid} // '') eq $node->uuid));
 	}
 	is($leftover, 0, "case 5: no update job for the seed node is left in the queue");
+}
+
+# ---- 6. OMK-12926, PR 75 review: the node delete confirmation page must not ----
+# echo the query string into its form action
+#
+# dodeleteTable's Nodes branch (cgi-bin/tables.pl:1143) does not delete the node
+# on this request. For table=Nodes it calls NMISNG::update_queue with type
+# "delete_nodes" (lib/NMISNG.pm:5677), which SYNCHRONOUSLY deactivates the node
+# - collect=0, active=0, saved immediately - but only SCHEDULES the row's
+# removal; that happens later, out of process, when nmisd's worker consumes the
+# job (bin/nmisd:1826). The response to this POST is dodeleteTable's own
+# confirmation page, "User-initiated delete of $NODENAME", printed by a
+# start_form call (tables.pl:1198) that carried the exact same self_url defect
+# as the other three start_form calls in this file, fixed the same way and
+# covered by the same test discipline. Unlike the other three it is called with
+# -id=>"" rather than $formid, so assert_clean_form_action's id lookup cannot
+# find it; assert_clean_sole_form_action above finds the page's one <form> by
+# its presence instead.
+#
+# Placed last, after every other assertion that reads or writes the node.
+# This request's synchronous deactivation and its queued row-delete are real,
+# irreversible mutations of the seed node, which this file has otherwise gone
+# out of its way to avoid (see the "inactive on purpose" comment above case 5's
+# fixture). The queue race is the same one case 5 documented: nmisd is a live
+# worker in the dev and CI containers, the job is priority 1 and due
+# immediately, so it can be consumed - and the row actually deleted - between
+# this POST and the cleanup below. Containment therefore has the same two
+# parts, and only the state check at the end is an assertion about the world;
+# if the worker wins the race, END's node cleanup below is a best-effort no-op,
+# which is the outcome that is actually fine.
+
+{
+	# a fresh token: case 5's was scoped to its own block, and verify_csrf does
+	# not care which act it was minted alongside (it is bound to the
+	# authenticated user, not to a specific act - lib/NMISNG/Auth.pm:552).
+	my $preform = fetch_edit_form("delete confirmation setup");
+
+	$t->post_ok('/cgi-nmis9/tables.pl' => form =>
+		{ conf => 'Config', act => 'config_table_dodelete', table => 'Nodes',
+		  key => $NODENAME, widget => 'false', csrf_token => $preform->{csrf_token} });
+	my $body = $t->tx->res->body // '';
+	is($t->tx->res->code, 200, "case 6: the delete submission is answered");
+
+	# fixture sanity before anything is concluded from the body: if the
+	# scheduling branch did not run, the form under test was never rendered.
+	my $marker = "User-initiated delete of $NODENAME";
+	ok(index($body, $marker) >= 0, "case 6: the node delete confirmation page rendered")
+			or diag("marker '$marker' missing from a " . length($body) . " byte response, "
+							. "first line: " . ((split(/\r?\n/, $body, 2))[0] // ''));
+
+	assert_clean_sole_form_action($t->tx->res->dom, 'tables.pl', "case 6");
+
+	# ---- put the queue back the way we found it, without racing the worker -----
+	# Same reasoning as case 5's cleanup. The only differences: the job type is
+	# "delete_nodes", and dodeleteTable identifies the node by "node" name
+	# (tables.pl:1170, an arrayref of one), never by "uuid" - that arg is only
+	# ever set for collect/update/services jobs.
+
+	my ($jobid) = $body =~ /job id ([0-9a-fA-F]{24})/;
+	ok($jobid, "case 6: the delete job was scheduled and reported its id")
+			or diag("no job id in the response, so dodeleteTable's scheduling branch "
+							. "either did not run or did not report one - in which case the "
+							. "page just asserted on is probably not the page under test");
+
+	if ($jobid)
+	{
+		my $err = $nmisng->remove_queue(id => NMISNG::DB::make_oid($jobid));
+		# the driver's wording for "already gone"; see case 5 above for why that
+		# is a pass
+		$err = undef if (defined($err) && $err =~ /no matching queue entry found/);
+		ok(!$err, "case 6: the scheduled delete job was removed, or already consumed")
+				or diag("remove_queue said: $err");
+	}
+
+	my $leftover = 0;
+	for my $job (@{$nmisng->get_queue_model()->data() // []})
+	{
+		next unless (($job->{type} // '') eq 'delete_nodes');
+		my $names = $job->{args}->{node};
+		$names = [$names] if (defined($names) && ref($names) ne 'ARRAY');
+		++$leftover if ($names && grep { ($_ // '') eq $NODENAME } @$names);
+	}
+	is($leftover, 0, "case 6: no delete job for the seed node is left in the queue");
 }
 
 # ---- 4. the test must not have written conf/Config.nmis (round-4 review) -------
