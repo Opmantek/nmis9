@@ -1115,13 +1115,35 @@ changes is that secrets stop being readable by anyone holding the data.
 - A support archive from an encrypted install carries ciphertext Firstwave
   cannot read. That is the point, and it is also a diagnosis cost. Credential
   problems now have to be reproduced on the customer's side.
-- If the crypto modules are absent, encryption fails closed rather than
-  silently degrading. Values stay plaintext, errors are logged per field and
-  the selftest banner reports it. `installer_hooks/21-postcopy-encryption`
-  warns at install time and names the packages. So a fresh install on a host
-  without `Crypt::CBC`, `Crypt::Cipher::AES` and `Math::Random::Secure` ships
-  with the flag on and nothing encrypted, which is visible but is not what the
-  operator will assume from the setting.
+- If the crypto modules are absent, or `isEOSAvailable()`'s check fails for
+  any other reason, the consequence is not only "encryption fails closed and
+  values stay plaintext". It is also an availability failure, and the two
+  need stating separately.
+  - **The daemon refuses to start.** `bin/nmisd`'s startup gate (~:176-232)
+    calls `isEOSAvailable()` when the flag is on, and in a non-interactive
+    process (no controlling TTY — every real deployment) a failed check exits
+    the daemon with status 255, with the reason printed to stdout only, never
+    to the log. `nmisweb` has no such gate and keeps running, so the visible
+    symptom is a GUI that loads while nothing polls, which is not an obvious
+    place to look for "an encryption setting stopped the daemon".
+  - **The gate also fails on version, not just on missing packages.**
+    `isEOSAvailable()` checks every co-installed OMK product's version
+    against a hardcoded EOS minimum (opCharts 4.7.0, opEvents 4.4.0,
+    opAddress 3.0.0, opHA 4.0.0, opConfig 4.6.0, opReports 4.6.0, Open-AudIT
+    4.4.0) and fails the whole gate if any installed product is older, with
+    every crypto module present and working. A fresh NMIS 9.6.5 install
+    (encryption on by default) sitting beside an older OMK product therefore
+    gets a non-starting `nmisd` from the version interaction alone.
+  - **Away from the nmisd gate**, e.g. `verifyNMISEncryption`'s own use of a
+    missing module or a failed self-test, the fail-closed behaviour described
+    before this correction does hold: values stay plaintext, errors are
+    logged per field, and the selftest banner reports it.
+    `installer_hooks/21-postcopy-encryption` warns at install time and names
+    the packages. So a fresh install on a host without `Crypt::CBC`,
+    `Crypt::Cipher::AES` and `Math::Random::Secure` ships with the flag on
+    and nothing encrypted, which is visible but is not what the operator will
+    assume from the setting — and, per the point above, is a narrower problem
+    than the same missing modules reaching `bin/nmisd` first.
 
 **The master key becomes backup-critical material.** This is the operational
 change that matters most, and it is new for every fresh install as of this
@@ -1250,6 +1272,28 @@ None are implemented.
   that tests the exit status reads a successful enable as a failure. Changing
   it is a breaking change for whatever already shells out to these acts.
   **Ticket to follow.**
+- **`enableEOS`, `disableEOS` and `verifyNMISEncryption` ignore
+  `writeConfData`'s returned refusal string.** All three call
+  `writeConfData(data=>$fullConfig)` (`lib/NMISNG/Util.pm` ~:4494, ~:4562,
+  ~:4815, ~:4950) without checking what it returns. `writeConfData` refuses
+  the whole write and returns an error string, rather than writing, when any
+  key in the hash is managed by conf.d (layer 3) or the environment (layer 4)
+  and the value handed in differs from the effective one — the same layer
+  guard `_migrate_config_secret` already respects (see the Minor 4 fix in
+  this entry). Before that guard existed this path was effectively
+  unreachable; it is newly live now that the guard is in place. Concretely:
+  on a host with any env- or conf.d-managed key that diverges from
+  `getConfDeep`'s stored copy — the shipped container's `NMIS_DB_PASSWORD`
+  is exactly this shape — `disableEOS`'s write of
+  `global_enable_password_encryption => 'false'` is silently refused, the
+  flag stays `'true'` on disk, and `disableEOS` still calls
+  `verifyNMISEncryption`, which reloads that same still-`'true'` config,
+  finds nothing to change on the encrypted-branch pass, returns 0, and is
+  read by `disableEOS` as "verification ran clean" — so it prints "Encryption
+  was successfully disabled" and exits success while nothing on disk moved.
+  The same blind spot applies to `enableEOS`'s write and to
+  `verifyNMISEncryption`'s own two `writeConfData` calls for the migrated
+  password fields. **Ticket to follow.**
 - **`Auth->new` defaults `privlevel => 0` (fail-open).** The OMK-12707 guard
   denies unless `privlevel == 0`, so an Auth object never initialised by login
   would be treated as admin. Verified not reachable on any current web write

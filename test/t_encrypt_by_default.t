@@ -66,8 +66,12 @@
 #
 # Isolation:
 #   NMIS_MASTER_KEY_FILE - a key in a private temp dir, created here because
-#       _resolve_seed never creates one at a non-default path. The shipped
-#       /usr/local/etc/firstwave/master.key is never read, created or replaced.
+#       _resolve_seed never creates one at a non-default path. The BEGIN
+#       block above (before this override takes effect) DOES read whatever
+#       master key is ambient - the shipped default path unless master_key_file
+#       says otherwise - to resolve the checkout's db_password; that read is
+#       the whole reason it has to run first. That key is never created or
+#       replaced by this file, only read.
 #   NMIS_NMIS_LOGS - a temp log directory, so nothing appends to the real
 #       nmis.log.
 #   conf/Config.nmis is backed up with bytes, mode and ownership and restored in

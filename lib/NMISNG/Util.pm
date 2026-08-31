@@ -5040,10 +5040,16 @@ sub _migrate_config_secret
 			my $layer = (ref($src) eq 'HASH') ? $src->{layer} : undef;
 			if (defined($layer) && ($layer == 3 || $layer == 4))
 			{
+				# writeConfData refuses the WHOLE file on the first conflicting key it
+				# finds, which is not necessarily $keyword: another conf.d- or
+				# ENV-managed key in the same write can be the actual cause. $err
+				# names that key (and its source), never a value, so appending it
+				# makes a whole-file refusal self-diagnosing instead of pointing
+				# only at the key this call happened to be migrating.
 				$logger->info("The stored secret for '$section/$keyword' is managed by "
 					. (($src->{source} // "config layer $layer"))
 					. ", so it is not migrated to match the current encryption setting. "
-					. "The value in use is unaffected.");
+					. "The value in use is unaffected. ($err)");
 			}
 			else
 			{
