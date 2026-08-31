@@ -134,6 +134,13 @@ provision_master_key() {
     if [ "$MASTERKEY_WAS_ABSENT" -eq 1 ]; then
       echo "Generated a master key for this container (${NMIS_MASTERKEY_DEFAULT_FILE})."
       master_key_swap_warning
+    else
+      # an existing key is never modified, so a wrongly-owned one (e.g. a
+      # root-owned docker cp restore) stays wrong silently unless we say so
+      MK_OWNER="$(nmis_masterkey_owner_ok "${NMIS_USER}")" && : || {
+        echo "WARNING: ${NMIS_MASTERKEY_DEFAULT_FILE} exists but is owned '${MK_OWNER:-unknown}', wanted '${NMIS_USER}:nmis'." >&2
+        echo "WARNING: the nmis daemons cannot read it; fix with: chown ${NMIS_USER}:nmis ${NMIS_MASTERKEY_DEFAULT_FILE} && chmod 0440 ${NMIS_MASTERKEY_DEFAULT_FILE}" >&2
+      }
     fi
   else
     echo "WARNING: could not provision a master key; encryption of secrets cannot run until ${NMIS_MASTERKEY_DEFAULT_FILE} exists and is readable by ${NMIS_USER}."
@@ -149,6 +156,9 @@ master_key_swap_warning() {
   # is wiped. Cheap proxy only: encrypted node secrets in Mongo are not
   # visible from shell at boot; those surface via the "Encryption of
   # secrets" selftest banner.
+  # the runtime ignores the generated key when NMIS_MASTER_KEY_FILE points at
+  # an operator-supplied key, so a fresh generated key implies nothing then
+  [ -z "${NMIS_MASTER_KEY_FILE:-}" ] || return 0
   MK_CONFIG="${NMIS_HOME}/conf/Config.nmis"
   [ -f "$MK_CONFIG" ] || return 0
   if grep -q "'!!" "$MK_CONFIG"; then
@@ -164,6 +174,12 @@ master_key_swap_warning() {
     echo "WARNING:   docker cp <old-container>:/usr/local/etc/firstwave/master.key ." >&2
     echo "WARNING: (run BEFORE removing the old container), then copy it into" >&2
     echo "WARNING: this container's /usr/local/etc/firstwave/ and restart." >&2
+    echo "WARNING: After copying the key in, make it readable by nmis inside" >&2
+    echo "WARNING: this container: chown nmis:nmis and chmod 0440 the file." >&2
+    echo "WARNING: A boot never modifies an existing key." >&2
+    echo "WARNING: If the old container is already removed and no backup of" >&2
+    echo "WARNING: master.key exists, those values are unrecoverable;" >&2
+    echo "WARNING: re-enter the affected secrets." >&2
     echo "WARNING: ############################################################" >&2
   fi
 }

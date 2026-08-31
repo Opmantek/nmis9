@@ -58,13 +58,30 @@ ok(defined $provbody, "extracted provision_master_key source");
 # would just find the first (unrelated) block and miss the real one. Loop
 # over every such block and require the call inside at least one of them.
 my $swap_in_branch = 0;
-while ($provbody =~ /if\s*\[\s*"\$MASTERKEY_WAS_ABSENT"\s+-eq\s+1\s*\];\s*then(.*?)^\s*fi/msg) {
-	if ($1 =~ /master_key_swap_warning/) {
+my $fresh_key_branch = '';
+# block terminator anchored to a line that is ONLY "fi" (optional trailing
+# whitespace): a bare "^\s*fi" would let a future line merely starting with
+# "fi..." end the match early and silently truncate the captured block.
+while ($provbody =~ /if\s*\[\s*"\$MASTERKEY_WAS_ABSENT"\s+-eq\s+1\s*\];\s*then(.*?)^\s*fi\s*$/msg) {
+	# stash $1 first: testing $1 itself against another pattern is still a
+	# match, and even a group-less one clears $1 on success.
+	my $block = $1;
+	if ($block =~ /master_key_swap_warning/) {
 		$swap_in_branch = 1;
+		$fresh_key_branch = $block;
 		last;
 	}
 }
 ok($swap_in_branch, "the swap warning call sits inside a fresh-key branch");
+
+# OMK-12827 Fix 2b: the existing-key path (the else of the same fresh/existing
+# key branch just located above) must verify ownership rather than silently
+# trusting an existing key, using the shared checker.
+my ($existing_key_else) = $fresh_key_branch =~ /\belse\b(.*)/s;
+ok(defined $existing_key_else, "found the existing-key else branch within the fresh-key if")
+	or BAIL_OUT("cannot extract the existing-key else branch");
+like($existing_key_else, qr/nmis_masterkey_owner_ok/,
+	"the existing-key else-branch calls nmis_masterkey_owner_ok");
 
 # --- swap-warning behaviour: drive the real function ---
 use File::Temp;
@@ -80,11 +97,14 @@ print $ff $fnsrc;
 close $ff;
 
 sub swap_warning_run {
-	my ($confcontent) = @_;
+	# $extra_env: optional literal shell assignment(s), semicolon-terminated,
+	# spliced in before the function call (e.g. env for the operator-key case).
+	my ($confcontent, $extra_env) = @_;
+	$extra_env = '' unless defined $extra_env;
 	open(my $cf, '>', "$tempdir/conf/Config.nmis") or die "write conf: $!";
 	print $cf $confcontent;
 	close $cf;
-	my $out = qx{bash -c 'set -e; . $fnfile; NMIS_HOME=$tempdir; master_key_swap_warning' 2>&1};
+	my $out = qx{bash -c 'set -e; . $fnfile; NMIS_HOME=$tempdir; $extra_env master_key_swap_warning' 2>&1};
 	return ($out, $? >> 8);
 }
 
@@ -98,5 +118,17 @@ is($warn_rc, 0, "the warning path exits 0 under set -e");
 my ($quiet, $quiet_rc) = swap_warning_run(q{'db_password' => 'plaintext',});
 is($quiet, '', "fresh key beside a clean config stays silent");
 is($quiet_rc, 0, "the silent path exits 0 under set -e (a failed grep must not kill the boot)");
+
+# operator-key configuration (NMIS_MASTER_KEY_FILE, the documented
+# compose-secrets alternative): the runtime ignores the generated default-path
+# key when this is set, so a fresh generated key beside a '!!' config implies
+# nothing - the warning would be false. Must stay silent even with a '!!'
+# config that would otherwise trigger it.
+my ($opkey, $opkey_rc) = swap_warning_run(
+	q{'db_password' => '!!deadbeef',},
+	'NMIS_MASTER_KEY_FILE=/run/secrets/whatever;'
+);
+is($opkey, '', "NMIS_MASTER_KEY_FILE set beside a '!!' config stays silent (no false swap warning)");
+is($opkey_rc, 0, "the operator-key path exits 0 under set -e");
 
 done_testing();
