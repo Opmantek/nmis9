@@ -113,6 +113,9 @@ working_tests=(
     # and restores conf/Config.nmis)
     t_eos_cli.t
     t_eos_functions.pl
+    # OMK-12928: decrypt's section/keyword migration writes, including the
+    # ENV-managed refusal that used to vanish silently
+    t_util_migration_writes.t
     t_plugin_nodevalidation.pl
     notify_depend.t
     t_nmisng_node_nomodel.pl

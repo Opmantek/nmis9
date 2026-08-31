@@ -4957,6 +4957,68 @@ sub verifyNMISEncryption {
 }
 
 ########################################################################
+# _migrate_config_secret - bring the STORED form of one config secret  #
+#                          into line with the encryption setting.      #
+#                                                                      #
+# decrypt calls this when it was handed a section and a keyword, which #
+# means the value came out of conf/Config.nmis: encryption on and the  #
+# field plaintext means write the ciphertext back, encryption off and  #
+# the field '!!' means write the plaintext back.                       #
+#                                                                      #
+# The migration is OPPORTUNISTIC and must stay that way. With          #
+# encryption on by default (OMK-12695) the first database connect of   #
+# EVERY process reaches this through NMISNG::DB's                      #
+# decrypt($db_password, 'database', 'db_password') - daemons, CLI runs #
+# and short-lived CGI children that never wrote config before. Two     #
+# consequences, and this wrapper exists for both:                      #
+#                                                                      #
+#  - writeConfData refuses to write a property that conf.d or the      #
+#    environment owns once the value it is handed differs from the     #
+#    effective one, and it refuses the WHOLE file at that point (the   #
+#    guard that bit t_cgi_config_protected_keys.t in CI). An           #
+#    ENV-managed db_password meets it on every connect: fresh          #
+#    ciphertext never equals the plaintext the environment supplies.   #
+#    It reports that by RETURNING an error string rather than dying,   #
+#    and the return value used to be discarded - so the refusal was    #
+#    invisible: no migration and no log line, on every connect,        #
+#    forever. It is now logged.                                        #
+#  - nothing in the write path may take the caller down. No croak is   #
+#    reachable there today (writeConfData and writeHashtoFile both     #
+#    return their errors), but writeConfData's own                     #
+#    _notify_config_changed mkpaths a var directory and mkpath croaks  #
+#    on failure, and this is now on the hot path of every process. The #
+#    eval makes the difference between a failed convenience write and  #
+#    a failed database connect.                                        #
+#                                                                      #
+# Returns nothing, and NEVER changes what decrypt returns. Logs the    #
+# property NAME only, never a value.                                   #
+########################################################################
+sub _migrate_config_secret
+{
+	my ($logger, $section, $keyword, $newvalue) = @_;
+
+	eval {
+		# the non-flattened raw hash: only site overrides are writable
+		my ($fullConfig, undef) = getConfDeep(only_local => 1);
+		my $stored = $fullConfig->{$section}{$keyword};
+		return if (defined($stored) && $stored eq $newvalue);   # leaves the eval
+
+		$logger->debug3(sub {"Migrating the stored secret for Section: '$section' Field: '$keyword'"});
+		$fullConfig->{$section}{$keyword} = $newvalue;
+		my $err = writeConfData(data => $fullConfig);
+		$logger->error("ERROR: could not migrate the stored secret for '$section/$keyword' "
+			. "to match the current encryption setting: $err. The value in use is unaffected.")
+				if ($err);
+	};
+	if ($@)
+	{
+		$logger->error("ERROR: could not migrate the stored secret for '$section/$keyword' "
+			. "to match the current encryption setting: $@. The value in use is unaffected.");
+	}
+	return;
+}
+
+########################################################################
 # decrypt - Decrypt the password.                                      #
 ########################################################################
 sub decrypt {
@@ -5010,16 +5072,7 @@ sub decrypt {
 			# If the 'section and 'keyword' arguments are passed, it means we are
 			# dealing with the configuration file, so we we encrypt it in the file.
 			if (defined($section) && defined($keyword) && $section ne '' && $keyword ne '') {
-				# Get the non-flattened raw hash
-				my ($fullConfig,undef) = getConfDeep(only_local => 1);
-				$logger->debug9(sub {"Config '" .  Dumper($fullConfig) . "'."});
-				my $encrypted_pw = encrypt($password);
-				if ($fullConfig->{$section}{$keyword} ne $encrypted_pw) {
-					$logger->debug3(sub {"Encrypting the password for Section: '$section' Field: '$keyword'"});
-					$fullConfig->{$section}{$keyword} = $encrypted_pw;
-					$logger->debug9(sub {"Config '" .  Dumper($fullConfig) . "'."});
-					writeConfData(data=>$fullConfig);
-				}
+				_migrate_config_secret($logger, $section, $keyword, encrypt($password));
 			}
 		} else {
 			$logger->debug9(sub {"Encryption is disabled."});
@@ -5080,15 +5133,7 @@ sub decrypt {
 		# If we have an encrypted password in the configuration file, then we unencrypt it.
 		# (If the 'section and 'keyword' arguments are passed, it means we are dealing with the configuration file)
 		if (defined($section) && defined($keyword) && $section ne '' && $keyword ne '') {
-			# Get the non-flattened raw hash
-			my ($fullConfig,undef) = getConfDeep(only_local => 1);
-			$logger->debug9(sub {"Config '" .  Dumper($fullConfig) . "'."});
-			if ($fullConfig->{$section}{$keyword} ne $password) {
-				$logger->debug3(sub {"Decrypting the password for Section: '$section' Field: '$keyword'"});
-				$fullConfig->{$section}{$keyword} = $password;
-				$logger->debug9(sub {"Config '" .  Dumper($fullConfig) . "'."});
-				writeConfData(data=>$fullConfig);
-			}
+			_migrate_config_secret($logger, $section, $keyword, $password);
 		}
 	}
 
