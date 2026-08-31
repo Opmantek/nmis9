@@ -278,6 +278,33 @@ my $PROBE_SETUPMIX = 't12827_prot_probe_setupmix';
 
 {
 	my ($local) = NMISNG::Util::getConfDeep(only_local => 1);
+
+	# Drop any key that is CURRENTLY sourced from conf.d (layer 3) or ENV
+	# (layer 4) before round-tripping this hash through writeConfData.
+	# only_local still returns whatever literal value conf/Config.nmis
+	# happens to hold on disk for such a key - e.g. db_auth_source, written by
+	# setup_mongodb.pl's scoped-user migration - and that stored value can be
+	# stale once conf.d or an env var takes over. writeConfData refuses to
+	# write an ENV/conf.d-sourced key whose submitted value differs from the
+	# current effective one (NMISNG::Util.pm's "Cannot modify property ...  -
+	# it is managed by ..." guard), which is exactly the CI-only bailout this
+	# avoids: CI's Test NMIS step runs the suite with NMIS_DB_USERNAME,
+	# NMIS_DB_PASSWORD and NMIS_DB_AUTH_SOURCE exported (bitbucket-pipelines.yml),
+	# promoting those keys to layer 4 with values that no longer match whatever
+	# setup_mongodb.pl last wrote to the file. Layer 3/4 always win over the raw
+	# file at load time regardless of what the file contains, so omitting them
+	# here changes nothing at runtime, and END below restores the original
+	# bytes untouched either way.
+	my $sources = NMISNG::Util::getConfigSources();
+	for my $key (keys %$sources)
+	{
+		my $layer = $sources->{$key}{layer};
+		next unless (defined($layer) && ($layer == 3 || $layer == 4));
+		my $section = $sources->{$key}{section};
+		delete $local->{$section}{$key}
+				if (defined($section) && ref($local->{$section}) eq 'HASH');
+	}
+
 	$local->{system}{master_key_file} = $SENTINEL;
 	$local->{system}{$PROBE_EDIT}     = 'before';
 	$local->{system}{$PROBE_DELETE}   = 'before';
