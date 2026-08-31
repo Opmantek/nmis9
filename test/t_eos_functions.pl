@@ -126,19 +126,15 @@ my $C         = NMISNG::Util::loadConfTable();
 my $CONF_FILE = $C->{configfile};
 my $CONF_BAK  = "$CONF_FILE.bak";
 
-# ---- non-root: assert the refusal, do not skip ------------------------------
-if ($> != 0)
-{
-	# disableEOS returns 1 ("already disabled") before it ever reaches its root
-	# check when the flag is off, so only enableEOS can be asserted here without
-	# first writing to the config - which a non-root run may not be able to do.
-	my $rc = NMISNG::Util::enableEOS();
-	is($rc, 0, "enableEOS refuses a non-root caller");
-	diag("running as uid $>; the enable/disable behaviour itself is root-only "
-			 . "(it stops and starts every NMIS and OMK daemon)");
-	done_testing();
-	exit 0;
-}
+# verifyNMISEncryption writes its plaintext backup to this hardcoded directory
+# (root-only, 0400) regardless of master_key_file. Phase 3 asserts that no such
+# file appears, which is only meaningful if the directory exists; create it if
+# it does not, and take it away again if we were the ones who made it. Declared
+# up here so the END block below can never see it undefined, whatever exits
+# first.
+my $SEEDDIR = '/usr/local/etc/firstwave';
+my $MADE_SEEDDIR = 0;
+my %SEEDDIR_PREEXISTING;
 
 # ---- backup / restore, bytes + mode + owner ---------------------------------
 # writeConfData copies the live file to <file>.bak before every write, so both
@@ -152,7 +148,16 @@ sub save_file
 	return undef if (!-f $orig);
 	my @st = CORE::stat($orig);
 	my $to = "$orig$suffix";
-	copy($orig, $to) or BAIL_OUT("cannot back up $orig: $!");
+	if (!copy($orig, $to))
+	{
+		# A non-root run cannot write into conf/ at all - which is also why it
+		# cannot damage the config, so there is nothing to protect and the run
+		# continues to its one assertion. As root a failed backup is fatal: the
+		# phases below rewrite this file.
+		BAIL_OUT("cannot back up $orig: $!") if ($> == 0);
+		diag("no backup of $orig taken: $! (running as uid $>, which cannot write it either)");
+		return undef;
+	}
 	return { copy => $to, mode => ($st[2] & 07777), uid => $st[4], gid => $st[5] };
 }
 
@@ -160,26 +165,26 @@ sub restore_file
 {
 	my ($saved, $orig) = @_;
 	return if (!$saved || !-f $saved->{copy});
-	copy($saved->{copy}, $orig);
+	# a failed restore leaves the operator's config as this test rewrote it, so
+	# it must never be silent, even in END where nothing can be asserted
+	copy($saved->{copy}, $orig)
+		or diag("RESTORE FAILED: could not copy $saved->{copy} back to $orig: $!");
 	chmod($saved->{mode}, $orig);
 	chown($saved->{uid}, $saved->{gid}, $orig);
 	unlink $saved->{copy};
 }
 
+# Taken BEFORE the non-root branch below: enableEOS's first act is its root
+# check, but nothing in this file may depend on that ordering to keep the
+# operator's config safe.
 my $CONF_SAVED = save_file($CONF_FILE, ".t12927eosbak");
 my $BAK_SAVED  = save_file($CONF_BAK, ".t12927eosbak");
 
-# verifyNMISEncryption writes its plaintext backup to this hardcoded directory
-# (root-only, 0400) regardless of master_key_file. Phase 3 asserts that no such
-# file appears, which is only meaningful if the directory exists; create it if
-# it does not, and take it away again if we were the ones who made it.
-my $SEEDDIR = '/usr/local/etc/firstwave';
-my $MADE_SEEDDIR = 0;
 if (!-d $SEEDDIR)
 {
 	$MADE_SEEDDIR = mkdir($SEEDDIR, 0700) ? 1 : 0;
 }
-my %SEEDDIR_PREEXISTING = map { $_ => 1 } glob("$SEEDDIR/NMIS-*");
+%SEEDDIR_PREEXISTING = map { $_ => 1 } glob("$SEEDDIR/NMIS-*");
 
 # Every NMIS-<epoch> dump this run has made so far. Phase 1's enableEOS writes
 # one legitimately, so a phase-3 measurement has to start from a clean slate
@@ -195,6 +200,34 @@ END {
 	# never leave a plaintext secrets dump behind, whichever phase made it
 	unlink(grep { !$SEEDDIR_PREEXISTING{$_} } glob("$SEEDDIR/NMIS-*"));
 	rmdir($SEEDDIR) if ($MADE_SEEDDIR);
+}
+
+# ---- non-root: assert the refusal, do not skip ------------------------------
+# Placed after the backup and the END block, so a non-root run that somehow
+# does write leaves nothing behind.
+if ($> != 0)
+{
+	# disableEOS returns 1 ("already disabled") before it ever reaches its root
+	# check when the flag is off, so only enableEOS can be asserted here without
+	# first writing to the config - which a non-root run may not be able to do.
+	#
+	# enableEOS has the mirror-image early return: it answers 1 ("already
+	# enabled") before ITS root check when the flag is already on. Since
+	# OMK-12695 made encryption the shipped default, that is what a stock
+	# config now gives, and this assertion would invert on every non-root run.
+	# The flag is therefore pinned OFF here explicitly. This branch is about
+	# the root refusal, not about the default.
+	local $ENV{NMIS_GLOBAL_ENABLE_PASSWORD_ENCRYPTION} = 'false';
+	$NMISNG::Util::_config_cache_invalid = 1;
+	my $cfg = NMISNG::Util::loadConfTable();
+	is(NMISNG::Util::getbool($cfg->{global_enable_password_encryption}), 0,
+		"non-root fixture: the flag is pinned off, so enableEOS reaches its root check");
+	my $rc = NMISNG::Util::enableEOS();
+	is($rc, 0, "enableEOS refuses a non-root caller");
+	diag("running as uid $>; the enable/disable behaviour itself is root-only "
+			 . "(it stops and starts every NMIS and OMK daemon)");
+	done_testing();
+	exit 0;
 }
 
 # ---- fixture helpers --------------------------------------------------------
@@ -362,8 +395,15 @@ my $ROPW   = 'eosRoundTripComm2';
 	reset_log();
 	my $rc = NMISNG::Util::disableEOS();
 	is($rc, 0, "disableEOS reports FAILURE when a '!!' field could not be decrypted");
-	like(read_log(), qr/could not be decrypted|still encrypted|undecryptable/i,
-		"and the log says so, naming what survived");
+	my $phase2log = read_log();
+	like($phase2log, qr/could not be decrypted|still encrypted|undecryptable/i,
+		"and the log says so");
+	# by NAME, not just by count: an operator reading this line has to know
+	# which secret to re-enter, and a bare count does not tell them
+	like($phase2log, qr/\bmail_password\b/,
+		"naming the field that survived");
+	unlike($phase2log, qr/\Q$SURVIVOR\E/,
+		"without echoing the stored value");
 
 	(undef, $local) = reload();
 	is(stored($local, 'email:mail_password'), $SURVIVOR,
