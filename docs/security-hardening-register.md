@@ -1088,13 +1088,18 @@ does not start encrypting on upgrade, on any of the three delivery paths.
   it is safe (already-plaintext values are read as-is and up-migrate as they are
   touched), but it is an upgrade that changes behaviour without the operator
   asking, so it belongs in the release note.
-- *Production container.* The image bakes
-  `conf-default/docker/Config.nmis.docker` to `conf/Config.nmis` at build time
-  and `conf/` is a named volume. A named volume copies image content only on
-  first use, so a fresh deployment gets the flipped config and a deployment
-  whose `nmis_conf_data` volume is already populated keeps the config it has.
-- *Dev container.* `docker-dev/docker-entrypoint-dev.sh` copies
-  `Config.nmis.docker` to `conf/Config.nmis` only when that file is absent.
+- *Production container.* The `dockerfile` bakes the flipped config in at build
+  time - `COPY ../conf-default/docker/Config.nmis.docker`
+  `${NMIS_HOME}/conf/Config.nmis` (`dockerfile:169`) - and declares `conf/` a
+  `VOLUME` (`dockerfile:172`); the production `docker-entrypoint.sh` does NOT
+  copy the file on boot. A volume is populated from the image's content only on
+  first use, so a fresh deployment gets the flipped config while a deployment
+  whose `conf/` volume is already populated keeps the config it has. The
+  fresh-vs-existing outcome is a property of the volume, not of any entrypoint
+  copy.
+- *Dev container.* Only the dev path copies at boot:
+  `docker-dev/docker-entrypoint-dev.sh` copies `Config.nmis.docker` to
+  `conf/Config.nmis`, and only when that file is absent.
 
 An existing site opts in with `bin/nmis-cli act=enable-eos` (root), restored by
 OMK-12927. That converts every protected config field and every node secret in
@@ -1182,7 +1187,15 @@ The drill:
 `PasswordFields.nmis` entry and every node secret, writes each back in
 plaintext, sets the flag to `'false'`, and, since OMK-12927, reports failure and
 names the fields when any `!!` value could not be decrypted rather than claiming
-success over ciphertext it cannot read.
+success over ciphertext it cannot read. Since PR 76 (OMK-12695) both
+`disable-eos` and `enable-eos` also check `writeConfData`'s return: when the
+whole-file write is refused because a conf.d- or ENV-managed key it is handed
+diverges from the effective value - the shipped container's steady state, where
+`db_password` is layer 4 - they report failure and surface the refusal (naming
+the offending key and its source, never a value) instead of announcing success
+over a flag that never moved. `verifyNMISEncryption`'s own two writes are
+checked the same way. That closes the former register open thread on the
+discarded `writeConfData` return.
 
 Hand-editing the flag to `'false'` is not equivalent and should not be
 documented as the way back. It converts nothing at the moment it is done.
@@ -1255,14 +1268,22 @@ None are implemented.
   to be "admin *within a tenant*" — a tenant/group boundary enforced on every
   read and write — rather than "global admin minus a few tables". Strategic item,
   not a patch.
-- **`disableEOS` writes the flag to disk before it verifies.** The down-migration
-  sweep sets `global_enable_password_encryption` to `'false'` first and only
-  then walks the fields. When a `!!` value cannot be decrypted the run now
-  reports failure and names the survivors (OMK-12927 wart A), but the flag on
-  disk is already off while ciphertext remains in the file. The install is
-  half-converted and reads take the disabled path over values that still need
-  the key. The fix is to verify first and write the flag only on a clean sweep.
-  Pre-existing ordering, out of scope for OMK-12695. **Ticket to follow.**
+- **`disableEOS` writes the flag to disk before it verifies (partially
+  addressed, PR 76 / OMK-12695).** The down-migration sweep sets
+  `global_enable_password_encryption` to `'false'` first and only then walks
+  the fields. PR 76 now checks `writeConfData`'s return (thread #3 below, fixed
+  in the same PR), so the specific case where the flag write is *refused* - the
+  shipped container's steady state, where `db_password` is ENV-managed and
+  divergent - can no longer commit the flag while the operation is misreported
+  as success. What remains is the clean-write host: where the flag write is
+  accepted, it is still written before the decrypt sweep runs, so if a `!!`
+  value then cannot be decrypted the flag on disk is already off while
+  ciphertext remains in the file (the run reports failure and names the
+  survivors, OMK-12927 wart A, but the install is half-converted). True
+  verify-before-write was not done here because `verifyNMISEncryption` selects
+  its encrypt-vs-decrypt branch from the on-disk flag, so the flag has to be
+  written before the decrypt sweep can run at all; decoupling that is the more
+  invasive restructure. Deferred to **OMK-12932**.
 - **`act=enable-eos` exits 1 on SUCCESS.** `enableEOS`/`disableEOS` return 1 for
   success, and the restored dispatch does `exit($rc)`, so the shell sees a
   failure when the act worked (`act=check-eos` is the same: exit 1 means
@@ -1271,29 +1292,7 @@ None are implemented.
   inverting it. It is a scripting hazard: any installer, runbook or wrapper
   that tests the exit status reads a successful enable as a failure. Changing
   it is a breaking change for whatever already shells out to these acts.
-  **Ticket to follow.**
-- **`enableEOS`, `disableEOS` and `verifyNMISEncryption` ignore
-  `writeConfData`'s returned refusal string.** All three call
-  `writeConfData(data=>$fullConfig)` (`lib/NMISNG/Util.pm` ~:4494, ~:4562,
-  ~:4815, ~:4950) without checking what it returns. `writeConfData` refuses
-  the whole write and returns an error string, rather than writing, when any
-  key in the hash is managed by conf.d (layer 3) or the environment (layer 4)
-  and the value handed in differs from the effective one — the same layer
-  guard `_migrate_config_secret` already respects (see the Minor 4 fix in
-  this entry). Before that guard existed this path was effectively
-  unreachable; it is newly live now that the guard is in place. Concretely:
-  on a host with any env- or conf.d-managed key that diverges from
-  `getConfDeep`'s stored copy — the shipped container's `NMIS_DB_PASSWORD`
-  is exactly this shape — `disableEOS`'s write of
-  `global_enable_password_encryption => 'false'` is silently refused, the
-  flag stays `'true'` on disk, and `disableEOS` still calls
-  `verifyNMISEncryption`, which reloads that same still-`'true'` config,
-  finds nothing to change on the encrypted-branch pass, returns 0, and is
-  read by `disableEOS` as "verification ran clean" — so it prints "Encryption
-  was successfully disabled" and exits success while nothing on disk moved.
-  The same blind spot applies to `enableEOS`'s write and to
-  `verifyNMISEncryption`'s own two `writeConfData` calls for the migrated
-  password fields. **Ticket to follow.**
+  Deferred to **OMK-12932**.
 - **`Auth->new` defaults `privlevel => 0` (fail-open).** The OMK-12707 guard
   denies unless `privlevel == 0`, so an Auth object never initialised by login
   would be treated as admin. Verified not reachable on any current web write

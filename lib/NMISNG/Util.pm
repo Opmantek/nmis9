@@ -4636,8 +4636,8 @@ sub enableEOS {
 	}
 	else
 	{
-		$logger->error("ERROR: Encryption of secrets encryption test failed, EOS cannpt be enabled!");
-		print("Encryption of secrets encryption test failed, EOS cannpt be enabled!");
+		$logger->error("ERROR: Encryption of secrets encryption test failed, EOS cannot be enabled!");
+		print("Encryption of secrets encryption test failed, EOS cannot be enabled!");
 		return(0);
 	}
 }
