@@ -107,6 +107,9 @@ working_tests=(
     t_masterkey_generate.t
     t_masterkey_provision.t
     t_compose_master_key.t
+    # OMK-12927: the restored enable-eos/disable-eos/check-eos/is-eos-available
+    # dispatches in bin/nmis-cli
+    t_eos_cli.t
     t_plugin_nodevalidation.pl
     notify_depend.t
     t_nmisng_node_nomodel.pl
