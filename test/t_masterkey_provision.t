@@ -18,7 +18,8 @@ sub provision
 	my (%opt) = @_;
 	my $env = $opt{simulate} ? "SIMULATE=1 " : "";
 	my $pre = $opt{pre} // '';
-	return system("sh -c '$env . $lib; NMIS_MASTERKEY_DEFAULT_DIR=$tempdir/keys; NMIS_MASTERKEY_DEFAULT_FILE=\$NMIS_MASTERKEY_DEFAULT_DIR/master.key; $pre nmis_masterkey_provision root' >/dev/null 2>&1") >> 8;
+	my $owner = $opt{owner} // 'root';
+	return system("sh -c '$env . $lib; NMIS_MASTERKEY_DEFAULT_DIR=$tempdir/keys; NMIS_MASTERKEY_DEFAULT_FILE=\$NMIS_MASTERKEY_DEFAULT_DIR/master.key; $pre nmis_masterkey_provision $owner' >/dev/null 2>&1") >> 8;
 }
 my $keyfile = "$tempdir/keys/master.key";
 
@@ -48,5 +49,18 @@ unlink($keyfile);
 is(provision(pre => 'touch "$NMIS_MASTERKEY_DEFAULT_FILE.tmp.$$";'), 1,
 	"a pre-planted tmp file makes provisioning fail instead of writing through it");
 ok(!-e $keyfile, "and no key file was created");
+
+# --- postcondition: a failed chown must fail provisioning (root only;
+# non-root callers cannot chown and keep the tolerant behaviour) ---
+unlink($keyfile);
+if ($> == 0) {
+	my $rc = provision(owner => 'no_such_user_omk12827');
+	is($rc, 1, "provisioning fails when the requested owner cannot be applied");
+	ok(-f $keyfile, "the created key file is left in place for diagnosis");
+	unlink($keyfile);
+} else {
+	ok(provision() == 0, "non-root provisioning stays tolerant (cannot chown)");
+	unlink($keyfile);
+}
 
 done_testing();

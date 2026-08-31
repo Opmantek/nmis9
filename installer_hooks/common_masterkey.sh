@@ -127,5 +127,17 @@ nmis_masterkey_provision()
 		return 1
 	fi
 	nmis_masterkey_xtrace_restore
+
+	# postcondition (root only): the key must end up owned as requested, or
+	# the web tier cannot read it while the installer would report success.
+	# A non-root caller cannot chown at all (test harnesses); its key is
+	# owned by itself and readable, so the check is root-scoped.
+	if [ "$(id -u)" -eq 0 ]; then
+		nmis_masterkey_got_owner="$(stat -c '%U:%G' "$NMIS_MASTERKEY_DEFAULT_FILE" 2>/dev/null)" || nmis_masterkey_got_owner=""
+		if [ "$nmis_masterkey_got_owner" != "${nmis_masterkey_owner}:nmis" ]; then
+			echo "ERROR master key created but ownership is '${nmis_masterkey_got_owner}', wanted '${nmis_masterkey_owner}:nmis'; the web tier will not be able to read it" >&2
+			return 1
+		fi
+	fi
 	return 0
 }
