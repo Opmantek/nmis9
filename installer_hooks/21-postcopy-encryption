@@ -70,16 +70,26 @@ if [ -e "$NMIS_MASTERKEY_DEFAULT_FILE" ]; then
 	# nmis_masterkey_provision is: a non-root run cannot chown anything, so it
 	# would only be able to nag about something it cannot fix, on every install.
 	masterkey_owner_wanted="${WEBOWNER}:nmis"
-	masterkey_owner_got="$(stat -c '%U:%G' "$NMIS_MASTERKEY_DEFAULT_FILE" 2>/dev/null)" \
-		|| masterkey_owner_got=""
 
-	if [ "$(id -u)" -ne 0 ] || [ "$masterkey_owner_got" = "$masterkey_owner_wanted" ]; then
+	if [ "$(id -u)" -ne 0 ]; then
 		echolog "Master key file $NMIS_MASTERKEY_DEFAULT_FILE already exists; leaving it untouched."
 	else
-		echolog "WARNING: master key file $NMIS_MASTERKEY_DEFAULT_FILE is owned by '${masterkey_owner_got:-unknown}', wanted '${masterkey_owner_wanted}'."
-		echolog "The web user cannot read it, so encryption of secrets will not work until the ownership is corrected:"
-		echolog "  chown ${masterkey_owner_wanted} $NMIS_MASTERKEY_DEFAULT_FILE"
-		echolog "The key itself is left untouched; its contents are still valid and must not be replaced."
+		masterkey_owner_got="$(nmis_masterkey_owner_ok "$WEBOWNER")"
+		masterkey_owner_rc=$?
+		case $masterkey_owner_rc in
+		0)
+			echolog "Master key file $NMIS_MASTERKEY_DEFAULT_FILE already exists; leaving it untouched."
+			;;
+		1)
+			echolog "WARNING: master key file $NMIS_MASTERKEY_DEFAULT_FILE is owned by '${masterkey_owner_got:-unknown}', wanted '${masterkey_owner_wanted}'."
+			echolog "The web user cannot read it, so encryption of secrets will not work until the ownership is corrected:"
+			echolog "  chown ${masterkey_owner_wanted} $NMIS_MASTERKEY_DEFAULT_FILE"
+			echolog "The key itself is left untouched; its contents are still valid and must not be replaced."
+			;;
+		*)
+			echolog "WARNING: could not stat master key file $NMIS_MASTERKEY_DEFAULT_FILE to verify its ownership."
+			;;
+		esac
 	fi
 elif [ -n "${SIMULATE:-}" ]; then
 	echolog "SIMULATION MODE: would create master key file $NMIS_MASTERKEY_DEFAULT_FILE"

@@ -57,6 +57,24 @@ nmis_masterkey_xtrace_restore()
 	:
 }
 
+# nmis_masterkey_owner_ok <wanted-owner>: check the default key file is owned
+# <wanted-owner>:nmis. Prints the ACTUAL owner:group on stdout (for the
+# caller's message) and returns 0 on match, 1 on mismatch, 2 when the file
+# cannot be statted. Pure check: never chowns, never modifies anything, and
+# deliberately NOT root-gated (stat needs no privilege) so tests can drive
+# it at any uid; callers decide when the check is meaningful.
+nmis_masterkey_owner_ok()
+{
+	nmis_masterkey_want_owner="${1:-root}"
+	nmis_masterkey_got="$(stat -c '%U:%G' "$NMIS_MASTERKEY_DEFAULT_FILE" 2>/dev/null)" || nmis_masterkey_got=""
+	if [ -z "$nmis_masterkey_got" ]; then
+		return 2
+	fi
+	printf '%s' "$nmis_masterkey_got"
+	[ "$nmis_masterkey_got" = "${nmis_masterkey_want_owner}:nmis" ] && return 0
+	return 1
+}
+
 # create the default-path master key if absent. $1 = owning user for the
 # key (the web user: www-data or apache; the web tier must decrypt).
 # Never touches an existing key. The key is never echoed, logged, or passed
@@ -133,11 +151,10 @@ nmis_masterkey_provision()
 	# A non-root caller cannot chown at all (test harnesses); its key is
 	# owned by itself and readable, so the check is root-scoped.
 	if [ "$(id -u)" -eq 0 ]; then
-		nmis_masterkey_got_owner="$(stat -c '%U:%G' "$NMIS_MASTERKEY_DEFAULT_FILE" 2>/dev/null)" || nmis_masterkey_got_owner=""
-		if [ "$nmis_masterkey_got_owner" != "${nmis_masterkey_owner}:nmis" ]; then
+		nmis_masterkey_got_owner="$(nmis_masterkey_owner_ok "$nmis_masterkey_owner")" || {
 			echo "ERROR master key created but ownership is '${nmis_masterkey_got_owner}', wanted '${nmis_masterkey_owner}:nmis'; the web tier will not be able to read it" >&2
 			return 1
-		fi
+		}
 	fi
 	return 0
 }
