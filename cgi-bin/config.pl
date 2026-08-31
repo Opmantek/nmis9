@@ -90,26 +90,6 @@ $AU->CheckAccess("table_config_view","header");
 # check for remote request - fixme9: not supported at this time
 exit 1 if (defined($Q->{cluster_id}) && $Q->{cluster_id} ne $C->{cluster_id});
 
-# Properties the config GUI does not offer for editing. The rendered table skips
-# their rows, and every write route must refuse them as well: hiding a control in
-# the HTML is not an authorisation decision, and a direct POST from anyone
-# holding Table_Config_rw and a valid CSRF token reaches the handler regardless
-# of what was rendered. OMK-12827: repointing master_key_file once encryption of
-# secrets is on leaves every existing '!!' value undecryptable until it is
-# pointed back.
-#
-# The list itself lives in NMISNG::Util (config_key_is_gui_protected), because
-# this script is not the only write route: cgi-bin/setup.pl edits config too. One
-# list, consulted by this script's display and write sides AND by setup.pl, so
-# none of them can drift apart. See the Util comment for why it is keyed by
-# property name and not by section+item. Covered by
-# test/t_cgi_config_protected_keys.t.
-sub is_gui_protected_key
-{
-	my ($item) = @_;
-	return NMISNG::Util::config_key_is_gui_protected($item);
-}
-
 # the one refusal wording the three write handlers share
 my $GUI_PROTECTED_MSG = "not editable through the GUI (protected key).";
 
@@ -147,6 +127,26 @@ sub notfound {
 	print "Config: ERROR, act=$Q->{act}, node=$Q->{node}, intf=$Q->{intf}\n";
 	print "Request not found\n";
 	Compat::NMIS::pageEnd if (!$wantwidget);
+}
+
+# Properties the config GUI does not offer for editing. The rendered table skips
+# their rows, and every write route must refuse them as well: hiding a control in
+# the HTML is not an authorisation decision, and a direct POST from anyone
+# holding Table_Config_rw and a valid CSRF token reaches the handler regardless
+# of what was rendered. OMK-12827: repointing master_key_file once encryption of
+# secrets is on leaves every existing '!!' value undecryptable until it is
+# pointed back.
+#
+# The list itself lives in NMISNG::Util (config_key_is_gui_protected), because
+# this script is not the only write route: cgi-bin/setup.pl edits config too. One
+# list, consulted by this script's display and write sides AND by setup.pl, so
+# none of them can drift apart. See the Util comment for why it is keyed by
+# property name and not by section+item. Covered by
+# test/t_cgi_config_protected_keys.t.
+sub is_gui_protected_key
+{
+	my ($item) = @_;
+	return NMISNG::Util::config_key_is_gui_protected($item);
 }
 
 #
