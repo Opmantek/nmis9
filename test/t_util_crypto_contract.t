@@ -103,6 +103,20 @@ is(NMISNG::Util::decrypt($tampered), $tampered,
 	}
 }
 
+# --- constructor failure fails closed (PR 73 re-review Important 1) ---
+# An incompatible Crypt::CBC (e.g. one that rejects -pbkdf) dies in new().
+# Both functions must return the input unchanged, never crash.
+{
+	no warnings 'redefine';
+	local *Crypt::CBC::new = sub { die "constructor boom (simulated incompatible Crypt::CBC)\n"; };
+	my $got = eval { NMISNG::Util::decrypt($cipher) };
+	is($@, '', "decrypt does not die when Crypt::CBC->new dies");
+	is($got, $cipher, "and returns the ciphertext unchanged");
+	$got = eval { NMISNG::Util::encrypt('constructorCaseSecret') };
+	is($@, '', "encrypt does not die when Crypt::CBC->new dies");
+	is($got, 'constructorCaseSecret', "and returns the plaintext unchanged");
+}
+
 # --- phase 4: bad key permissions are refused, fail closed ---
 chmod(0660, $keyfile);
 is(NMISNG::Util::encrypt($secret), $secret,

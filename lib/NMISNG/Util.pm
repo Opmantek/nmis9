@@ -4911,12 +4911,13 @@ sub decrypt {
 		return $original;
 	}
 
-	my $cipherHandle = Crypt::CBC->new( -key    => "$seed",
+	my $cipherHandle;
+	my $error = 0;
+	try {
+		$cipherHandle = Crypt::CBC->new( -key    => "$seed",
 										-cipher => 'Cipher::AES',
 										-pbkdf  => 'pbkdf2'
 										);
-	my $error = 0;
-	try {
 		$password = $cipherHandle->decrypt_hex($password);
 	}
 	catch {
@@ -5027,12 +5028,13 @@ sub encrypt {
 		my $strLen = sprintf("%03d", length($password));
 		$password  = $strLen.$password;
 
-		my $cipherHandle = Crypt::CBC->new( -key    => "$seed",
-											-cipher => 'Cipher::AES',
-											-pbkdf  => 'pbkdf2'
-											);
+		my $cipherHandle;
 		my $error = 0;
 		try {
+			$cipherHandle = Crypt::CBC->new( -key    => "$seed",
+												-cipher => 'Cipher::AES',
+												-pbkdf  => 'pbkdf2'
+												);
 			$password = $cipherHandle->encrypt_hex($password);
 		}
 		catch {
