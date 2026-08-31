@@ -1233,6 +1233,23 @@ None are implemented.
   to be "admin *within a tenant*" — a tenant/group boundary enforced on every
   read and write — rather than "global admin minus a few tables". Strategic item,
   not a patch.
+- **`disableEOS` writes the flag to disk before it verifies.** The down-migration
+  sweep sets `global_enable_password_encryption` to `'false'` first and only
+  then walks the fields. When a `!!` value cannot be decrypted the run now
+  reports failure and names the survivors (OMK-12927 wart A), but the flag on
+  disk is already off while ciphertext remains in the file. The install is
+  half-converted and reads take the disabled path over values that still need
+  the key. The fix is to verify first and write the flag only on a clean sweep.
+  Pre-existing ordering, out of scope for OMK-12695. **Ticket to follow.**
+- **`act=enable-eos` exits 1 on SUCCESS.** `enableEOS`/`disableEOS` return 1 for
+  success, and the restored dispatch does `exit($rc)`, so the shell sees a
+  failure when the act worked (`act=check-eos` is the same: exit 1 means
+  enabled). This is the historical contract and the restored help text
+  documents it, so OMK-12927 restored it verbatim rather than silently
+  inverting it. It is a scripting hazard: any installer, runbook or wrapper
+  that tests the exit status reads a successful enable as a failure. Changing
+  it is a breaking change for whatever already shells out to these acts.
+  **Ticket to follow.**
 - **`Auth->new` defaults `privlevel => 0` (fail-open).** The OMK-12707 guard
   denies unless `privlevel == 0`, so an Auth object never initialised by login
   would be treated as admin. Verified not reachable on any current web write
