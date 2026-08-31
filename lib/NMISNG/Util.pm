@@ -4491,23 +4491,48 @@ sub disableEOS {
 		print("Disabling Encryption of secrets.\n");
 		my ($fullConfig,undef) = getConfDeep(only_local => 1);
 		$fullConfig->{globals}{global_enable_password_encryption} = "false";
-		writeConfData(data=>$fullConfig);
-		# We changed encryption, so the test below is backwards.
-		# If it indicates changes, then we failed!
-		my $success = verifyNMISEncryption(log => $logger);
+		my $writeErr = writeConfData(data=>$fullConfig);
+		# We changed encryption, so the verify test below is backwards: if it
+		# indicates changes, then we failed. $success keeps that polarity
+		# (0 == reached the requested state, non-zero == did NOT), so the shared
+		# restart-and-return tail can serve both the write-refused and the
+		# verify paths.
+		my $success;
 		my $startMsg;
-		if (!$success)
+		if ($writeErr)
 		{
-			$startMsg = "Encryption was successfully disabled.";
-			$logger->info("$startMsg");
+			# writeConfData refuses the WHOLE file, writing nothing and returning
+			# an error string, when a key it is handed is owned by conf.d
+			# (layer 3) or the environment (layer 4) and diverges from the
+			# effective value - the shipped container's steady state, where
+			# compose sets NMIS_DB_PASSWORD so database/db_password is layer 4.
+			# The 'false' flag write is dropped with it, so encryption was NOT
+			# disabled. Never report success over a flag that did not move.
+			# $writeErr names the offending key and its source, never a value.
+			$success  = 1;   # requested state NOT reached
+			$startMsg = "Encryption could not be disabled: the configuration write was refused ($writeErr).";
+			$logger->error("ERROR: $startMsg");
 			print("$startMsg\n");
 		}
 		else
 		{
-			$startMsg = "Encryption could not be disabled.";
-			$logger->error("ERROR: $startMsg");
-			print("$startMsg\n");
+			$success = verifyNMISEncryption(log => $logger);
+			if (!$success)
+			{
+				$startMsg = "Encryption was successfully disabled.";
+				$logger->info("$startMsg");
+				print("$startMsg\n");
+			}
+			else
+			{
+				$startMsg = "Encryption could not be disabled.";
+				$logger->error("ERROR: $startMsg");
+				print("$startMsg\n");
+			}
 		}
+		# Restart what shutdownAllDaemons stopped, on every path. On a refusal
+		# the flag never moved, so this restores the exact state the box was in
+		# (encryption still on) rather than leaving its daemons down.
 		$rc = startAllDaemons();
 		if (!$rc)
 		{
@@ -4559,22 +4584,38 @@ sub enableEOS {
 			print("Enabling encryption of secrets.\n");
 			my ($fullConfig,undef) = getConfDeep(only_local => 1);
 			$fullConfig->{globals}{global_enable_password_encryption} = "true";
-			writeConfData(data=>$fullConfig);
-			# We changed encryption, so the test below is backwards.
-			# If it indicates changes, then we failed!
-			my $success = verifyNMISEncryption(log => $logger);
+			my $writeErr = writeConfData(data=>$fullConfig);
+			# See disableEOS: writeConfData refuses the whole file (writing
+			# nothing, returning an error string) when a conf.d- or ENV-managed
+			# key it is handed diverges from the effective value. The 'true' flag
+			# write is dropped with it, so encryption was NOT enabled. $success
+			# keeps verify's polarity so the shared restart-and-return tail below
+			# serves both paths. $writeErr names the key and its source, never a
+			# value.
+			my $success;
 			my $startMsg;
-			if (!$success)
+			if ($writeErr)
 			{
-				$startMsg = "Encryption was successfully enabled.";
-				$logger->info("$startMsg");
+				$success  = 1;   # requested state NOT reached
+				$startMsg = "Encryption could not be enabled: the configuration write was refused ($writeErr).";
+				$logger->error("ERROR: $startMsg");
 				print("$startMsg\n");
 			}
 			else
 			{
-				$startMsg = "Encryption could not be enabled.";
-				$logger->error("ERROR: $startMsg");
-				print("$startMsg\n");
+				$success = verifyNMISEncryption(log => $logger);
+				if (!$success)
+				{
+					$startMsg = "Encryption was successfully enabled.";
+					$logger->info("$startMsg");
+					print("$startMsg\n");
+				}
+				else
+				{
+					$startMsg = "Encryption could not be enabled.";
+					$logger->error("ERROR: $startMsg");
+					print("$startMsg\n");
+				}
 			}
 			$rc = startAllDaemons();
 			if (!$rc)
@@ -4812,7 +4853,21 @@ sub verifyNMISEncryption {
 		}
 		if ($changed)
 		{
-			writeConfData(data=>$fullConfig);
+			my $writeErr = writeConfData(data=>$fullConfig);
+			if ($writeErr)
+			{
+				# The encrypted secrets could not be persisted (writeConfData
+				# refuses the whole file when a conf.d- or ENV-managed key it is
+				# handed diverges from the effective value; $writeErr names the
+				# key and its source, never a value). Encryption was NOT applied
+				# at rest, so the requested state was not reached: return failure
+				# (1) and write NO plaintext backup - a backup of secrets that
+				# were never encrypted on disk protects nothing while leaving a
+				# second cleartext copy of every one of them.
+				$logger->error("ERROR: the encrypted secrets could not be written back to the configuration, "
+					. "so encryption of secrets was NOT applied at rest: $writeErr. No plaintext backup was written.");
+				return(1);
+			}
 			my $protectedFile = "$seeddir/NMIS-$epochNow";
 			unless(open($fh, '>', $protectedFile)) {
 				$logger->error("Unable to backup Passwords.");
@@ -4947,7 +5002,19 @@ sub verifyNMISEncryption {
 		}
 		if ($changed)
 		{
-			writeConfData(data=>$fullConfig);
+			my $writeErr = writeConfData(data=>$fullConfig);
+			if ($writeErr)
+			{
+				# The decrypted secrets could not be persisted (whole-file
+				# refusal on a divergent conf.d/ENV-managed key; $writeErr names
+				# the key and its source, never a value). Encryption of secrets
+				# was NOT turned off at rest, so the requested state was not
+				# reached: report failure so the caller does not announce a
+				# disable that did not land.
+				$logger->error("ERROR: the decrypted secrets could not be written back to the configuration, "
+					. "so encryption of secrets was NOT turned off: $writeErr.");
+				return(1);
+			}
 		}
 		# Whatever COULD be decrypted has just been written back in plaintext,
 		# which is progress and is kept. But if anything survived the pass still

@@ -410,6 +410,57 @@ my $ROPW   = 'eosRoundTripComm2';
 		"the undecryptable value is left exactly as it was, not mangled");
 }
 
+# ---- phase 2b (PR 76 Critical): a refused config write is not success -------
+# The shipped container's steady state: compose sets NMIS_DB_PASSWORD, so
+# database/db_password is layer 4 and its stored form diverges from the
+# effective (environment) value. writeConfData refuses the WHOLE file in that
+# state, which drops the 'false' flag write disableEOS makes. Before this fix
+# the write return was discarded: verifyNMISEncryption re-read a still-'true'
+# config, found nothing to change on the enabled pass, returned 0, and
+# disableEOS announced "successfully disabled" over a flag that never moved. It
+# must now report FAILURE, surface the refusal, and leave the flag on.
+#
+# NMIS_DB_PASSWORD is set for the duration of this phase only, then removed.
+# disableEOS never opens a database connection, so a value that would not
+# authenticate is harmless here.
+{
+	local $ENV{NMIS_DB_PASSWORD} = 'phase2b-env-value-differs';
+	$NMISNG::Util::_config_cache_invalid = 1;
+
+	# db_password is a PasswordFields entry and, with the env var set, layer 4,
+	# so seed_config drops it; it is re-added explicitly AFTER that drop with a
+	# stored value that differs from the environment's - the divergence
+	# writeConfData refuses on.
+	my ($cfg, $local) = seed_config(flag => 'true',
+		'database:db_password' => 'phase2b-stored-value-differs');
+	is(NMISNG::Util::getbool($cfg->{global_enable_password_encryption}), 1,
+		"phase 2b fixture: encryption starts enabled");
+	my $src = NMISNG::Util::getConfigSources()->{db_password};
+	is((ref($src) eq 'HASH' ? $src->{layer} : undef), 4,
+		"phase 2b fixture: db_password is environment-managed (layer 4)");
+	isnt(stored($local, 'database:db_password'), $cfg->{db_password},
+		"phase 2b fixture: the stored db_password diverges from the effective value");
+
+	reset_log();
+	my $rc = NMISNG::Util::disableEOS();
+	is($rc, 0, "disableEOS reports FAILURE when the config write is refused");
+
+	my $log = read_log();
+	like($log, qr/refused|managed by|could not be disabled/i,
+		"and the refusal is surfaced in the log");
+	unlike($log, qr/successfully disabled/i,
+		"disableEOS does NOT claim success on a refused write");
+	unlike($log, qr/\Qphase2b-stored-value-differs\E|\Qphase2b-env-value-differs\E/,
+		"and no secret value is echoed to the log");
+
+	(my $cfg2, $local) = reload();
+	is(NMISNG::Util::getbool($cfg2->{global_enable_password_encryption}), 1,
+		"the encryption flag is unchanged (still enabled) after the refused write");
+	is(stored($local, 'database:db_password'), 'phase2b-stored-value-differs',
+		"and the stored db_password is untouched");
+}
+$NMISNG::Util::_config_cache_invalid = 1;
+
 # ---- phase 3 (wart B): a field that will not encrypt is not a change --------
 # encrypt() refuses a value longer than 999 characters (the three-digit length
 # prefix cannot describe it) and fails closed by returning it unchanged. That
