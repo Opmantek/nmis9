@@ -63,7 +63,7 @@ pattern.
    the compose comments; it is not the default because it breaks zero-config
    first boot and plain-compose secrets are bind-mounted files anyway.
 2. **First-boot generation in the production entrypoint**, using
-   `common_masterkey.sh` verbatim (`nmis_masterkey_provision www-data`), the
+   `common_masterkey.sh` verbatim (`nmis_masterkey_provision nmis`), the
    same code path as the installer hook and the dev entrypoint, so the three
    consumers cannot drift. Every step is guarded: provisioning failure warns
    and continues (the runtime fails closed and the selftest banner reports),
@@ -96,8 +96,8 @@ pattern.
 
 - `provision_master_key()`: source `${NMIS_HOME}/installer_hooks/common_masterkey.sh`
   (warn and return 0 if missing), record whether the key file exists before
-  provisioning, call `nmis_masterkey_provision www-data`, warn on failure.
-  Mirrors the dev entrypoint minus the `DEV_UID` chown. All failure paths
+  provisioning, call `nmis_masterkey_provision nmis`, warn on failure.
+  Owner is `nmis`, NOT the dev entrypoint's `www-data`: the production image has only the `nmis` user (uid 10001, no apache; the web tier is the mojo `nmisx` daemon run as `nmis` via su), so the key must be `nmis:nmis 0440` for the daemons to read it. Otherwise mirrors the dev entrypoint minus the `DEV_UID` chown. All failure paths
   warn, none exit.
 - `master_key_swap_warning()`: when the key was freshly created this boot and
   `conf/Config.nmis` contains a `'!!` value, print the multi-line warning
@@ -133,7 +133,7 @@ comment; the enable path is currently unreachable anyway (OMK-12927).
 4. **Container smoke, manual, recorded in the PR**: with the dev image and a
    throwaway named volume, boot the production entrypoint far enough to
    provision (or drive `provision_master_key` standalone in a container with
-   the volume mounted): key created `0440 www-data:nmis`; destroy and
+   the volume mounted): key created `0440 nmis:nmis`; destroy and
    recreate the container with the same volume: key byte-identical; recreate
    with a fresh volume and a `!!`-bearing config: warning printed. Two
    containers on two fresh volumes generate two different keys (the
@@ -157,7 +157,7 @@ entry: a new named volume is additive, no shipped default tightens.
 
 ## Verification checklist (mirrors ticket item 6)
 
-- Fresh `compose up`: key exists in the volume, `0440 www-data:nmis`.
+- Fresh `compose up`: key exists in the volume, `0440 nmis:nmis`.
 - `docker compose down && up`, `--force-recreate`, and an image update all
   leave the key byte-identical.
 - A pre-existing key in the volume is never modified by any boot.
