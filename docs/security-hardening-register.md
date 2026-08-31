@@ -1102,8 +1102,13 @@ does not start encrypting on upgrade, on any of the three delivery paths.
   `conf/Config.nmis`, and only when that file is absent.
 
 An existing site opts in with `bin/nmis-cli act=enable-eos` (root), restored by
-OMK-12927. That converts every protected config field and every node secret in
-one pass, rather than lazily.
+OMK-12927. That converts every protected `PasswordFields.nmis` config field in
+one pass. Node device secrets are untouched by the CLI: they still convert
+lazily, one node at a time, via `NMISNG::Node::new` on next load or save,
+exactly as under hand-editing the flag (see "The way back is config-gated"
+below). The CLI's advantage over hand-editing the flag is the one-pass
+config-field sweep plus the daemon stop/start and verification wrapped around
+it, not a one-pass conversion of node secrets.
 
 **Delegated functionality affected.** Nobody loses a permission here. What
 changes is that secrets stop being readable by anyone holding the data.
@@ -1184,10 +1189,14 @@ The drill:
 
 **The way back is config-gated, and the flag alone is not it.**
 `bin/nmis-cli act=disable-eos` (root) is the supported reversal. It walks every
-`PasswordFields.nmis` entry and every node secret, writes each back in
-plaintext, sets the flag to `'false'`, and, since OMK-12927, reports failure and
-names the fields when any `!!` value could not be decrypted rather than claiming
-success over ciphertext it cannot read. Since PR 76 (OMK-12695) both
+`PasswordFields.nmis` entry, writes each back in plaintext, sets the flag to
+`'false'`, and, since OMK-12927, reports failure and names the fields when any
+`!!` value could not be decrypted rather than claiming success over ciphertext
+it cannot read. It does not touch node device secrets - those are left exactly
+where `NMISNG::Node::new`'s lazy migration put them, so a `disable-eos` that
+reports success can still leave every node's `community`, `authpassword` and
+the rest `!!`-encrypted in MongoDB; they convert only as each node is next
+loaded or saved. Since PR 76 (OMK-12695) both
 `disable-eos` and `enable-eos` also check `writeConfData`'s return: when the
 whole-file write is refused because a conf.d- or ENV-managed key it is handed
 diverges from the effective value - the shipped container's steady state, where
@@ -1205,9 +1214,12 @@ section and keyword, and only for as long as the master key is still readable.
 An install left in that state is half-converted, indefinitely, with no report of
 what did or did not come back. The same applies in reverse: turning the flag on
 by hand on an existing install encrypts new writes but leaves the existing
-plaintext until something touches it, where `act=enable-eos` sweeps the lot in
-one pass (and writes a root-only `NMIS-<epoch>` plaintext copy of every
-protected secret into `/usr/local/etc/firstwave` first, see the mitigations).
+plaintext until something touches it. `act=enable-eos` sweeps the
+`PasswordFields.nmis` config secrets in one pass instead (and writes a
+root-only `NMIS-<epoch>` plaintext copy of every protected secret into
+`/usr/local/etc/firstwave` first, see the mitigations) - but node device
+secrets still convert only lazily either way, whether the flag is hand-edited
+or set through the CLI.
 
 **Mitigations to investigate (not implemented)**
 
@@ -1234,7 +1246,11 @@ protected secret into `/usr/local/etc/firstwave` first, see the mitigations).
   neither answers "are this install's secrets encrypted right now". An operator
   reading `global_enable_password_encryption => 'true'` will assume they are. A
   status act reporting how many protected fields and node secrets are currently
-  `!!`, and how many are not, would close that gap.
+  `!!`, and how many are not, would close that gap. Separately, extending
+  `enable-eos`/`disable-eos` to eagerly convert node secrets in the same pass
+  as the config fields - rather than leaving them to `NMISNG::Node::new`'s
+  lazy, per-node migration - is a candidate follow-up; it is new scope, not
+  part of this PR.
 
 ---
 
