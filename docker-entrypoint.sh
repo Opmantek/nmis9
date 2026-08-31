@@ -119,6 +119,12 @@ provision_master_key() {
   . "$MASTERKEY_LIB"
   MASTERKEY_WAS_ABSENT=0
   [ -e "$NMIS_MASTERKEY_DEFAULT_FILE" ] || MASTERKEY_WAS_ABSENT=1
+  if [ "$MASTERKEY_WAS_ABSENT" -eq 1 ]; then
+    # a crash on a previous boot can leave the provisioning temp file behind
+    # in the (persistent) volume, and its noclobber write would then fail on
+    # every boot. No key exists yet, so removing the temp destroys nothing.
+    rm -f "${NMIS_MASTERKEY_DEFAULT_FILE}.tmp."* 2>/dev/null || :
+  fi
   # every command guarded: this script runs under set -e, and provisioning
   # failure must warn, not kill the boot (runtime fails closed and the
   # "Encryption of secrets" selftest reports it in the GUI).
@@ -154,6 +160,10 @@ master_key_swap_warning() {
     echo "WARNING: Recovery: restore the previous master.key into the" >&2
     echo "WARNING: nmis_master_key volume, replacing the newly generated" >&2
     echo "WARNING: file, then restart the container." >&2
+    echo "WARNING: The previous key is in the OLD container's writable layer:" >&2
+    echo "WARNING:   docker cp <old-container>:/usr/local/etc/firstwave/master.key ." >&2
+    echo "WARNING: (run BEFORE removing the old container), then copy it into" >&2
+    echo "WARNING: this container's /usr/local/etc/firstwave/ and restart." >&2
     echo "WARNING: ############################################################" >&2
   fi
 }

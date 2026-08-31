@@ -50,8 +50,21 @@ my $i_db    = index($runbody, "setup_db");
 ok($i_prov > -1, "run() calls provision_master_key");
 ok($i_setup > -1 && $i_prov > $i_setup, "provisioning runs after setup");
 ok($i_db > -1 && $i_prov < $i_db, "provisioning runs before setup_db");
-like($esrc, qr/MASTERKEY_WAS_ABSENT.*?master_key_swap_warning/s,
-	"the swap warning is gated on a freshly created key");
+my ($provbody) = $esrc =~ /^(provision_master_key\(\)\s*\{.*?^\})/ms;
+ok(defined $provbody, "extracted provision_master_key source");
+# Non-greedy match to the FIRST "fi" is not enough here: provision_master_key
+# has more than one "if [ "$MASTERKEY_WAS_ABSENT" -eq 1 ]" block (the
+# stale-tmp cleanup runs before the swap-warning gate), so a single match
+# would just find the first (unrelated) block and miss the real one. Loop
+# over every such block and require the call inside at least one of them.
+my $swap_in_branch = 0;
+while ($provbody =~ /if\s*\[\s*"\$MASTERKEY_WAS_ABSENT"\s+-eq\s+1\s*\];\s*then(.*?)^\s*fi/msg) {
+	if ($1 =~ /master_key_swap_warning/) {
+		$swap_in_branch = 1;
+		last;
+	}
+}
+ok($swap_in_branch, "the swap warning call sits inside a fresh-key branch");
 
 # --- swap-warning behaviour: drive the real function ---
 use File::Temp;
@@ -66,21 +79,24 @@ open(my $ff, '>', $fnfile) or die "write fn: $!";
 print $ff $fnsrc;
 close $ff;
 
-sub swap_warning_output {
+sub swap_warning_run {
 	my ($confcontent) = @_;
 	open(my $cf, '>', "$tempdir/conf/Config.nmis") or die "write conf: $!";
 	print $cf $confcontent;
 	close $cf;
-	return scalar qx{bash -c '. $fnfile; NMIS_HOME=$tempdir; master_key_swap_warning' 2>&1};
+	my $out = qx{bash -c 'set -e; . $fnfile; NMIS_HOME=$tempdir; master_key_swap_warning' 2>&1};
+	return ($out, $? >> 8);
 }
 
-my $warn = swap_warning_output(q{'db_password' => '!!deadbeef',});
+my ($warn, $warn_rc) = swap_warning_run(q{'db_password' => '!!deadbeef',});
 like($warn, qr/GENERATED A NEW master key/,
 	"fresh key beside a '!!' config warns about the key swap");
 like($warn, qr/nmis_master_key volume/, "the warning names the recovery volume");
 unlike($warn, qr/deadbeef/, "the warning never echoes a stored value");
+is($warn_rc, 0, "the warning path exits 0 under set -e");
 
-my $quiet = swap_warning_output(q{'db_password' => 'plaintext',});
+my ($quiet, $quiet_rc) = swap_warning_run(q{'db_password' => 'plaintext',});
 is($quiet, '', "fresh key beside a clean config stays silent");
+is($quiet_rc, 0, "the silent path exits 0 under set -e (a failed grep must not kill the boot)");
 
 done_testing();
