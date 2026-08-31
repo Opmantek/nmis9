@@ -53,15 +53,47 @@ fi
 
 # --- master key creation (items 3 and 4): default path only, only if absent ---
 if [ -e "$NMIS_MASTERKEY_DEFAULT_FILE" ]; then
-	echolog "Master key file $NMIS_MASTERKEY_DEFAULT_FILE already exists; leaving it untouched."
+	# The key itself is never touched here, per the header. But "it exists" was
+	# the only thing this branch used to check, and that hid a real failure: when
+	# provisioning creates the key and then cannot chown it, the file is left in
+	# place owned by root, the web tier cannot read it, and every later run of
+	# this hook took that branch and reported nothing wrong. The ownership is now
+	# verified on every run, so the warning survives the re-run that first
+	# reported it.
+	#
+	# Verified, never corrected. This hook chowns only a key it created itself:
+	# silently re-owning a pre-existing key would be a change to a file an
+	# operator may have deliberately placed and permissioned, and it is a
+	# one-line fix they can make with the command printed below.
+	#
+	# Root-scoped for the same reason the postcondition in
+	# nmis_masterkey_provision is: a non-root run cannot chown anything, so it
+	# would only be able to nag about something it cannot fix, on every install.
+	masterkey_owner_wanted="${WEBOWNER}:nmis"
+	masterkey_owner_got="$(stat -c '%U:%G' "$NMIS_MASTERKEY_DEFAULT_FILE" 2>/dev/null)" \
+		|| masterkey_owner_got=""
+
+	if [ "$(id -u)" -ne 0 ] || [ "$masterkey_owner_got" = "$masterkey_owner_wanted" ]; then
+		echolog "Master key file $NMIS_MASTERKEY_DEFAULT_FILE already exists; leaving it untouched."
+	else
+		echolog "WARNING: master key file $NMIS_MASTERKEY_DEFAULT_FILE is owned by '${masterkey_owner_got:-unknown}', wanted '${masterkey_owner_wanted}'."
+		echolog "The web user cannot read it, so encryption of secrets will not work until the ownership is corrected:"
+		echolog "  chown ${masterkey_owner_wanted} $NMIS_MASTERKEY_DEFAULT_FILE"
+		echolog "The key itself is left untouched; its contents are still valid and must not be replaced."
+	fi
 elif [ -n "${SIMULATE:-}" ]; then
 	echolog "SIMULATION MODE: would create master key file $NMIS_MASTERKEY_DEFAULT_FILE"
 elif nmis_masterkey_provision "$WEBOWNER"; then
 	echolog "Created master key file $NMIS_MASTERKEY_DEFAULT_FILE for encryption of secrets."
 else
+	# Two different failures land here: nothing was created at all, or a key was
+	# created and could not be given to the web user. The advice has to cover
+	# both, because "re-run to create it" is a no-op in the second case - the
+	# file exists, so the branch above is what a re-run reaches.
 	echolog "WARNING: could not create or correctly own $NMIS_MASTERKEY_DEFAULT_FILE."
-	echolog "Encryption of secrets cannot be enabled until a master key exists."
-	echolog "Re-run this hook as root to create it."
+	echolog "Encryption of secrets cannot be enabled until a master key exists AND is readable by the web user."
+	echolog "Re-run this hook as root to retry creation. If the file does exist, its ownership is what failed; correct it with:"
+	echolog "  chown ${WEBOWNER}:nmis $NMIS_MASTERKEY_DEFAULT_FILE"
 fi
 
 exit 0
