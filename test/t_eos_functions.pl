@@ -205,11 +205,6 @@ sub clear_dumps { unlink(our_dumps()); }
 END {
 	restore_file($CONF_SAVED, $CONF_FILE);
 	restore_file($BAK_SAVED, $CONF_BAK);
-	# restore_file's {absent=>1} branch above already covers the ordinary
-	# "there was no .bak before us" case. This is only for the rarer path
-	# where save_file's backup copy itself failed (undef, non-root) - it never
-	# fires for a real pre-existing .bak, per the reasoning in save_file.
-	unlink $CONF_BAK if (!$BAK_SAVED && -f $CONF_BAK);
 	# never leave a plaintext secrets dump behind, whichever phase made it
 	unlink(grep { !$SEEDDIR_PREEXISTING{$_} } glob("$SEEDDIR/NMIS-*"));
 	rmdir($SEEDDIR) if ($MADE_SEEDDIR);

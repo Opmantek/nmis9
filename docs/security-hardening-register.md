@@ -1101,11 +1101,29 @@ does not start encrypting on upgrade, on any of the three delivery paths.
   `docker-dev/docker-entrypoint-dev.sh` copies `Config.nmis.docker` to
   `conf/Config.nmis`, and only when that file is absent.
 
+**The production ECR image is not built by the current release pipeline, so
+the "Production container" bullet above describes a file nothing ships
+today.** `bitbucket-pipelines.yml`'s release step builds
+`docker/docker-prod/dockerfile-prod`, which has never existed anywhere in this
+repository's history; that step cannot succeed, and the root `dockerfile` the
+bullet above describes is referenced by no pipeline either. The flip is safe
+for the two paths that do ship: a host install gets the three crypto packages
+from `installer_hooks/30-pre-dependencies` on both Debian and RedHat, and the
+dev/CI image (`docker-dev/dockerfile-dev`) already carries them, so
+`bin/nmisd`'s `isEOSAvailable` gate passes on both without any further change.
+Whatever eventually becomes `dockerfile-prod` will still need those same
+three crypto packages and to bake `Config.nmis.docker` in, or a fresh
+container boots straight into `nmisd` exit 255 at that gate. Reviving the
+production image and boot-smoking it with the flag on is tracked in
+**OMK-12935**, a prerequisite for the first production-image build - not a
+blocker for this change.
+
 An existing site opts in with `bin/nmis-cli act=enable-eos` (root), restored by
 OMK-12927. That converts every protected `PasswordFields.nmis` config field in
 one pass. Node device secrets are untouched by the CLI: they still convert
-lazily, one node at a time, via `NMISNG::Node::new` on next load or save,
-exactly as under hand-editing the flag (see "The way back is config-gated"
+lazily, one node at a time, the next time each is loaded through
+`NMISNG::Node::new`, which saves the converted value when conversion
+succeeds - exactly as under hand-editing the flag (see "The way back is config-gated"
 below). The CLI's advantage over hand-editing the flag is the one-pass
 config-field sweep plus the daemon stop/start and verification wrapped around
 it, not a one-pass conversion of node secrets.
@@ -1195,8 +1213,9 @@ The drill:
 it cannot read. It does not touch node device secrets - those are left exactly
 where `NMISNG::Node::new`'s lazy migration put them, so a `disable-eos` that
 reports success can still leave every node's `community`, `authpassword` and
-the rest `!!`-encrypted in MongoDB; they convert only as each node is next
-loaded or saved. Since PR 76 (OMK-12695) both
+the rest `!!`-encrypted in MongoDB; they convert only the next time each node
+is loaded through `NMISNG::Node::new`, which saves the converted value when
+conversion succeeds. Since PR 76 (OMK-12695) both
 `disable-eos` and `enable-eos` also check `writeConfData`'s return: when the
 whole-file write is refused because a conf.d- or ENV-managed key it is handed
 diverges from the effective value - the shipped container's steady state, where
