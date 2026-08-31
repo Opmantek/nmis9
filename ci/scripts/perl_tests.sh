@@ -76,6 +76,7 @@ working_tests=(
     t_access_policy.pl
     t_cgi_tables_secret_passthrough.t
     t_cgi_config_password_refusals.t
+    t_cgi_config_protected_keys.t
     t_mongo_exposure.t
     t_common_dbpassword.t
     t_db_auth_source.t

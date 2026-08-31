@@ -90,6 +90,37 @@ $AU->CheckAccess("table_config_view","header");
 # check for remote request - fixme9: not supported at this time
 exit 1 if (defined($Q->{cluster_id}) && $Q->{cluster_id} ne $C->{cluster_id});
 
+# Properties the config GUI does not offer for editing. The rendered table skips
+# their rows, and every write route must refuse them as well: hiding a control in
+# the HTML is not an authorisation decision, and a direct POST from anyone
+# holding Table_Config_rw and a valid CSRF token reaches the handler regardless
+# of what was rendered. OMK-12827: repointing master_key_file once encryption of
+# secrets is on leaves every existing '!!' value undecryptable until it is
+# pointed back.
+#
+# Keyed by property name and NOT by section+item, deliberately. Config is a flat
+# namespace at the point of use - _load_and_flatten collapses all sections into
+# one hash, so $C->{master_key_file} resolves whichever section the key was filed
+# under, and doAddConfig files a new key under whatever section it is handed. A
+# section-scoped list would be bypassed by adding the same name elsewhere.
+#
+# One list, consulted by both the display and the write side, so the two cannot
+# drift apart. Covered by test/t_cgi_config_protected_keys.t.
+my %gui_protected_key = (
+	'auth_require'         => 1, # authentication on/off; fixed true, never GUI-settable
+	'severity_by_roletype' => 1, # nested structure the flat editor cannot represent
+	'master_key_file'      => 1, # crypto master key location, see above
+);
+
+sub is_gui_protected_key
+{
+	my ($item) = @_;
+	return (defined($item) && $gui_protected_key{$item}) ? 1 : 0;
+}
+
+# the one refusal wording the three write handlers share
+my $GUI_PROTECTED_MSG = "not editable through the GUI (protected key).";
+
 #======================================================================
 
 # select function
@@ -244,9 +275,9 @@ sub typeSect {
 		{
 			$value =  join(" ", sort split(/\s*,\s*/, $value));
 		}
-		next if ($section eq "authentication" && $k eq "auth_require"); # fixed true
-		next if ($section eq "system" and $k eq "severity_by_roletype"); # not gui-modifyable
-		next if ($section eq "system" and $k eq "master_key_file"); # not gui-modifyable: crypto master key location, changing it post-encryption breaks existing secrets (OMK-12827)
+		# not gui-modifyable. The same list the write handlers refuse on, so a key
+		# that is hidden here can never be reachable by a direct POST.
+		next if (is_gui_protected_key($k));
 		my $showOut = $value;
 		$showOut = '**************' if ($eachRef->{display} =~ /password/);
 
@@ -488,6 +519,11 @@ sub doEditConfig
 	my $item = decode_entities($Q->{item});
 	my $value = $Q->{value};
 	my $confirm = $Q->{confirm};
+
+	# refuse before anything else: the GUI never renders a row for these, so the
+	# only way to arrive here with one is a hand-built POST. See %gui_protected_key.
+	return validation_abort($item, $GUI_PROTECTED_MSG)
+			if (is_gui_protected_key($item));
 
 	my ($CC, undef) = NMISNG::Util::getConfDeep();
 	# that's the set of display and validation rules
@@ -782,6 +818,14 @@ sub doDeleteConfig {
 	my $section = $Q->{section};
 	my $item = decode_entities($Q->{item});
 
+	# the GUI renders no delete link for these; only a hand-built POST gets here.
+	# See %gui_protected_key.
+	if (is_gui_protected_key($item))
+	{
+		$Q->{error_message} = "'$item' cannot be deleted: $GUI_PROTECTED_MSG";
+		return undef;
+	}
+
 	my ($CC, undef) = NMISNG::Util::getConfDeep();
 	# that's the set of display and validation rules
 	my $configrules = Compat::NMIS::loadCfgTable(table => "Config", user => $AU->{user});
@@ -867,8 +911,15 @@ sub doAddConfig {
 								"non valid '$section'.")
 	}
 	
-	if ($Q->{id} ne '') {
-		$CC->{$section}{decode_entities($Q->{id})} = decode_entities($Q->{value});
+	# "add" is really an unconditional assignment - nothing here checks whether the
+	# property already exists - so it is a second route to overwriting a protected
+	# key, and the section it is filed under does not matter (see %gui_protected_key).
+	my $newitem = decode_entities($Q->{id} // '');
+	return validation_abort($newitem, $GUI_PROTECTED_MSG)
+			if (is_gui_protected_key($newitem));
+
+	if ($newitem ne '') {
+		$CC->{$section}{$newitem} = decode_entities($Q->{value});
 	}
 
 	NMISNG::Util::writeConfData(data=>$CC);
