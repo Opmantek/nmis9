@@ -318,6 +318,7 @@ my %hash = (
   },
 
   'authentication' => {
+	'access_table_hardened' => '',
 	'auth_banner_title' => 'NMIS9',
 	'auth_buttons_visible' => 'true',
 	'auth_cookie_samesite' => 'Lax',
