@@ -66,6 +66,24 @@ is(NMISNG::Util::decrypt($cipher), $secret,
 is(NMISNG::Util::encrypt($cipher), $cipher,
 	"encrypt of an already-encrypted value returns it unchanged");
 
+# --- length-prefix boundary: 999 round-trips, >999 refuses (fails closed) ---
+# encrypt's %03d prefix cannot represent >999, and decrypt's exact-length
+# gate would reject the resulting value forever; encrypt must refuse instead.
+{
+	my $max = 'x' x 999;
+	my $c999 = NMISNG::Util::encrypt($max);
+	like($c999, qr/^!!/, "a 999-char secret encrypts");
+	is(NMISNG::Util::decrypt($c999), $max, "and round-trips");
+	my $over = 'x' x 1000;
+	my $got;
+	{
+		local $SIG{__WARN__} = sub { };
+		$got = eval { NMISNG::Util::encrypt($over) };
+	}
+	is($@, '', "encrypt of a 1000-char secret does not die");
+	is($got, $over, "and returns it unchanged (would be undecryptable if encrypted)");
+}
+
 # --- phase 3: cipher failures return input unchanged ---
 is(NMISNG::Util::decrypt('!!nothexatall-not-even-close'), '!!nothexatall-not-even-close',
 	"decrypt of undecryptable garbage returns it unchanged (never '')");

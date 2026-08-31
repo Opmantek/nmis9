@@ -5041,6 +5041,16 @@ sub encrypt {
 		# value is already plaintext at rest, so returning it unchanged adds
 		# no new exposure.
 		my $original = $password;
+
+		# the 3-digit length prefix cannot represent more than 999 characters;
+		# encrypting anyway would produce a value decrypt must reject forever.
+		# Refuse instead: fail closed, value stays as it was.
+		if (length($password) > 999)
+		{
+			$logger->error("Password encryption failure: value longer than 999 characters cannot be encrypted (length prefix limit); storing the value unchanged.");
+			return $original;
+		}
+
 		my ($seed, $seederr) = _resolve_seed($logger);
 		if (!defined($seed))
 		{
