@@ -82,6 +82,7 @@ use Digest::MD5 ();
 use Crypt::PasswdMD5 qw(apache_md5_crypt);
 
 use NMISNG;
+use NMISNG::DB;			# make_oid, for the queue cleanup in case 5
 use NMISNG::Log;
 use NMISNG::Node;
 use NMISNG::Util;
@@ -153,6 +154,13 @@ my %SECRET = (
 	privkey      => "PrivKey-OMK12827",
 );
 my @SECRET_FIELDS = sort keys %SECRET;
+
+# OMK-12926 case 5. A fresh plaintext for every secret field, typed into the edit
+# form and submitted with the node "update" button in the same request. Built from
+# URL-unreserved characters only ([A-Za-z0-9-]), so they survive CGI.pm's query
+# escaping and its HTML escaping byte for byte and a plain substring search cannot
+# miss a reflection because of encoding. Keep that property if these change.
+my %RETYPED = map { $_ => "Retyped-$_-OMK12926" } @SECRET_FIELDS;
 
 # ---- guards: skip cleanly off the dev container, but never silently ----------
 
@@ -358,6 +366,11 @@ sub fetch_edit_form
 	$t->get_ok("/cgi-nmis9/tables.pl?conf=Config&act=config_table_edit"
 						 . "&table=Nodes&key=$NODENAME&widget=false");
 	is($t->tx->res->code, 200, "$desc: edit form HTTP 200");
+	# OMK-12926: this is the form the six secrets are typed into, built by
+	# editTable with the same start_form idiom the update page below uses. The GET
+	# that produced it carries nothing secret, but a self_url action here echoes
+	# the whole addressing query string and is the same latent defect, so pin it.
+	assert_clean_form_action($t->tx->res->dom, 'nmisNodes', 'tables.pl', $desc);
 	return harvest_form($t->tx->res->dom);
 }
 
@@ -369,6 +382,86 @@ sub submit_edit
 	my $body = $t->tx->res->body // '';
 	unlike($body, qr/class="error"/, "$desc: save reported no error")
 			or diag("response was: " . substr($body, 0, 500));
+}
+
+# OMK-12926: a value that was submitted must not come back in the rendered page.
+#
+# index(), never a regex. Test::More puts the pattern into the test name and the
+# operand into unlike()'s diagnostics, so a regex-based version of this assertion
+# would print the submitted secret into the test output and the CI log, which is
+# exactly the disclosure it exists to catch. Nothing here ever names the needle.
+#
+# $marker is the anti-vacuity guard, and it is load-bearing: index() < 0 is just
+# as true of an empty body, a truncated one or an error page, so every caller
+# names a string the response MUST contain before "the secret is not in it"
+# proves anything.
+sub assert_no_reflection
+{
+	my ($body, $secret, $marker, $desc) = @_;
+
+	ok(index($body, $marker) >= 0, "$desc: the response is the page it should be")
+			or diag("marker '$marker' is missing from a " . length($body)
+							. " byte body, so the reflection check below would be vacuous");
+	ok(index($body, $secret) < 0,
+		 "$desc: the submitted secret appears nowhere in the response body")
+			or diag("the submitted value is echoed back into the " . length($body)
+							. " byte response; it is deliberately not reproduced here. The "
+							. "form's action attribute is the place to look.");
+}
+
+# The same defect from the other side, asserted structurally. CGI.pm's start_form
+# defaults the action to request_uri || self_url, and self_url reserialises EVERY
+# parameter of the request - POSTed ones included - into that URL. Pinning "the
+# form's action has no query string" catches the reflection of any field of this
+# form, not only the six this test happens to watch.
+sub assert_clean_form_action
+{
+	my ($dom, $formid, $script, $desc) = @_;
+
+	my $form = $dom->at("form#$formid");
+	if (!$form)
+	{
+		fail("$desc: the response carries the $formid form");
+		return;
+	}
+	my $action = $form->attr('action') // '';
+	# the diagnostics print the path only - everything after the '?' is exactly
+	# the material that must not be echoed anywhere, this test's output included.
+	my ($path) = split(/\?/, $action, 2);
+	ok(index($action, '?') < 0, "$desc: the $formid form action carries no query string")
+			or diag("action path is '$path', followed by a "
+							. (length($action) - length($path) - 1)
+							. " byte query string that is not printed here");
+	like($path, qr{/\Q$script\E$}, "$desc: and the action still points at $script");
+}
+
+# OMK-12926, PR 75 review: the same check as assert_clean_form_action, for
+# dodeleteTable's Nodes confirmation page (cgi-bin/tables.pl:1198). That
+# start_form is called with -id=>"" rather than $formid, and CGI.pm renders
+# that as a literal id="" attribute, not the absence of one, so
+# "form#nmisNodes" never matches it. Compat::NMIS::pageStart, the only other
+# thing this page prints around the form, emits no form of its own, so the
+# page carries exactly one <form> - finding it by that fact is a fixture-sanity
+# check in its own right, since an error page or the wrong branch would not
+# carry exactly one.
+sub assert_clean_sole_form_action
+{
+	my ($dom, $script, $desc) = @_;
+
+	my $forms = $dom->find('form');
+	if ($forms->size != 1)
+	{
+		fail("$desc: the response carries exactly one form (found " . $forms->size . ")");
+		fail("$desc: (its action was not checked)");
+		return;
+	}
+	my $action = $forms->first->attr('action') // '';
+	my ($path) = split(/\?/, $action, 2);
+	ok(index($action, '?') < 0, "$desc: the form action carries no query string")
+			or diag("action path is '$path', followed by a "
+							. (length($action) - length($path) - 1)
+							. " byte query string that is not printed here");
+	like($path, qr{/\Q$script\E$}, "$desc: and the action still points at $script");
 }
 
 # ---- seed a node holding real ciphertext in all six secret fields -----------
@@ -474,6 +567,15 @@ $form2->{act}       = 'config_table_doedit';
 $form2->{community} = $NEWPLAIN;
 submit_edit($form2, "new secret edit");
 
+# OMK-12926 on the ordinary save response. doeditTable returns 1 here, so
+# menuTable renders the table listing, and menuTable draws only the columns
+# Table-Nodes marks display => header - none of which is a secret. So this
+# assertion has no reflection to catch through the ordinary save path and passed
+# before the fix as well as after. It is kept as a regression guard, not offered
+# as evidence; case 5 below is the path that was actually red.
+assert_no_reflection($t->tx->res->body // '', $NEWPLAIN, 'Table Nodes',
+										 "new secret edit (save response)");
+
 my $after2 = stored_config();
 BAIL_OUT("node vanished after the second edit") if (!$after2);
 
@@ -487,6 +589,181 @@ is(NMISNG::Util::decrypt($after2->{community}), $NEWPLAIN,
 for my $f (grep { $_ ne 'community' } @SECRET_FIELDS)
 {
 	is($after2->{$f}, $CIPHER{$f}, "$f untouched while a sibling secret was changed");
+}
+
+# ---- 5. OMK-12926: the node "update" page must not echo the submitted secrets -
+#
+# This is the one response in tables.pl that renders a form AFTER a submission
+# carrying secrets, and it is an ordinary thing for an operator to do: retype the
+# SNMP and WMI credentials and press "Update Node" rather than "Edit". The button
+# sets the hidden "update" field to true (cgi-bin/tables.pl:647), doeditTable
+# takes its scheduling branch, and that branch prints its own form and returns 0,
+# so menuTable never runs and this page IS the whole response
+# (cgi-bin/tables.pl:1074-1113).
+#
+# Every one of the six password-flagged Table-Nodes fields is retyped in plaintext,
+# not round-tripped as "!!" ciphertext, because that is the case where the
+# operator's actual secret is in the request body. Against the unfixed code all six
+# came back in the form's action attribute in cleartext.
+#
+# Placed here, after every assertion about stored values and before the
+# conf/Config.nmis gate, for two reasons. It rewrites the node's secrets, so
+# nothing that inspects them may follow it; and the checksum gate below must still
+# cover it.
+#
+# It also schedules a real update job, which is the one side effect this file has
+# gone out of its way to avoid elsewhere (the seed node is deliberately inactive,
+# see its comment). Cleaning that up is a race, not a delete: nmisd is a live
+# worker in the dev and CI containers, the job is priority 1 and due immediately,
+# so it can be consumed between the POST and the cleanup. The containment is
+# therefore in two parts, and only the second one is an assertion about the world.
+# See the comment at the cleanup below.
+
+{
+	my $form3 = fetch_edit_form("retyped secrets");
+	$form3->{act} = 'config_table_doedit';
+	$form3->{$_}  = $RETYPED{$_} for (@SECRET_FIELDS);
+	$form3->{update} = 'true';           # what the "Update Node" button sets
+
+	$t->post_ok('/cgi-nmis9/tables.pl' => form => $form3);
+	my $body = $t->tx->res->body // '';
+	is($t->tx->res->code, 200, "case 5: the update submission is answered");
+
+	# fixture sanity before anything is concluded from the body. If the scheduling
+	# branch did not run, this is menuTable or an error row, the form under test was
+	# never rendered, and every assertion below would be about the wrong page.
+	my $marker = "User-initiated update of $NODENAME";
+	ok(index($body, $marker) >= 0, "case 5: the node update page rendered")
+			# the response to this request contains six plaintext secrets whenever the
+			# defect is present, so it is described, never dumped. Same discipline as
+			# assert_no_reflection above.
+			or diag("marker '$marker' missing from a " . length($body) . " byte response, "
+							. "first line: " . ((split(/\r?\n/, $body, 2))[0] // ''));
+
+	for my $f (@SECRET_FIELDS)
+	{
+		assert_no_reflection($body, $RETYPED{$f}, $marker, "case 5 ($f)");
+	}
+	assert_clean_form_action($t->tx->res->dom, 'nmisNodes', 'tables.pl', "case 5");
+
+	# ---- put the queue back the way we found it, without racing the worker -----
+	#
+	# nmisd runs in the dev and CI containers and this job is priority 1 with
+	# time => now, so a worker can take it between the POST above and this line.
+	# Deleting by _id is therefore best effort: "no matching queue entry found"
+	# means somebody got there first, which is the outcome we wanted, not a
+	# failure. Anything else from remove_queue is a real error and stays red.
+	#
+	# The assertion that actually closes this is the state check afterwards. It
+	# says what has to be true regardless of who did the removing - no update job
+	# for this node is left behind - so it is green whether the delete or a worker
+	# cleared it, and red on a genuine leftover.
+
+	my ($jobid) = $body =~ /job id ([0-9a-fA-F]{24})/;
+	ok($jobid, "case 5: the update job was scheduled and reported its id")
+			or diag("no job id in the response, so doeditTable's scheduling branch "
+							. "either did not run or did not report one - in which case the "
+							. "page just asserted on is probably not the page under test");
+
+	if ($jobid)
+	{
+		my $err = $nmisng->remove_queue(id => NMISNG::DB::make_oid($jobid));
+		# the driver's wording for "already gone"; see above for why that is a pass
+		$err = undef if (defined($err) && $err =~ /no matching queue entry found/);
+		ok(!$err, "case 5: the scheduled update job was removed, or already consumed")
+				or diag("remove_queue said: $err");
+	}
+
+	my $leftover = 0;
+	for my $job (@{$nmisng->get_queue_model()->data() // []})
+	{
+		++$leftover if (($job->{type} // '') eq 'update'
+										&& (($job->{args}->{uuid} // '') eq $node->uuid));
+	}
+	is($leftover, 0, "case 5: no update job for the seed node is left in the queue");
+}
+
+# ---- 6. OMK-12926, PR 75 review: the node delete confirmation page must not ----
+# echo the query string into its form action
+#
+# dodeleteTable's Nodes branch (cgi-bin/tables.pl:1143) does not delete the node
+# on this request. For table=Nodes it calls NMISNG::update_queue with type
+# "delete_nodes" (lib/NMISNG.pm:5677), which SYNCHRONOUSLY deactivates the node
+# - collect=0, active=0, saved immediately - but only SCHEDULES the row's
+# removal; that happens later, out of process, when nmisd's worker consumes the
+# job (bin/nmisd:1826). The response to this POST is dodeleteTable's own
+# confirmation page, "User-initiated delete of $NODENAME", printed by a
+# start_form call (tables.pl:1198) that carried the exact same self_url defect
+# as the other three start_form calls in this file, fixed the same way and
+# covered by the same test discipline. Unlike the other three it is called with
+# -id=>"" rather than $formid, so assert_clean_form_action's id lookup cannot
+# find it; assert_clean_sole_form_action above finds the page's one <form> by
+# its presence instead.
+#
+# Placed last, after every other assertion that reads or writes the node.
+# This request's synchronous deactivation and its queued row-delete are real,
+# irreversible mutations of the seed node, which this file has otherwise gone
+# out of its way to avoid (see the "inactive on purpose" comment above case 5's
+# fixture). The queue race is the same one case 5 documented: nmisd is a live
+# worker in the dev and CI containers, the job is priority 1 and due
+# immediately, so it can be consumed - and the row actually deleted - between
+# this POST and the cleanup below. Containment therefore has the same two
+# parts, and only the state check at the end is an assertion about the world;
+# if the worker wins the race, END's node cleanup below is a best-effort no-op,
+# which is the outcome that is actually fine.
+
+{
+	# a fresh token: case 5's was scoped to its own block, and verify_csrf does
+	# not care which act it was minted alongside (it is bound to the
+	# authenticated user, not to a specific act - lib/NMISNG/Auth.pm:552).
+	my $preform = fetch_edit_form("delete confirmation setup");
+
+	$t->post_ok('/cgi-nmis9/tables.pl' => form =>
+		{ conf => 'Config', act => 'config_table_dodelete', table => 'Nodes',
+		  key => $NODENAME, widget => 'false', csrf_token => $preform->{csrf_token} });
+	my $body = $t->tx->res->body // '';
+	is($t->tx->res->code, 200, "case 6: the delete submission is answered");
+
+	# fixture sanity before anything is concluded from the body: if the
+	# scheduling branch did not run, the form under test was never rendered.
+	my $marker = "User-initiated delete of $NODENAME";
+	ok(index($body, $marker) >= 0, "case 6: the node delete confirmation page rendered")
+			or diag("marker '$marker' missing from a " . length($body) . " byte response, "
+							. "first line: " . ((split(/\r?\n/, $body, 2))[0] // ''));
+
+	assert_clean_sole_form_action($t->tx->res->dom, 'tables.pl', "case 6");
+
+	# ---- put the queue back the way we found it, without racing the worker -----
+	# Same reasoning as case 5's cleanup. The only differences: the job type is
+	# "delete_nodes", and dodeleteTable identifies the node by "node" name
+	# (tables.pl:1170, an arrayref of one), never by "uuid" - that arg is only
+	# ever set for collect/update/services jobs.
+
+	my ($jobid) = $body =~ /job id ([0-9a-fA-F]{24})/;
+	ok($jobid, "case 6: the delete job was scheduled and reported its id")
+			or diag("no job id in the response, so dodeleteTable's scheduling branch "
+							. "either did not run or did not report one - in which case the "
+							. "page just asserted on is probably not the page under test");
+
+	if ($jobid)
+	{
+		my $err = $nmisng->remove_queue(id => NMISNG::DB::make_oid($jobid));
+		# the driver's wording for "already gone"; see case 5 above for why that
+		# is a pass
+		$err = undef if (defined($err) && $err =~ /no matching queue entry found/);
+		ok(!$err, "case 6: the scheduled delete job was removed, or already consumed")
+				or diag("remove_queue said: $err");
+	}
+
+	my $leftover = 0;
+	for my $job (@{$nmisng->get_queue_model()->data() // []})
+	{
+		next unless (($job->{type} // '') eq 'delete_nodes');
+		my $names = $job->{args}->{node};
+		$names = [$names] if (defined($names) && ref($names) ne 'ARRAY');
+		++$leftover if ($names && grep { ($_ // '') eq $NODENAME } @$names);
+	}
+	is($leftover, 0, "case 6: no delete job for the seed node is left in the queue");
 }
 
 # ---- 4. the test must not have written conf/Config.nmis (round-4 review) -------

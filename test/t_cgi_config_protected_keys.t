@@ -260,6 +260,18 @@ my $KEYDIR    = File::Temp::tempdir("omk12827-protkeys-XXXXXX", TMPDIR => 1, CLE
 my $SENTINEL  = "$KEYDIR/sentinel-master.key";
 my $ATTACKER  = "$KEYDIR/attacker-master.key";
 
+# OMK-12926 needles. $ATTACKER is an absolute path, and CGI.pm percent-encodes
+# the '/' when it serialises a parameter into a URL, so searching a response for
+# the whole path would silently find nothing even when the value IS reflected -
+# a vacuous assertion of exactly the kind this file already had to fix once. The
+# basename is made of URL-unreserved characters only ([A-Za-z0-9.-]), so it comes
+# through CGI.pm's query escaping and its HTML escaping byte for byte. Keep that
+# property if either name is changed.
+my $ATTACKER_NEEDLE = 'attacker-master.key';
+# and a distinctive applied value for the setup.pl positive controls, for the
+# same reason: 'after' would be indistinguishable from ordinary page prose.
+my $PROBE_APPLIED   = 't12827-prot-applied';
+
 # a real file at the sentinel path, so that even an unexpected master-key read
 # succeeds rather than warning; see the header for why it is never reached.
 {
@@ -407,8 +419,63 @@ sub post_setup
 	return ($t->tx->res->code // 0, $t->tx->res->body // '');
 }
 
+# OMK-12926: a value that was posted must not come back in the rendered response.
+#
+# index(), never a regex: Test::More puts the pattern into the test name and the
+# operand into unlike()'s diagnostics, so a regex-based version would print the
+# submitted value straight into the CI log. On this test the value is only an
+# attacker-chosen path, but the same handlers render submitted passwords (see
+# t_cgi_config_password_refusals.t), so the assertion is written to the same
+# discipline and never names the needle.
+#
+# $marker is the anti-vacuity guard. index() < 0 is just as true of an empty
+# body, a truncated one or an error page, so every caller names a string the
+# response MUST contain before "the value is not in it" proves anything.
+sub assert_no_reflection
+{
+	my ($body, $needle, $marker, $desc) = @_;
+
+	ok(index($body, $marker) >= 0, "$desc: the response is the page it should be")
+			or diag("marker '$marker' is missing from a " . length($body)
+							. " byte body, so the reflection check below would be vacuous");
+	ok(index($body, $needle) < 0,
+		 "$desc: the submitted value appears nowhere in the response body")
+			or diag("the submitted value is echoed back into the " . length($body)
+							. " byte response; it is deliberately not reproduced here. The "
+							. "form's action attribute is the place to look.");
+}
+
+# The same defect from the other side, asserted structurally. CGI.pm's start_form
+# defaults the action to request_uri || self_url, and self_url reserialises EVERY
+# parameter of the request - POSTed ones included - into that URL. Pinning "the
+# form's action has no query string" catches the reflection of any parameter, not
+# only the ones these cases happen to submit.
+sub assert_clean_form_action
+{
+	my ($dom, $formid, $script, $desc) = @_;
+
+	my $form = $dom->at("form#$formid");
+	if (!$form)
+	{
+		fail("$desc: the response carries the $formid form");
+		return;
+	}
+	my $action = $form->attr('action') // '';
+	# the diagnostics print the path only - everything after the '?' is exactly
+	# the material that must not be echoed anywhere, this test's output included.
+	my ($path) = split(/\?/, $action, 2);
+	ok(index($action, '?') < 0, "$desc: the $formid form action carries no query string")
+			or diag("action path is '$path', followed by a "
+							. (length($action) - length($path) - 1)
+							. " byte query string that is not printed here");
+	like($path, qr{/\Q$script\E$}, "$desc: and the action still points at $script");
+}
+
 # the one refusal phrase every handler shares, in config.pl and setup.pl alike
 my $PROTECTED = qr/not editable through the GUI \(protected key\)/;
+# markers for assert_no_reflection: strings each page always renders
+my $CFG_MARKER   = 'NMIS Configuration';
+my $SETUP_MARKER = 'Welcome to the NMIS Setup interface!';
 # displayConfig's generic error bar, for the positive controls
 my $ANY_ERROR = qr/class="Fatal"/;
 
@@ -429,8 +496,11 @@ isnt($BASE_CONF, 'ABSENT', "baseline: conf/Config.nmis exists to be watched");
 # Cheap anti-drift guard. The whole point of the shared deny list is that display
 # and writes cannot disagree; if a future edit drops the key from the list, this
 # goes red next to the four write cases rather than leaving the hiding silently
-# reversed. Asserted on a clean GET, because a refusal response echoes the posted
-# parameters back into the form's self_url action.
+# reversed. Asserted on a clean GET: until OMK-12926 that was a necessity, because
+# a refusal response echoed the posted parameters back into the form's self_url
+# action and the key name would have been "found" in the page for the wrong
+# reason. The echo is gone, but a GET is still the honest way to ask what the
+# table renders, so this stays where it is.
 
 {
 	$t->get_ok('/cgi-nmis9/config.pl?conf=Config&act=config_nmis_menu&section=system&widget=false');
@@ -441,6 +511,28 @@ isnt($BASE_CONF, 'ABSENT', "baseline: conf/Config.nmis exists to be watched");
 			or diag("response was: " . substr($body, 0, 800));
 	unlike($body, qr/master_key_file/,
 		   "display: master_key_file is not rendered in the config table");
+	assert_clean_form_action($t->tx->res->dom, 'nmisconfig', 'config.pl', "display");
+}
+
+# ---- D2: the other three config.pl forms carry clean actions too -------------
+# OMK-12926 changed four start_form calls in config.pl. displayConfig's is proved
+# by every case below, but editConfig's, addConfig's and deleteConfig's would
+# otherwise be shipped untested. All three are GET-rendered read views that need
+# no CSRF token of their own, so this costs three requests. They are the forms
+# the write parameters are typed into, so a self_url action on any of them is the
+# same latent echo, one submission earlier in the flow.
+
+{
+	my @forms = (["config_nmis_edit&section=system&item=$PROBE_EDIT", "editConfig"],
+							 ["config_nmis_add&section=system", "addConfig"],
+							 ["config_nmis_delete&section=system&item=$PROBE_DELETE", "deleteConfig"]);
+	for my $f (@forms)
+	{
+		my ($query, $desc) = @$f;
+		$t->get_ok("/cgi-nmis9/config.pl?conf=Config&act=$query&widget=false");
+		is($t->tx->res->code, 200, "D2 ($desc): the form renders");
+		assert_clean_form_action($t->tx->res->dom, 'nmisconfig', 'config.pl', "D2 ($desc)");
+	}
 }
 
 # =============================================================================
@@ -455,6 +547,8 @@ isnt($BASE_CONF, 'ABSENT', "baseline: conf/Config.nmis exists to be watched");
 
 	is($code, 200, "N1 (edit): the submission is answered, not refused by the CSRF guard");
 	like($body, $PROTECTED, "N1 (edit): master_key_file is refused as a protected key");
+	assert_no_reflection($body, $ATTACKER_NEEDLE, $CFG_MARKER, "N1 (edit)");
+	assert_clean_form_action($t->tx->res->dom, 'nmisconfig', 'config.pl', "N1 (edit)");
 
 	my ($flat, $local) = reload();
 	is($flat->{master_key_file}, $SENTINEL, "N1 (edit): the effective master key is unchanged");
@@ -492,6 +586,8 @@ isnt($BASE_CONF, 'ABSENT', "baseline: conf/Config.nmis exists to be watched");
 
 	is($code, 200, "N3 (add): the submission is answered, not refused by the CSRF guard");
 	like($body, $PROTECTED, "N3 (add): master_key_file is refused as a protected key");
+	assert_no_reflection($body, $ATTACKER_NEEDLE, $CFG_MARKER, "N3 (add)");
+	assert_clean_form_action($t->tx->res->dom, 'nmisconfig', 'config.pl', "N3 (add)");
 
 	my ($flat, $local) = reload();
 	is($flat->{master_key_file}, $SENTINEL, "N3 (add): the effective master key is unchanged");
@@ -516,6 +612,8 @@ isnt($BASE_CONF, 'ABSENT', "baseline: conf/Config.nmis exists to be watched");
 	is($code, 200, "N4 (cross-section add): the submission is answered");
 	like($body, $PROTECTED,
 		 "N4 (cross-section add): master_key_file is refused under 'database' too");
+	assert_no_reflection($body, $ATTACKER_NEEDLE, $CFG_MARKER, "N4 (cross-section add)");
+	assert_clean_form_action($t->tx->res->dom, 'nmisconfig', 'config.pl', "N4 (cross-section add)");
 
 	my (undef, $local) = reload();
 	ok(!exists $local->{database}{master_key_file},
@@ -604,6 +702,8 @@ $BASE_BAK  = file_cksum($CONF_BAK);
 	is($code, 200, "S1 (setup): the submission is answered, not refused by the CSRF guard");
 	like($body, $PROTECTED, "S1 (setup): master_key_file is refused as a protected key")
 			or diag("response was: " . substr($body, 0, 800));
+	assert_no_reflection($body, $ATTACKER_NEEDLE, $SETUP_MARKER, "S1 (setup)");
+	assert_clean_form_action($t->tx->res->dom, 'nmissetup', 'setup.pl', "S1 (setup)");
 
 	my ($flat, $local) = reload();
 	is($flat->{master_key_file}, $SENTINEL, "S1 (setup): the effective master key is unchanged");
@@ -618,15 +718,21 @@ $BASE_BAK  = file_cksum($CONF_BAK);
 # parameter name would produce "nothing was written" and read as a pass.
 
 {
-	my ($code, $body) = post_setup("option/system/$PROBE_SETUP" => 'after');
+	my ($code, $body) = post_setup("option/system/$PROBE_SETUP" => $PROBE_APPLIED);
 
 	is($code, 200, "S2 (setup control): the submission is answered");
 	unlike($body, $PROTECTED, "S2 (setup control): an unprotected key is not refused")
 			or diag("response was: " . substr($body, 0, 800));
 	unlike($body, $ANY_ERROR, "S2 (setup control): and no error bar was rendered at all");
+	# OMK-12926 on a SUCCESS response, which is the harder half: the panel renders
+	# controls for a fixed dozen properties and this probe is not one of them, so
+	# the only way the submitted value can be in this page at all is the form's
+	# action URL.
+	assert_no_reflection($body, $PROBE_APPLIED, $SETUP_MARKER, "S2 (setup control)");
+	assert_clean_form_action($t->tx->res->dom, 'nmissetup', 'setup.pl', "S2 (setup control)");
 
 	my (undef, $local) = reload();
-	is($local->{system}{$PROBE_SETUP}, 'after',
+	is($local->{system}{$PROBE_SETUP}, $PROBE_APPLIED,
 	   "S2 (setup control): the value WAS written - so S1's refusal is a refusal, "
 	   . "not an inert route");
 	isnt(file_cksum($CONF_FILE), $BASE_CONF, "S2 (setup control): conf/Config.nmis WAS written");
@@ -643,22 +749,28 @@ $BASE_BAK  = file_cksum($CONF_BAK);
 
 {
 	my ($code, $body) = post_setup("option/system/master_key_file" => $ATTACKER,
-								   "option/system/$PROBE_SETUPMIX"  => 'after');
+								   "option/system/$PROBE_SETUPMIX"  => $PROBE_APPLIED);
 
 	is($code, 200, "S3 (mixed): the submission is answered");
 	like($body, $PROTECTED, "S3 (mixed): the refusal is reported to the operator")
 			or diag("response was: " . substr($body, 0, 800));
-	# inside the error bar specifically. A bare /master_key_file/ over the whole
-	# body would pass on nothing at all: display_setup re-renders the form with the
-	# posted parameters echoed into its self-referencing action URL.
+	# inside the error bar specifically, and it stays that way. Until OMK-12926
+	# this anchoring was load-bearing - display_setup re-rendered the form with the
+	# posted parameters echoed into its self-referencing action URL, so a bare
+	# /master_key_file/ over the whole body passed on nothing at all. The echo is
+	# gone now (the two assertions below pin that), but the anchored form is the
+	# stronger statement either way, so it stays.
 	like($body, qr/class="Fatal"[^>]*>Error:[^<]*master_key_file/,
 		 "S3 (mixed): and the error bar names the item that was dropped");
+	assert_no_reflection($body, $ATTACKER_NEEDLE, $SETUP_MARKER, "S3 (mixed, refused item)");
+	assert_no_reflection($body, $PROBE_APPLIED, $SETUP_MARKER, "S3 (mixed, applied item)");
+	assert_clean_form_action($t->tx->res->dom, 'nmissetup', 'setup.pl', "S3 (mixed)");
 
 	my ($flat, $local) = reload();
 	is($flat->{master_key_file}, $SENTINEL, "S3 (mixed): the master key is unchanged");
 	is($local->{system}{master_key_file}, $SENTINEL,
 	   "S3 (mixed): and conf/Config.nmis still names the sentinel");
-	is($local->{system}{$PROBE_SETUPMIX}, 'after',
+	is($local->{system}{$PROBE_SETUPMIX}, $PROBE_APPLIED,
 	   "S3 (mixed): the unprotected item in the SAME submission was still applied");
 }
 
