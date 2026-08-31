@@ -94,7 +94,7 @@ if ($Q->{act} eq 'setup_menu' or NMISNG::Util::getbool($Q->{cancel}))
 {
 	display_setup();
 }
-# edit submission action: returns 0 if ok, 1 otherwise (and sets $Q->{error_message})
+# edit submission action: returns 1 if ok, 0 otherwise (and sets $Q->{error_message})
 elsif ($Q->{act} eq 'setup_doedit')
 {
 	edit_config();
