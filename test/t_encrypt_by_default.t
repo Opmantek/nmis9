@@ -84,6 +84,28 @@ use File::Temp ();
 use File::Copy qw(copy);
 use Test::More;
 
+# MUST run before the master key is substituted below. The checkout's stored
+# db_password may already be '!!' ciphertext under the INSTALLATION's master
+# key - which is this change working as intended. This test then swaps in an
+# ephemeral key that cannot read it, and the mongo phase's every connect would
+# fail authentication. Resolve the effective value while the ambient key is
+# still in force and hand it to the rest of the process as a layer-4 ENV
+# override - which also puts db_password beyond writeConfData's reach, so
+# nothing here can migrate the checkout's config. decrypt is called with no
+# section and no keyword on purpose: that is the form with no migration write.
+# The value is never printed. A pre-set NMIS_DB_PASSWORD (CI supplies one) wins.
+BEGIN {
+	require NMISNG::Util;
+	my $ambient = NMISNG::Util::loadConfTable();
+	if (!defined($ENV{NMIS_DB_PASSWORD})
+		&& defined($ambient->{db_password}) && $ambient->{db_password} ne '')
+	{
+		my $plain = eval { NMISNG::Util::decrypt($ambient->{db_password}) };
+		$ENV{NMIS_DB_PASSWORD} = $plain if (defined($plain) && $plain ne '');
+	}
+	$NMISNG::Util::_config_cache_invalid = 1;
+}
+
 my ($KEYDIR, $KEYFILE, $LOGDIR);
 BEGIN {
 	$KEYDIR  = File::Temp::tempdir("omk12695-default-XXXXXX", TMPDIR => 1, CLEANUP => 1);
@@ -200,7 +222,10 @@ sub restore_file
 {
 	my ($saved, $orig) = @_;
 	return if (!$saved || !-f $saved->{copy});
-	copy($saved->{copy}, $orig);
+	# a failed restore leaves the operator's config as this test rewrote it, so
+	# it must never be silent, even in END where nothing can be asserted
+	copy($saved->{copy}, $orig)
+		or diag("RESTORE FAILED: could not copy $saved->{copy} back to $orig: $!");
 	chmod($saved->{mode}, $orig);
 	chown($saved->{uid}, $saved->{gid}, $orig);   # best effort; a non-root run
 	unlink $saved->{copy};                        # never took ownership away

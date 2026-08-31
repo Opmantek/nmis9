@@ -105,6 +105,17 @@ my $KEYFILE = "$keydir/master.key";
 	chmod(0400, $KEYFILE);
 }
 
+# The effective database password, resolved HERE, while the ambient master key
+# is still in force. Since OMK-12695 made encryption the shipped default, the
+# stored db_password may already be '!!' ciphertext under the installation's
+# key, and every child below runs with the EPHEMERAL key above, which cannot
+# read it - handing the children the raw stored value would fail authentication
+# on every act dispatched below the database connection. decrypt is called with
+# no section and no keyword on purpose: that is the form that performs no
+# migration write. Never printed, never asserted on.
+my $DB_PASSWORD = (defined($C->{db_password}) && $C->{db_password} ne '')
+	? NMISNG::Util::decrypt($C->{db_password}) : undef;
+
 my $CONF_FILE = $C->{configfile};
 my $conf_md5_before = file_md5($CONF_FILE);
 
@@ -141,7 +152,7 @@ sub run_cli
 
 	local $ENV{NMIS_MASTER_KEY_FILE} = $KEYFILE;
 	# never printed, never asserted on; see the header
-	local $ENV{NMIS_DB_PASSWORD} = $C->{db_password} if (defined $C->{db_password});
+	local $ENV{NMIS_DB_PASSWORD} = $DB_PASSWORD if (defined $DB_PASSWORD);
 	local $ENV{NMIS_GLOBAL_ENABLE_PASSWORD_ENCRYPTION} = $opt{flag} if (defined $opt{flag});
 
 	my $cmd = "perl '$CLI' $args";
@@ -201,7 +212,10 @@ for my $act (qw(enable-eos disable-eos))
 	my ($out, $rc) = run_cli("act=is-eos-available", flag => 'false');
 	unlike($out, qr/Unrecognized action/, "act=is-eos-available is dispatched");
 	like($out, qr/Checking \.\.\./, "and runs the availability checker");
-	like($out, qr/\bNMIS\b.*\b9\.5\.0\b/, "reporting the NMIS row against its minimum version");
+	# deliberately NOT asserting the 9.5.0 minimum-version row: that number is
+	# a property of the compatibility table, not of the dispatch this case is
+	# about, and pinning it here would make an unrelated table edit fail a CLI
+	# reachability test.
 }
 
 # ---- F: nothing above was allowed to rewrite the checkout's config ---------
