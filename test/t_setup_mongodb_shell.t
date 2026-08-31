@@ -3,7 +3,7 @@
 # Tests for OMK-12642: shell removal and systemLog.path validation in
 # admin/setup_mongodb.pl
 #
-# Runs without a live NMIS server, MongoDB, logrotate or root privileges.
+# Runs without a live MongoDB or root privileges, but needs the dev container's Perl module set for the modulino require of setup_mongodb.pl.
 #
 # Covers:
 #   1. The shipped systemLog.path guard rejects logrotate config injection.
@@ -54,6 +54,12 @@ my $code_only = join("\n", grep { !/^\s*#/ } split(/\n/, $content));
 # same require pattern t_setup_mongodb_provisioning.t uses for the other
 # file-scope subs. Nothing past the seam runs: no config load, no Mongo
 # connection.
+BEGIN {
+	for my $m (qw(MongoDB YAML::XS JSON::PP Tie::IxHash)) {
+		eval "require $m; 1"
+			or BAIL_OUT("$m is required for the setup_mongodb.pl modulino require and is not installed (the dev container provides it): $@");
+	}
+}
 require $script;
 
 # ---------------------------------------------------------------------------

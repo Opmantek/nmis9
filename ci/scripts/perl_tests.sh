@@ -106,6 +106,7 @@ working_tests=(
     t_selftest_crypto.pl
     t_masterkey_generate.t
     t_masterkey_provision.t
+    t_compose_master_key.t
     t_plugin_nodevalidation.pl
     notify_depend.t
     t_nmisng_node_nomodel.pl

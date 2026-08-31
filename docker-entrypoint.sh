@@ -103,6 +103,100 @@ setup() {
   fi
 }
 
+provision_master_key() {
+  # an operator-supplied key (NMIS_MASTER_KEY_FILE) makes the generated
+  # default-path key dead weight; skip provisioning entirely
+  if [ -n "${NMIS_MASTER_KEY_FILE:-}" ]; then
+    echo "NMIS_MASTER_KEY_FILE is set; skipping default master key provisioning."
+    return 0
+  fi
+  # OMK-12827 Slice C: containers never run installer_hooks, so provision the
+  # encryption-of-secrets master key on first boot, into the nmis_master_key
+  # volume (see compose.yaml). Shared code with the installer hook and the
+  # dev entrypoint. Runs BEFORE setup_db: setup_mongodb.pl decrypts
+  # db_password, and provisioning first also keeps _make_seed's lazy root
+  # creation (wrong ownership for this image) out of play.
+  MASTERKEY_LIB="${NMIS_HOME}/installer_hooks/common_masterkey.sh"
+  if [ ! -r "$MASTERKEY_LIB" ]; then
+    echo "WARNING: $MASTERKEY_LIB is missing; cannot provision a master key for this container." >&2
+    return 0
+  fi
+  # shellcheck disable=SC1090
+  . "$MASTERKEY_LIB"
+  MASTERKEY_WAS_ABSENT=0
+  [ -e "$NMIS_MASTERKEY_DEFAULT_FILE" ] || MASTERKEY_WAS_ABSENT=1
+  if [ "$MASTERKEY_WAS_ABSENT" -eq 1 ]; then
+    # a crash on a previous boot can leave the provisioning temp file behind
+    # in the (persistent) volume, and its noclobber write would then fail on
+    # every boot. No key exists yet, so removing the temp destroys nothing.
+    rm -f "${NMIS_MASTERKEY_DEFAULT_FILE}.tmp."* 2>/dev/null || :
+  fi
+  # every command guarded: this script runs under set -e, and provisioning
+  # failure must warn, not kill the boot (runtime fails closed and the
+  # "Encryption of secrets" selftest reports it in the GUI).
+  # Owner is nmis: this image has no apache; nmisd and the nmisx web daemon
+  # run as nmis via su and must be able to read the key.
+  if nmis_masterkey_provision "${NMIS_USER}"; then
+    if [ "$MASTERKEY_WAS_ABSENT" -eq 1 ]; then
+      echo "Generated a master key for this container (${NMIS_MASTERKEY_DEFAULT_FILE})."
+      master_key_swap_warning
+    else
+      master_key_existing_owner_warning
+    fi
+  else
+    echo "WARNING: could not provision a master key; encryption of secrets cannot run until ${NMIS_MASTERKEY_DEFAULT_FILE} exists and is readable by ${NMIS_USER}." >&2
+  fi
+}
+
+master_key_swap_warning() {
+  # OMK-12827 Slice C: a FRESH key beside a config that already carries
+  # encrypted ('!!') values means those values were encrypted under a
+  # previous key this container no longer has - the pre-Slice-C upgrade,
+  # where the old key lived in the writable layer and the new
+  # nmis_master_key volume started empty. Decryption fails closed; nothing
+  # is wiped. Cheap proxy only: encrypted node secrets in Mongo are not
+  # visible from shell at boot; those surface via the "Encryption of
+  # secrets" selftest banner.
+  # the runtime ignores the generated key when NMIS_MASTER_KEY_FILE points at
+  # an operator-supplied key, so a fresh generated key implies nothing then
+  [ -z "${NMIS_MASTER_KEY_FILE:-}" ] || return 0
+  MK_CONFIG="${NMIS_HOME}/conf/Config.nmis"
+  [ -f "$MK_CONFIG" ] || return 0
+  if grep -q "'!!" "$MK_CONFIG"; then
+    echo "WARNING: ############################################################" >&2
+    echo "WARNING: conf/Config.nmis contains encrypted ('!!') values, but this" >&2
+    echo "WARNING: boot just GENERATED A NEW master key. Those values were" >&2
+    echo "WARNING: encrypted under a previous key and cannot be read with the" >&2
+    echo "WARNING: new one (reads fail closed; nothing is deleted)." >&2
+    echo "WARNING: Recovery: restore the previous master.key into the" >&2
+    echo "WARNING: nmis_master_key volume, replacing the newly generated" >&2
+    echo "WARNING: file, then restart the container." >&2
+    echo "WARNING: The previous key is in the OLD container's writable layer:" >&2
+    echo "WARNING:   docker cp <old-container>:/usr/local/etc/firstwave/master.key ." >&2
+    echo "WARNING: (run BEFORE removing the old container), then copy it into" >&2
+    echo "WARNING: this container's /usr/local/etc/firstwave/ and restart." >&2
+    echo "WARNING: After copying the key in, make it readable by nmis inside" >&2
+    echo "WARNING: this container: chown nmis:nmis and chmod 0440 the file." >&2
+    echo "WARNING: A boot never modifies an existing key." >&2
+    echo "WARNING: If the old container is already removed and no backup of" >&2
+    echo "WARNING: master.key exists, those values are unrecoverable;" >&2
+    echo "WARNING: re-enter the affected secrets." >&2
+    echo "WARNING: ############################################################" >&2
+  fi
+}
+
+master_key_existing_owner_warning() {
+  # OMK-12827 Slice C: an existing key is never modified, so a wrongly-owned
+  # one (e.g. a root-owned docker cp restore) stays wrong silently unless we
+  # say so. Pure diagnostic: never chowns, never touches the key file; safe
+  # under set -e (nmis_masterkey_owner_ok's non-zero return is ordinary
+  # control flow here, caught by && / ||).
+  MK_OWNER="$(nmis_masterkey_owner_ok "${NMIS_USER}")" && : || {
+    echo "WARNING: ${NMIS_MASTERKEY_DEFAULT_FILE} exists but is owned '${MK_OWNER:-unknown}', wanted '${NMIS_USER}:nmis'." >&2
+    echo "WARNING: the nmis daemons cannot read it; fix with: chown ${NMIS_USER}:nmis ${NMIS_MASTERKEY_DEFAULT_FILE} && chmod 0440 ${NMIS_MASTERKEY_DEFAULT_FILE}" >&2
+  }
+}
+
 nmis_frontend() {
   su -s /bin/bash ${NMIS_USER} -c '
     /usr/local/nmis9/bin/nmisd foreground=1 &
@@ -130,6 +224,7 @@ start_apps() {
 
 run() {
   setup
+  provision_master_key
   setup_db
   start_apps
   nmis_frontend
