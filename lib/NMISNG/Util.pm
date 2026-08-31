@@ -2149,6 +2149,28 @@ sub getdebug_cli
 	return ((defined($val)) ? (($val =~ /(^true$)|(^yes$)|(^t$)|(^y$)|(^1$)/i) ? 1 : (($val =~ /(^false$)|(^no$)|(^f$)|(^n$)|(^0$)/i) ? 0 : (($val =~ /^verbose$/i) ? 9 : (($val =~ /^[0-9]$/) ? $val : die "Invalid debug value: '$val'\n" )))) : 0);
 }
 
+# Config keys that must not be changeable through any GUI/CGI write route.
+# The config namespace is flat after _load_and_flatten, so protection is by
+# key NAME regardless of section (a same-named key added under any section
+# would shadow the real one). Display exclusion alone is not enough: every
+# write route must refuse these (OMK-12827; repointing master_key_file
+# after encryption is enabled makes existing secrets undecryptable).
+#
+# Lives here rather than in a CGI because there is more than one write route:
+# cgi-bin/config.pl (edit, delete, add) and cgi-bin/setup.pl (the setup panel's
+# option/<section>/<item> loop) both consult it, and a second copy would drift.
+# Covered by test/t_cgi_config_protected_keys.t.
+my %gui_protected_config_key = map { $_ => 1 }
+	(qw(auth_require severity_by_roletype master_key_file));
+
+# args: config property name
+# returns: 1 if no GUI write route may set or remove it, 0 otherwise
+sub config_key_is_gui_protected
+{
+	my ($item) = @_;
+	return (defined($item) && $gui_protected_config_key{$item}) ? 1 : 0;
+}
+
 # trivial wrapper around readfiletohash
 # difference to loadConfTable: loadconftable flattens and adds a few entries
 # args: only_local eq 1 loads only local config (Not by default)

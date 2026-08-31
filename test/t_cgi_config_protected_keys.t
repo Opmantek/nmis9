@@ -28,9 +28,9 @@
 #
 # *****************************************************************************
 #
-# OMK-12827 Slice B: cgi-bin/config.pl hides a small set of keys from the
-# rendered config table, and every write route must refuse them too (PR 73
-# re-review, Important 2).
+# OMK-12827 Slice B: the config GUI hides a small set of keys from the rendered
+# config table, and every write route must refuse them too (PR 73 re-review,
+# Important 2, extended by the re-review of that fix set).
 #
 # The hole this pins shut: displayConfig/typeSect skipped the row, so the GUI
 # offered no edit/delete link for master_key_file - but doEditConfig,
@@ -41,17 +41,40 @@
 # Hiding a control in the HTML is not an authorisation decision; the handler has
 # to make it.
 #
+# config.pl is not the only handler. cgi-bin/setup.pl's edit_config is a FOURTH
+# write route into the same file, behind the same two rights (table_config_view
+# for the page, Table_Config_rw for the write) and the same CSRF guard: it loops
+# over every posted parameter named option/<section>/<item> and assigns it into
+# the raw config, so option/system/master_key_file repoints the key just as
+# effectively as config_nmis_doedit does. The setup panel renders controls for a
+# fixed dozen properties and none of them is protected, which is exactly why the
+# loop had nothing stopping a hand-built parameter. Hence the S cases, and hence
+# the deny list living in NMISNG::Util rather than in either script.
+#
 # Cases, all driven as a browser-less direct POST (which is the threat, so it is
 # also the test):
 #
-#   N1 doedit   system/master_key_file          -> refused, nothing written
-#   N2 dodelete system/master_key_file          -> refused, nothing written
-#   N3 doadd    system/master_key_file          -> refused, nothing written
-#   N4 doadd    database/master_key_file        -> refused, nothing written
-#   P1 doedit   system/<probe>                  -> accepted, value changed
-#   P2 dodelete system/<probe>                  -> accepted, key removed
-#   P3 doadd    system/<probe>                  -> accepted, key added
+#   N1 config.pl doedit   system/master_key_file      -> refused, nothing written
+#   N2 config.pl dodelete system/master_key_file      -> refused, nothing written
+#   N3 config.pl doadd    system/master_key_file      -> refused, nothing written
+#   N4 config.pl doadd    database/master_key_file    -> refused, nothing written
+#   P1 config.pl doedit   system/<probe>              -> accepted, value changed
+#   P2 config.pl dodelete system/<probe>              -> accepted, key removed
+#   P3 config.pl doadd    system/<probe>              -> accepted, key added
 #   D  the config table still does not render the key at all
+#
+#   S1 setup.pl option/system/master_key_file         -> refused, nothing written
+#   S2 setup.pl option/system/<probe>                 -> accepted, value changed
+#   S3 setup.pl both of the above in ONE submission   -> probe applied, key refused
+#
+# S3 is the case that says what "refused" has to mean on this route. setup.pl
+# submits its whole panel in one POST, so refusing the request wholesale would
+# make one hand-built parameter a denial-of-service on every other setting the
+# operator just typed. The refusal is per item: the protected assignment is
+# skipped, everything else in the same submission is written, and the operator is
+# told which item was dropped. A silent skip would be worse than either, so S1
+# and S3 both assert the refusal is visible in the rendered page and not merely
+# absent from the file.
 #
 # N3 and N4 need saying out loud. doAddConfig does not check whether the key it
 # is asked to add already exists - it assigns straight into the section - so
@@ -79,7 +102,14 @@
 # can reach the handlers - the write is observed where it really happens, on
 # conf/Config.nmis (md5 and effective value).
 #
-# Fixture. The test seeds three keys into the UNTRACKED conf/Config.nmis before
+# One authenticated session covers both scripts. setup.pl gates its page on
+# table_config_view and its write on Table_Config_rw, the same two rights
+# config.pl uses, so the seeded administrator below needs nothing extra; and CSRF
+# tokens are minted per user rather than per script. Each S case still harvests
+# its token from setup.pl's own panel, because that is what a browser does and it
+# doubles as proof the panel renders for this user at all.
+#
+# Fixture. The test seeds five keys into the UNTRACKED conf/Config.nmis before
 # the app boots, and restores the file (bytes, mode and ownership) in END:
 #
 #   system/master_key_file = a sentinel path in a private temp dir. It has to be
@@ -92,10 +122,14 @@
 #       A real key file is created there anyway, mode 0400, so that even an
 #       unexpected read succeeds and the shipped /usr/local/etc/firstwave/master.key
 #       is neither touched, moved nor read by this test.
-#   system/t12827_prot_probe_edit, .../t12827_prot_probe_delete = throwaway
-#       unprotected keys for P1 and P2. Nothing reads them, and they carry no
-#       entry in Table-Config.nmis, so no validation rule and (for P2)
-#       doDeleteConfig's "required by validation rule" refusal cannot fire.
+#   system/t12827_prot_probe_edit, .../t12827_prot_probe_delete,
+#       .../t12827_prot_probe_setup, .../t12827_prot_probe_setupmix = throwaway
+#       unprotected keys for P1, P2, S2 and S3. Nothing reads them, and they carry
+#       no entry in Table-Config.nmis, so no validation rule and (for P2)
+#       doDeleteConfig's "required by validation rule" refusal cannot fire. The
+#       two setup.pl probes must live under 'system' and that section must already
+#       exist in the local file, because setup.pl's edit_config refuses any
+#       option/<section>/... whose section is absent from conf/Config.nmis.
 #
 # Needs a reachable MongoDB and the NMISx app, i.e. the dev container; it skips
 # cleanly elsewhere. It seeds and restores a throwaway admin in conf/Users.nmis +
@@ -236,15 +270,19 @@ my $ATTACKER  = "$KEYDIR/attacker-master.key";
 	chmod(0400, $SENTINEL);
 }
 
-my $PROBE_EDIT   = 't12827_prot_probe_edit';
-my $PROBE_DELETE = 't12827_prot_probe_delete';
-my $PROBE_ADD    = 't12827_prot_probe_add';
+my $PROBE_EDIT     = 't12827_prot_probe_edit';
+my $PROBE_DELETE   = 't12827_prot_probe_delete';
+my $PROBE_ADD      = 't12827_prot_probe_add';
+my $PROBE_SETUP    = 't12827_prot_probe_setup';
+my $PROBE_SETUPMIX = 't12827_prot_probe_setupmix';
 
 {
 	my ($local) = NMISNG::Util::getConfDeep(only_local => 1);
 	$local->{system}{master_key_file} = $SENTINEL;
 	$local->{system}{$PROBE_EDIT}     = 'before';
 	$local->{system}{$PROBE_DELETE}   = 'before';
+	$local->{system}{$PROBE_SETUP}    = 'before';
+	$local->{system}{$PROBE_SETUPMIX} = 'before';
 	delete $local->{system}{$PROBE_ADD};              # P3 must create it
 	my $err = NMISNG::Util::writeConfData(data => $local);
 	BAIL_OUT("cannot seed the fixture into $CONF_FILE: $err") if ($err);
@@ -314,7 +352,35 @@ sub post_write
 	return ($t->tx->res->code // 0, $t->tx->res->body // '');
 }
 
-# the one refusal phrase all three handlers share
+# the same, for setup.pl. setup_menu is classed 'read', so this GET needs no
+# token of its own. Harvested from setup.pl's own panel rather than reused from
+# config.pl: tokens are per user, not per script, but a browser gets the token
+# from the form it is about to submit, and a panel that failed to render for this
+# user would show up here rather than as a puzzling 403 further down.
+sub fresh_setup_csrf
+{
+	$t->get_ok('/cgi-nmis9/setup.pl?conf=Config&act=setup_menu&widget=false');
+	my $tok = $t->tx->res->dom->at('input[name="csrf_token"]');
+	$tok = $tok && $tok->attr('value');
+	BAIL_OUT("could not harvest a CSRF token from the setup panel; the session is "
+			 . "not authenticated or setup.pl did not render, so no S case below "
+			 . "would prove anything") if (!$tok);
+	return $tok;
+}
+
+# a setup.pl submission. The real panel posts a fixed set of option/<section>/
+# <item> parameters and renders a control for none of the protected keys, so any
+# protected parameter here is hand-built - which is the whole point.
+sub post_setup
+{
+	my (%p) = @_;
+	my $form = { conf => 'Config', widget => 'false', act => 'setup_doedit',
+				 csrf_token => fresh_setup_csrf(), %p };
+	$t->post_ok('/cgi-nmis9/setup.pl' => form => $form);
+	return ($t->tx->res->code // 0, $t->tx->res->body // '');
+}
+
+# the one refusal phrase every handler shares, in config.pl and setup.pl alike
 my $PROTECTED = qr/not editable through the GUI \(protected key\)/;
 # displayConfig's generic error bar, for the positive controls
 my $ANY_ERROR = qr/class="Fatal"/;
@@ -490,6 +556,83 @@ $BASE_BAK  = file_cksum($CONF_BAK);
 	is($local->{system}{$PROBE_ADD}, 'added',
 	   "P3 (add control): the key WAS added - the add route is live");
 	isnt(file_cksum($CONF_FILE), $BASE_CONF, "P3 (add control): conf/Config.nmis WAS written");
+}
+
+# =============================================================================
+# SETUP.PL - the fourth write route into the same file
+# =============================================================================
+# setup.pl's edit_config takes every posted option/<section>/<item> parameter and
+# assigns it into the raw config before writeConfData. Same file, same two rights,
+# same CSRF guard, different script - so a deny list that only config.pl consults
+# leaves this route wide open.
+
+$BASE_CONF = file_cksum($CONF_FILE);
+$BASE_BAK  = file_cksum($CONF_BAK);
+
+# ---- S1: setup.pl asked to repoint the master key, on its own ----------------
+
+{
+	my ($code, $body) = post_setup("option/system/master_key_file" => $ATTACKER);
+
+	is($code, 200, "S1 (setup): the submission is answered, not refused by the CSRF guard");
+	like($body, $PROTECTED, "S1 (setup): master_key_file is refused as a protected key")
+			or diag("response was: " . substr($body, 0, 800));
+
+	my ($flat, $local) = reload();
+	is($flat->{master_key_file}, $SENTINEL, "S1 (setup): the effective master key is unchanged");
+	is($local->{system}{master_key_file}, $SENTINEL,
+	   "S1 (setup): and conf/Config.nmis still names the sentinel");
+	is(file_cksum($CONF_FILE), $BASE_CONF, "S1 (setup): conf/Config.nmis was not written");
+	is(file_cksum($CONF_BAK), $BASE_BAK, "S1 (setup): conf/Config.nmis.bak was not written");
+}
+
+# ---- S2: the same route, an unprotected key ----------------------------------
+# The positive control for S1: without it, a 403, a dead route or a typo in the
+# parameter name would produce "nothing was written" and read as a pass.
+
+{
+	my ($code, $body) = post_setup("option/system/$PROBE_SETUP" => 'after');
+
+	is($code, 200, "S2 (setup control): the submission is answered");
+	unlike($body, $PROTECTED, "S2 (setup control): an unprotected key is not refused")
+			or diag("response was: " . substr($body, 0, 800));
+	unlike($body, $ANY_ERROR, "S2 (setup control): and no error bar was rendered at all");
+
+	my (undef, $local) = reload();
+	is($local->{system}{$PROBE_SETUP}, 'after',
+	   "S2 (setup control): the value WAS written - so S1's refusal is a refusal, "
+	   . "not an inert route");
+	isnt(file_cksum($CONF_FILE), $BASE_CONF, "S2 (setup control): conf/Config.nmis WAS written");
+}
+
+$BASE_CONF = file_cksum($CONF_FILE);
+$BASE_BAK  = file_cksum($CONF_BAK);
+
+# ---- S3: one submission carrying both ----------------------------------------
+# The real shape of this route: the panel posts everything at once. Refusing the
+# whole request would let one hand-built parameter discard every other setting
+# the operator just typed, so the refusal has to be per item - and it still has
+# to be visible, or the operator walks away believing the protected item took.
+
+{
+	my ($code, $body) = post_setup("option/system/master_key_file" => $ATTACKER,
+								   "option/system/$PROBE_SETUPMIX"  => 'after');
+
+	is($code, 200, "S3 (mixed): the submission is answered");
+	like($body, $PROTECTED, "S3 (mixed): the refusal is reported to the operator")
+			or diag("response was: " . substr($body, 0, 800));
+	# inside the error bar specifically. A bare /master_key_file/ over the whole
+	# body would pass on nothing at all: display_setup re-renders the form with the
+	# posted parameters echoed into its self-referencing action URL.
+	like($body, qr/class="Fatal"[^>]*>Error:[^<]*master_key_file/,
+		 "S3 (mixed): and the error bar names the item that was dropped");
+
+	my ($flat, $local) = reload();
+	is($flat->{master_key_file}, $SENTINEL, "S3 (mixed): the master key is unchanged");
+	is($local->{system}{master_key_file}, $SENTINEL,
+	   "S3 (mixed): and conf/Config.nmis still names the sentinel");
+	is($local->{system}{$PROBE_SETUPMIX}, 'after',
+	   "S3 (mixed): the unprotected item in the SAME submission was still applied");
 }
 
 done_testing();

@@ -315,7 +315,8 @@ Leave this blank if you don't need to authenticate at your mail server."],
 
 # updates the configuration,
 # args: none, but uses $C and $Q
-# returns: 1 if all ok, 0 if not and sets $Q->{success_message} or $Q->{error_message}
+# returns: 1 if all ok, 0 if any item was refused (and sets $Q->{success_message}
+# or $Q->{error_message})
 sub edit_config
 {
 	my (%args) = @_;
@@ -328,11 +329,32 @@ sub edit_config
 	$rawconf = {} if (!ref($rawconf)); # it's that or die
 
 	my $changes;
+	my %refused;	# GUI-protected items encountered, see below. Keyed by name, so
+					# the same protected name posted under two sections is one refusal.
 	# elements are handed to us as option/<section>/<item>
 	for my $update (keys %$Q)
 	{
 		my ($static, $section, $item) = split(/\//,$update,3);
 		next if ($static ne "option" or !$section or !$item);
+
+		# OMK-12827: this loop assigns whatever option/<section>/<item> parameters
+		# arrive, so it is a config write route in its own right - the panel renders
+		# a control for a fixed dozen properties, but nothing here checks that the
+		# parameter is one of them. A hand-built POST of
+		# option/system/master_key_file would otherwise repoint the crypto master key
+		# and leave every existing '!!' secret undecryptable. The deny list is shared
+		# with cgi-bin/config.pl's write handlers so the two cannot drift.
+		#
+		# Per item, not per request: the panel submits every setting at once, so
+		# aborting the whole submission would let one planted parameter discard
+		# everything else the operator just typed. The refusal is reported below -
+		# skipping in silence would leave them believing the item took.
+		if (NMISNG::Util::config_key_is_gui_protected($item))
+		{
+			$refused{$item} = 1;
+			next;
+		}
+
 		my $value = $Q->{$update};
 
 		# sanity check the values
@@ -433,6 +455,21 @@ sub edit_config
 	else
 	{
 		$Q->{success_message} = "No changes to save.";
+	}
+
+	# report any refusal last, because display_setup prints error_message INSTEAD
+	# of success_message: what the operator most needs to see is the item that did
+	# not take, and the message says what did get saved alongside it. The names are
+	# safe to interpolate - they can only ever be entries of the deny list itself,
+	# never attacker-chosen text. Wording matches config.pl's refusals.
+	my @refused = sort keys %refused;
+	if (@refused)
+	{
+		my $names = join(", ", map { "'$_'" } @refused);
+		$Q->{error_message} = "$names " . (@refused > 1? "are" : "is")
+				. " not editable through the GUI (protected key)."
+				. ($changes? " Every other setting in this submission was saved." : "");
+		return 0;
 	}
 	return 1;
 }

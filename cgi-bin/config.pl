@@ -98,24 +98,16 @@ exit 1 if (defined($Q->{cluster_id}) && $Q->{cluster_id} ne $C->{cluster_id});
 # secrets is on leaves every existing '!!' value undecryptable until it is
 # pointed back.
 #
-# Keyed by property name and NOT by section+item, deliberately. Config is a flat
-# namespace at the point of use - _load_and_flatten collapses all sections into
-# one hash, so $C->{master_key_file} resolves whichever section the key was filed
-# under, and doAddConfig files a new key under whatever section it is handed. A
-# section-scoped list would be bypassed by adding the same name elsewhere.
-#
-# One list, consulted by both the display and the write side, so the two cannot
-# drift apart. Covered by test/t_cgi_config_protected_keys.t.
-my %gui_protected_key = (
-	'auth_require'         => 1, # authentication on/off; fixed true, never GUI-settable
-	'severity_by_roletype' => 1, # nested structure the flat editor cannot represent
-	'master_key_file'      => 1, # crypto master key location, see above
-);
-
+# The list itself lives in NMISNG::Util (config_key_is_gui_protected), because
+# this script is not the only write route: cgi-bin/setup.pl edits config too. One
+# list, consulted by this script's display and write sides AND by setup.pl, so
+# none of them can drift apart. See the Util comment for why it is keyed by
+# property name and not by section+item. Covered by
+# test/t_cgi_config_protected_keys.t.
 sub is_gui_protected_key
 {
 	my ($item) = @_;
-	return (defined($item) && $gui_protected_key{$item}) ? 1 : 0;
+	return NMISNG::Util::config_key_is_gui_protected($item);
 }
 
 # the one refusal wording the three write handlers share
@@ -521,7 +513,8 @@ sub doEditConfig
 	my $confirm = $Q->{confirm};
 
 	# refuse before anything else: the GUI never renders a row for these, so the
-	# only way to arrive here with one is a hand-built POST. See %gui_protected_key.
+	# only way to arrive here with one is a hand-built POST. See
+	# is_gui_protected_key.
 	return validation_abort($item, $GUI_PROTECTED_MSG)
 			if (is_gui_protected_key($item));
 
@@ -819,7 +812,7 @@ sub doDeleteConfig {
 	my $item = decode_entities($Q->{item});
 
 	# the GUI renders no delete link for these; only a hand-built POST gets here.
-	# See %gui_protected_key.
+	# See is_gui_protected_key.
 	if (is_gui_protected_key($item))
 	{
 		$Q->{error_message} = "'$item' cannot be deleted: $GUI_PROTECTED_MSG";
@@ -913,7 +906,8 @@ sub doAddConfig {
 	
 	# "add" is really an unconditional assignment - nothing here checks whether the
 	# property already exists - so it is a second route to overwriting a protected
-	# key, and the section it is filed under does not matter (see %gui_protected_key).
+	# key, and the section it is filed under does not matter (see
+	# is_gui_protected_key).
 	my $newitem = decode_entities($Q->{id} // '');
 	return validation_abort($newitem, $GUI_PROTECTED_MSG)
 			if (is_gui_protected_key($newitem));
