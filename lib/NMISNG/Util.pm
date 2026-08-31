@@ -4629,8 +4629,8 @@ sub enableEOS {
 		}
 		else
 		{
-			$logger->error("ERROR: Encryption could not be disabled (daemons could not be stopped).");
-			print("Encryption could not be disabled (daemons could not be stopped).\n");
+			$logger->error("ERROR: Encryption could not be enabled (daemons could not be stopped).");
+			print("Encryption could not be enabled (daemons could not be stopped).\n");
 			return(0);
 		}
 	}

@@ -134,7 +134,7 @@ my $KEYWORD = 'mail_password';
 sub save_file
 {
 	my ($orig, $suffix) = @_;
-	return undef if (!-f $orig);
+	return { absent => 1 } if (!-f $orig);
 	my @st = CORE::stat($orig);
 	my $to = "$orig$suffix";
 	copy($orig, $to) or BAIL_OUT("cannot back up $orig: $!");
@@ -144,7 +144,15 @@ sub save_file
 sub restore_file
 {
 	my ($saved, $orig) = @_;
-	return if (!$saved || !-f $saved->{copy});
+	return if (!$saved);
+	if ($saved->{absent})
+	{
+		# nothing existed before this run - remove whatever the test created,
+		# so a test-only conf/Config.nmis (or its .bak) is never left behind.
+		unlink $orig if (-f $orig);
+		return;
+	}
+	return if (!-f $saved->{copy});
 	# a failed restore leaves the operator's config as this test rewrote it, so
 	# it must never be silent, even in END where nothing can be asserted
 	copy($saved->{copy}, $orig)
@@ -160,7 +168,6 @@ my $BAK_SAVED  = save_file($CONF_BAK, ".t12928migrbak");
 END {
 	restore_file($CONF_SAVED, $CONF_FILE);
 	restore_file($BAK_SAVED, $CONF_BAK);
-	unlink $CONF_BAK if (!$BAK_SAVED && -f $CONF_BAK);
 }
 
 # a pristine copy of the checkout's local config, taken before anything wrote

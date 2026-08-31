@@ -145,7 +145,7 @@ my %SEEDDIR_PREEXISTING;
 sub save_file
 {
 	my ($orig, $suffix) = @_;
-	return undef if (!-f $orig);
+	return { absent => 1 } if (!-f $orig);
 	my @st = CORE::stat($orig);
 	my $to = "$orig$suffix";
 	if (!copy($orig, $to))
@@ -153,7 +153,9 @@ sub save_file
 		# A non-root run cannot write into conf/ at all - which is also why it
 		# cannot damage the config, so there is nothing to protect and the run
 		# continues to its one assertion. As root a failed backup is fatal: the
-		# phases below rewrite this file.
+		# phases below rewrite this file. Plain undef here (as opposed to the
+		# {absent=>1} case above) means the file DID exist but could not be
+		# copied, so restore_file must never delete it.
 		BAIL_OUT("cannot back up $orig: $!") if ($> == 0);
 		diag("no backup of $orig taken: $! (running as uid $>, which cannot write it either)");
 		return undef;
@@ -164,7 +166,15 @@ sub save_file
 sub restore_file
 {
 	my ($saved, $orig) = @_;
-	return if (!$saved || !-f $saved->{copy});
+	return if (!$saved);
+	if ($saved->{absent})
+	{
+		# nothing existed before this run - remove whatever the test created,
+		# so a test-only conf/Config.nmis (or its .bak) is never left behind.
+		unlink $orig if (-f $orig);
+		return;
+	}
+	return if (!-f $saved->{copy});
 	# a failed restore leaves the operator's config as this test rewrote it, so
 	# it must never be silent, even in END where nothing can be asserted
 	copy($saved->{copy}, $orig)
@@ -195,7 +205,10 @@ sub clear_dumps { unlink(our_dumps()); }
 END {
 	restore_file($CONF_SAVED, $CONF_FILE);
 	restore_file($BAK_SAVED, $CONF_BAK);
-	# writeConfData creates the .bak; if there was none before us, leave none behind
+	# restore_file's {absent=>1} branch above already covers the ordinary
+	# "there was no .bak before us" case. This is only for the rarer path
+	# where save_file's backup copy itself failed (undef, non-root) - it never
+	# fires for a real pre-existing .bak, per the reasoning in save_file.
 	unlink $CONF_BAK if (!$BAK_SAVED && -f $CONF_BAK);
 	# never leave a plaintext secrets dump behind, whichever phase made it
 	unlink(grep { !$SEEDDIR_PREEXISTING{$_} } glob("$SEEDDIR/NMIS-*"));
