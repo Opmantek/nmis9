@@ -4514,7 +4514,9 @@ sub disableEOS {
 			$logger->warn("WARN: $startMsg, but restarting the processes did not succeed.");
 			print("$startMsg, but restarting the processes did not succeed.\n");
 		}
-		return(!$success);
+		# the documented contract is 1 or 0, and bin/nmis-cli exits with it;
+		# !$success yields the empty string, which is falsy but not 0.
+		return($success ? 0 : 1);
 	}
 	else
 	{
@@ -4580,7 +4582,9 @@ sub enableEOS {
 				$logger->warn("WARN: $startMsg, but restarting the processes did not succeed.");
 				print("$startMsg, but restarting the processes did not succeed.\n");
 			}
-			return(!$success);
+			# the documented contract is 1 or 0, and bin/nmis-cli exits with it;
+			# !$success yields the empty string, which is falsy but not 0.
+			return($success ? 0 : 1);
 		}
 		else
 		{
@@ -4598,6 +4602,29 @@ sub enableEOS {
 }
 
 ########################################################################
+# _encryption_applied / _decryption_applied                            #
+#                                                                      #
+# encrypt and decrypt both fail closed by returning their input        #
+# UNCHANGED (OMK-12827 Slice B) rather than dying or emptying the      #
+# value, so "did this actually work?" is a question about the result,  #
+# not about a return code. Both callers below need the same answer,    #
+# so the policy lives here rather than in eight copies.                #
+########################################################################
+# a real encryption result is '!!'-prefixed and differs from the input
+sub _encryption_applied
+{
+	my ($original, $result) = @_;
+	return (defined($result) && substr($result, 0, 2) eq "!!" && $result ne $original);
+}
+
+# a real decryption result no longer carries the '!!' marker
+sub _decryption_applied
+{
+	my ($result) = @_;
+	return (defined($result) && substr($result, 0, 2) ne "!!");
+}
+
+########################################################################
 # verifyNMISEncryption - Verify Password encrypted strings.           #
 ########################################################################
 # Returns:
@@ -4605,9 +4632,13 @@ sub enableEOS {
 #        the encryption setting (encrypted when it is enabled, decrypted
 #        when it is disabled). The encryption setting itself is never
 #        changed here.
-#    1 - Verification could not run: encryption is enabled but the crypto
-#        modules are missing, or the self-test failed. Nothing was changed
-#        and no secret was touched (fail closed). Install the crypto modules.
+#    1 - Verification could not run, or could not finish: encryption is
+#        enabled but the crypto modules are missing or the self-test
+#        failed (nothing was changed and no secret was touched - fail
+#        closed, install the crypto modules); or encryption is disabled
+#        and at least one stored '!!' field could not be decrypted with
+#        the current master key, so it is still encrypted. Callers treat
+#        1 as "the requested state was NOT reached".
 ########################################################################
 sub verifyNMISEncryption {
 	my (%args)   = @_;
@@ -4678,10 +4709,17 @@ sub verifyNMISEncryption {
 						my $password     = $fullConfig->{$fieldsArray[0]}->{$fieldsArray[1]};
 						if (defined($password) && $password ne '' && substr($password, 0, 2) ne "!!")
 						{
-							$protected{$eachRow} = $password;
 							my $encrypted_pw = encrypt($password);
-							$fullConfig->{$fieldsArray[0]}->{$fieldsArray[1]} = $encrypted_pw;
-							$changed = 1;
+							if (_encryption_applied($password, $encrypted_pw))
+							{
+								$protected{$eachRow} = $password;
+								$fullConfig->{$fieldsArray[0]}->{$fieldsArray[1]} = $encrypted_pw;
+								$changed = 1;
+							}
+							else
+							{
+								$logger->error("ERROR: config field '$eachRow' could not be encrypted; it is left exactly as it was and is not added to the protected-fields backup.");
+							}
 						}
 					}
 				}
@@ -4692,10 +4730,17 @@ sub verifyNMISEncryption {
 						my $password     = $fullConfig->{$fieldsArray[0]}->{$fieldsArray[1]}->{$fieldsArray[2]};
 						if (defined($password) && $password ne '' && substr($password, 0, 2) ne "!!")
 						{
-							$protected{$eachRow} = $password;
 							my $encrypted_pw = encrypt($password);
-							$fullConfig->{$fieldsArray[0]}->{$fieldsArray[1]}->{$fieldsArray[2]} = $encrypted_pw;
-							$changed = 1;
+							if (_encryption_applied($password, $encrypted_pw))
+							{
+								$protected{$eachRow} = $password;
+								$fullConfig->{$fieldsArray[0]}->{$fieldsArray[1]}->{$fieldsArray[2]} = $encrypted_pw;
+								$changed = 1;
+							}
+							else
+							{
+								$logger->error("ERROR: config field '$eachRow' could not be encrypted; it is left exactly as it was and is not added to the protected-fields backup.");
+							}
 						}
 					}
 				}
@@ -4707,10 +4752,17 @@ sub verifyNMISEncryption {
 						my $password     = $fullConfig->{$fieldsArray[0]}->{$fieldsArray[1]}->{$fieldsArray[2]}->{$fieldsArray[3]};
 						if (defined($password) && $password ne '' && substr($password, 0, 2) ne "!!")
 						{
-							$protected{$eachRow} = $password;
 							my $encrypted_pw = encrypt($password);
-							$fullConfig->{$fieldsArray[0]}->{$fieldsArray[1]}->{$fieldsArray[2]}->{$fieldsArray[3]} = $encrypted_pw;
-							$changed = 1;
+							if (_encryption_applied($password, $encrypted_pw))
+							{
+								$protected{$eachRow} = $password;
+								$fullConfig->{$fieldsArray[0]}->{$fieldsArray[1]}->{$fieldsArray[2]}->{$fieldsArray[3]} = $encrypted_pw;
+								$changed = 1;
+							}
+							else
+							{
+								$logger->error("ERROR: config field '$eachRow' could not be encrypted; it is left exactly as it was and is not added to the protected-fields backup.");
+							}
 						}
 					}
 				}
@@ -4723,10 +4775,17 @@ sub verifyNMISEncryption {
 						my $password     = $fullConfig->{$fieldsArray[0]}->{$fieldsArray[1]}->{$fieldsArray[2]}->{$fieldsArray[3]}->{$fieldsArray[4]};
 						if (defined($password) && $password ne '' && substr($password, 0, 2) ne "!!")
 						{
-							$protected{$eachRow} = $password;
 							my $encrypted_pw = encrypt($password);
-							$fullConfig->{$fieldsArray[0]}->{$fieldsArray[1]}->{$fieldsArray[2]}->{$fieldsArray[3]}->{$fieldsArray[4]} = $encrypted_pw;
-							$changed = 1;
+							if (_encryption_applied($password, $encrypted_pw))
+							{
+								$protected{$eachRow} = $password;
+								$fullConfig->{$fieldsArray[0]}->{$fieldsArray[1]}->{$fieldsArray[2]}->{$fieldsArray[3]}->{$fieldsArray[4]} = $encrypted_pw;
+								$changed = 1;
+							}
+							else
+							{
+								$logger->error("ERROR: config field '$eachRow' could not be encrypted; it is left exactly as it was and is not added to the protected-fields backup.");
+							}
 						}
 					}
 				}
@@ -4764,6 +4823,13 @@ sub verifyNMISEncryption {
 	else
 	{
 		my ($fullConfig,undef) = getConfDeep(only_local => 1);
+		# Fields that came out of decrypt still carrying '!!', i.e. decrypt
+		# failed closed and handed the stored value back unchanged. Names only,
+		# never values. Collected so the caller can be told encryption was NOT
+		# turned off over ciphertext it just proved it cannot read - which is
+		# precisely the state an operator is in after losing or swapping the
+		# master key, and precisely when they reach for disable-eos.
+		my @undecryptable;
 		my $installDir = $config->{'<nmis_base>'} . "/conf-default";
 		if (open($fh, '<', $installDir . '/PasswordFields.nmis'))
 	   	{
@@ -4783,8 +4849,15 @@ sub verifyNMISEncryption {
 						if (defined($password) && $password ne '' && substr($password, 0, 2) eq "!!")
 						{
 							my $decrypted_pw = decrypt($password);
-							$fullConfig->{$fieldsArray[0]}->{$fieldsArray[1]} = $decrypted_pw;
-							$changed = 1;
+							if (_decryption_applied($decrypted_pw))
+							{
+								$fullConfig->{$fieldsArray[0]}->{$fieldsArray[1]} = $decrypted_pw;
+								$changed = 1;
+							}
+							else
+							{
+								push(@undecryptable, $eachRow);
+							}
 						}
 					}
 				}
@@ -4796,8 +4869,15 @@ sub verifyNMISEncryption {
 						if (defined($password) && $password ne '' && substr($password, 0, 2) eq "!!")
 						{
 							my $decrypted_pw = decrypt($password);
-							$fullConfig->{$fieldsArray[0]}->{$fieldsArray[1]}->{$fieldsArray[2]} = $decrypted_pw;
-							$changed = 1;
+							if (_decryption_applied($decrypted_pw))
+							{
+								$fullConfig->{$fieldsArray[0]}->{$fieldsArray[1]}->{$fieldsArray[2]} = $decrypted_pw;
+								$changed = 1;
+							}
+							else
+							{
+								push(@undecryptable, $eachRow);
+							}
 						}
 					}
 				}
@@ -4810,8 +4890,15 @@ sub verifyNMISEncryption {
 						if (defined($password) && $password ne '' && substr($password, 0, 2) eq "!!")
 						{
 							my $decrypted_pw = decrypt($password);
-							$fullConfig->{$fieldsArray[0]}->{$fieldsArray[1]}->{$fieldsArray[2]}->{$fieldsArray[3]} = $decrypted_pw;
-							$changed = 1;
+							if (_decryption_applied($decrypted_pw))
+							{
+								$fullConfig->{$fieldsArray[0]}->{$fieldsArray[1]}->{$fieldsArray[2]}->{$fieldsArray[3]} = $decrypted_pw;
+								$changed = 1;
+							}
+							else
+							{
+								push(@undecryptable, $eachRow);
+							}
 						}
 					}
 				}
@@ -4825,8 +4912,15 @@ sub verifyNMISEncryption {
 						if (defined($password) && $password ne '' && substr($password, 0, 2) eq "!!")
 						{
 							my $decrypted_pw = decrypt($password);
-							$fullConfig->{$fieldsArray[0]}->{$fieldsArray[1]}->{$fieldsArray[2]}->{$fieldsArray[3]}->{$fieldsArray[4]} = $decrypted_pw;
-							$changed = 1;
+							if (_decryption_applied($decrypted_pw))
+							{
+								$fullConfig->{$fieldsArray[0]}->{$fieldsArray[1]}->{$fieldsArray[2]}->{$fieldsArray[3]}->{$fieldsArray[4]} = $decrypted_pw;
+								$changed = 1;
+							}
+							else
+							{
+								push(@undecryptable, $eachRow);
+							}
 						}
 					}
 				}
@@ -4843,6 +4937,20 @@ sub verifyNMISEncryption {
 		if ($changed)
 		{
 			writeConfData(data=>$fullConfig);
+		}
+		# Whatever COULD be decrypted has just been written back in plaintext,
+		# which is progress and is kept. But if anything survived the pass still
+		# encrypted, the requested state was not reached and the caller must not
+		# report success: disableEOS turns this into "Encryption could not be
+		# disabled" instead of announcing it disabled encryption over fields it
+		# cannot read.
+		if (@undecryptable)
+		{
+			$logger->error("ERROR: " . scalar(@undecryptable)
+				. " config field(s) could not be decrypted with the current master key and are still encrypted: "
+				. join(', ', @undecryptable)
+				. ". Encryption of secrets cannot be turned off while they remain unreadable. Restore the master key that encrypted them and try again.");
+			return(1);
 		}
 		return(0);
 	}
