@@ -76,6 +76,8 @@ working_tests=(
     t_access_policy.pl
     t_harden_access_table.pl
     t_cgi_tables_secret_passthrough.t
+    t_cgi_config_password_refusals.t
+    t_cgi_config_protected_keys.t
     t_mongo_exposure.t
     t_common_dbpassword.t
     t_db_auth_source.t
@@ -96,6 +98,14 @@ working_tests=(
     t_ci_perl_tests.t
     t_util_encryption_failclosed.t
     t_util_verify_selftest_failclosed.t
+    t_util_seed_resolution.t
+    t_util_decrypt_disabled_failclosed.t
+    t_util_crypto_contract.t
+    t_util_crypto_disabled.t
+    t_node_secret_guard.pl
+    t_selftest_crypto.pl
+    t_masterkey_generate.t
+    t_masterkey_provision.t
     t_plugin_nodevalidation.pl
     notify_depend.t
     t_nmisng_node_nomodel.pl

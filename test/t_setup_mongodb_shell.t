@@ -17,6 +17,11 @@
 #   8. Static: stat is guarded, and chmod/utime on the backups are checked.
 #   9. Static: LoadFile and DumpFile die on failure at both sites.
 #  10. Static: the '|| "null"' default that made a '! defined' test dead is gone.
+#  11. Behavioural: db_password_is_undecryptable (extracted OMK-12827 Slice B
+#      sub, reachable via the modulino seam) flags only a surviving '!!'
+#      ciphertext prefix.
+#  12. Static: the main body wires that sub into the fatal die, and runs it
+#      before $is_default is computed.
 #
 # Subtests 1-3 extract the guard regex from the script and run payloads through
 # the real shipped pattern, not a mirrored copy. On the vulnerable base the
@@ -42,6 +47,14 @@ if (-f $script) {
 # source with comments removed, for assertions that must not trip over a
 # comment which merely mentions the construct being banned
 my $code_only = join("\n", grep { !/^\s*#/ } split(/\n/, $content));
+
+# OMK-12827 Slice B (PR 73 review Critical 2): load the script via its
+# modulino seam (`return 1 if (caller())`, near the top of the file) so
+# db_password_is_undecryptable can be exercised behaviourally below, the
+# same require pattern t_setup_mongodb_provisioning.t uses for the other
+# file-scope subs. Nothing past the seam runs: no config load, no Mongo
+# connection.
+require $script;
 
 # ---------------------------------------------------------------------------
 # Extract the shipped systemLog.path guard so subtests 1-3 exercise the real
@@ -245,6 +258,50 @@ subtest 'no "null" default hiding undef from the defined test' => sub {
         'systemLog.path is read without a "null" default');
     like($content, qr/my \$mongod_systemlog_path = \$yaml->\{systemLog\}\{path\};/,
         'the value is read directly, so the defined test below it can fire');
+};
+
+# ---------------------------------------------------------------------------
+# 11. Behavioural: db_password_is_undecryptable, extracted to a file-scope sub
+# reachable through the modulino seam (OMK-12827 Slice B, PR 73 review
+# Critical 2). True only when the value still carries the '!!' ciphertext
+# prefix that a failed decrypt leaves behind.
+# ---------------------------------------------------------------------------
+subtest 'db_password_is_undecryptable flags only a surviving !! ciphertext prefix' => sub {
+    ok(main::db_password_is_undecryptable('!!deadbeef'),
+        "an undecrypted '!!...' ciphertext is flagged");
+    ok(!main::db_password_is_undecryptable('plaintext'),
+        'an ordinary decrypted plaintext value is not flagged');
+    ok(!main::db_password_is_undecryptable(''),
+        'empty string is not flagged (flows to the is_default self-heal, which generates a fresh password)');
+    ok(!main::db_password_is_undecryptable(undef),
+        'undef is not flagged (flows to the is_default self-heal, which generates a fresh password)');
+};
+
+# ---------------------------------------------------------------------------
+# 12. Static: the main body wires db_password_is_undecryptable($curpw) into
+# the fatal die, and runs it before $is_default is computed. An undecryptable
+# db_password (still '!!'-prefixed after decrypt) must stop the script before
+# it can set the MongoDB user's password to the literal ciphertext.
+# ---------------------------------------------------------------------------
+subtest 'undecryptable db_password (still !!) is a fatal stop, not a stray password' => sub {
+    ok(-f $script, 'setup_mongodb.pl exists') or return;
+
+    like($content, qr/die\(\s*"FATAL:.*cannot be decrypted/s,
+        'a die names the undecryptable db_password as fatal');
+    like($content, qr/if\s*\(\s*db_password_is_undecryptable\(\$curpw\)\s*\)/,
+        'the die is gated on db_password_is_undecryptable($curpw)');
+    like($content, qr/master_key_file/,
+        'the fatal message points the operator at master_key_file');
+
+    # ordering: the guard must run before $is_default is computed, otherwise
+    # a stuck '!!' value would be treated as a real (non-default) password
+    # and provisioning would proceed to set it on the MongoDB user.
+    my $guard_index     = index($content, 'db_password_is_undecryptable($curpw)');
+    my $isdefault_index = index($content, 'my $is_default');
+    cmp_ok($guard_index, '>', -1, 'guard found in source');
+    cmp_ok($isdefault_index, '>', -1, '$is_default computation found in source');
+    ok($guard_index < $isdefault_index,
+        'the !! guard runs before $is_default is computed');
 };
 
 done_testing;

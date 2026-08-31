@@ -90,6 +90,9 @@ $AU->CheckAccess("table_config_view","header");
 # check for remote request - fixme9: not supported at this time
 exit 1 if (defined($Q->{cluster_id}) && $Q->{cluster_id} ne $C->{cluster_id});
 
+# the one refusal wording the three write handlers share
+my $GUI_PROTECTED_MSG = "not editable through the GUI (protected key).";
+
 #======================================================================
 
 # select function
@@ -124,6 +127,26 @@ sub notfound {
 	print "Config: ERROR, act=$Q->{act}, node=$Q->{node}, intf=$Q->{intf}\n";
 	print "Request not found\n";
 	Compat::NMIS::pageEnd if (!$wantwidget);
+}
+
+# Properties the config GUI does not offer for editing. The rendered table skips
+# their rows, and every write route must refuse them as well: hiding a control in
+# the HTML is not an authorisation decision, and a direct POST from anyone
+# holding Table_Config_rw and a valid CSRF token reaches the handler regardless
+# of what was rendered. OMK-12827: repointing master_key_file once encryption of
+# secrets is on leaves every existing '!!' value undecryptable until it is
+# pointed back.
+#
+# The list itself lives in NMISNG::Util (config_key_is_gui_protected), because
+# this script is not the only write route: cgi-bin/setup.pl edits config too. One
+# list, consulted by this script's display and write sides AND by setup.pl, so
+# none of them can drift apart. See the Util comment for why it is keyed by
+# property name and not by section+item. Covered by
+# test/t_cgi_config_protected_keys.t.
+sub is_gui_protected_key
+{
+	my ($item) = @_;
+	return NMISNG::Util::config_key_is_gui_protected($item);
 }
 
 #
@@ -244,8 +267,9 @@ sub typeSect {
 		{
 			$value =  join(" ", sort split(/\s*,\s*/, $value));
 		}
-		next if ($section eq "authentication" && $k eq "auth_require"); # fixed true
-		next if ($section eq "system" and $k eq "severity_by_roletype"); # not gui-modifyable
+		# not gui-modifyable. The same list the write handlers refuse on, so a key
+		# that is hidden here can never be reachable by a direct POST.
+		next if (is_gui_protected_key($k));
 		my $showOut = $value;
 		$showOut = '**************' if ($eachRef->{display} =~ /password/);
 
@@ -488,6 +512,12 @@ sub doEditConfig
 	my $value = $Q->{value};
 	my $confirm = $Q->{confirm};
 
+	# refuse before anything else: the GUI never renders a row for these, so the
+	# only way to arrive here with one is a hand-built POST. See
+	# is_gui_protected_key.
+	return validation_abort($item, $GUI_PROTECTED_MSG)
+			if (is_gui_protected_key($item));
+
 	my ($CC, undef) = NMISNG::Util::getConfDeep();
 	# that's the set of display and validation rules
 	my $configrules = Compat::NMIS::loadCfgTable(table => "Config", user => $AU->{user});
@@ -685,8 +715,18 @@ sub doEditConfig
 	}
 	if (($section eq "database" and $item eq "db_password") or ($section eq "email" and $item eq "mail_password")) {
 		return validation_abort($item, "passwords don't match") if ($value ne $confirm);
+		# an empty password submission was always refused; keep refusing it
+		# (the encrypt-failure refusal below cannot catch it, encrypt is
+		# skipped for empty values)
+		return validation_abort($item, "password cannot be empty")
+			if (!defined($value) or $value eq '');
 		$value = NMISNG::Util::encrypt($value) if ((defined($value)) && ($value ne "") &&  (substr($value, 0, 2) ne "!!"));
-		return validation_abort($item, "passwords update failure") if ($value eq '');
+		# OMK-12827 Slice B: encrypt fails closed by returning the plaintext
+		# unchanged, so an empty result is impossible; instead, refuse the save
+		# when encryption is enabled but the value did not encrypt, and say why.
+		return validation_abort($item, "password could not be encrypted: encryption of secrets is enabled but the encryption self-test fails. Check the crypto modules and the master key (config 'master_key_file'). The value was NOT saved.")
+			if (NMISNG::Util::getbool($C->{'global_enable_password_encryption'})
+				&& defined($value) && $value ne "" && substr($value, 0, 2) ne "!!");
 	}
 	# no validation or success, so let's update the config
 	$CC->{$section}{$item} = ref($value) eq "ARRAY" ? $value : decode_entities($value);
@@ -770,6 +810,14 @@ sub doDeleteConfig {
 
 	my $section = $Q->{section};
 	my $item = decode_entities($Q->{item});
+
+	# the GUI renders no delete link for these; only a hand-built POST gets here.
+	# See is_gui_protected_key.
+	if (is_gui_protected_key($item))
+	{
+		$Q->{error_message} = "'$item' cannot be deleted: $GUI_PROTECTED_MSG";
+		return undef;
+	}
 
 	my ($CC, undef) = NMISNG::Util::getConfDeep();
 	# that's the set of display and validation rules
@@ -856,8 +904,16 @@ sub doAddConfig {
 								"non valid '$section'.")
 	}
 	
-	if ($Q->{id} ne '') {
-		$CC->{$section}{decode_entities($Q->{id})} = decode_entities($Q->{value});
+	# "add" is really an unconditional assignment - nothing here checks whether the
+	# property already exists - so it is a second route to overwriting a protected
+	# key, and the section it is filed under does not matter (see
+	# is_gui_protected_key).
+	my $newitem = decode_entities($Q->{id} // '');
+	return validation_abort($newitem, $GUI_PROTECTED_MSG)
+			if (is_gui_protected_key($newitem));
+
+	if ($newitem ne '') {
+		$CC->{$section}{$newitem} = decode_entities($Q->{value});
 	}
 
 	NMISNG::Util::writeConfData(data=>$CC);

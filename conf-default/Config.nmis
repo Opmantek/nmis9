@@ -144,6 +144,14 @@ my %hash = (
 	'loc_sysLoc_format' => '^-?\\d{1,3}(\\.\\d+)?,-?\\d{1,3}(\\.\\d+)?,-?\\d+,.+$',
 	'log_max_table_lines' => 25000,
 	'log_node_configuration_events' => 'false',
+	# OMK-12827: location of the encryption-of-secrets master key. NMIS only
+	# ever creates a key at the shipped default path (the installer, or a
+	# root process). A custom location must be provisioned by the operator
+	# and is never created, chowned or chmodded by NMIS. Changing this after
+	# secrets are encrypted does NOT re-encrypt them: values encrypted under
+	# the old key stop decrypting until the path is restored.
+	# A custom path under the NMIS base or conf tree will be swept into config backups.
+	'master_key_file' => '/usr/local/etc/firstwave/master.key',
 	'max_child_runtime' => undef, 		# maximum runtime of per-node operations (ie. collect, update, services). unlimited if set to zero or undef
 	'model_health_sections' => 'cpu_cpm,entityMib,diskIOTable,ds3Errors,SONETErrors',
 	'network_health_view' => 'Group',

@@ -2149,6 +2149,28 @@ sub getdebug_cli
 	return ((defined($val)) ? (($val =~ /(^true$)|(^yes$)|(^t$)|(^y$)|(^1$)/i) ? 1 : (($val =~ /(^false$)|(^no$)|(^f$)|(^n$)|(^0$)/i) ? 0 : (($val =~ /^verbose$/i) ? 9 : (($val =~ /^[0-9]$/) ? $val : die "Invalid debug value: '$val'\n" )))) : 0);
 }
 
+# Config keys that must not be changeable through any GUI/CGI write route.
+# The config namespace is flat after _load_and_flatten, so protection is by
+# key NAME regardless of section (a same-named key added under any section
+# would shadow the real one). Display exclusion alone is not enough: every
+# write route must refuse these (OMK-12827; repointing master_key_file
+# after encryption is enabled makes existing secrets undecryptable).
+#
+# Lives here rather than in a CGI because there is more than one write route:
+# cgi-bin/config.pl (edit, delete, add) and cgi-bin/setup.pl (the setup panel's
+# option/<section>/<item> loop) both consult it, and a second copy would drift.
+# Covered by test/t_cgi_config_protected_keys.t.
+my %gui_protected_config_key = map { $_ => 1 }
+	(qw(auth_require severity_by_roletype master_key_file));
+
+# args: config property name
+# returns: 1 if no GUI write route may set or remove it, 0 otherwise
+sub config_key_is_gui_protected
+{
+	my ($item) = @_;
+	return (defined($item) && $gui_protected_config_key{$item}) ? 1 : 0;
+}
+
 # trivial wrapper around readfiletohash
 # difference to loadConfTable: loadconftable flattens and adds a few entries
 # args: only_local eq 1 loads only local config (Not by default)
@@ -2841,6 +2863,20 @@ sub selftest
 	push @details, [$testname, $result];
 	$allok = 0 if ($result);
 
+	# encryption of secrets: if enabled, the crypto stack must actually work
+	# (modules loadable, master key readable, round trip succeeds). This is
+	# the GUI-visible alert for a running-daemon crypto failure (OMK-12827
+	# Slice B scenario 2); encrypt/decrypt themselves fail closed silently.
+	$testname = "Encryption of secrets";
+	if (NMISNG::Util::getbool($config->{'global_enable_password_encryption'}))
+	{
+		$result = undef;
+		$result = "Encryption of secrets is enabled but the encryption self-test failed; secrets cannot be encrypted or decrypted. Check that the crypto modules (Crypt::CBC, Crypt::Cipher::AES, Math::Random::Secure) are installed and the master key file (config 'master_key_file') exists and is readable."
+				if (!testEncryption());
+		push @details, [$testname, $result];
+		$allok = 0 if ($result);
+	}
+
 	# check the main/involved directories AND /tmp and /var
 	my $minfreepercent = $config->{selftest_min_diskfree_percent} || 10;
 	my $minfreemegs = $config->{selftest_min_diskfree_mb} || 25;
@@ -3151,7 +3187,6 @@ sub selftest
 	for my $op (qw(collect update))
 	{
 		$status = undef;
-		$allok = 1;
 		
 		my $max_jobs;
 		if ($op =~ /collect/) {
@@ -4577,12 +4612,15 @@ sub enableEOS {
 sub verifyNMISEncryption {
 	my (%args)   = @_;
 	my $logger   = $args{log};
-	# Master key path. The installer does NOT create this file today. The lines
-	# in installer_hooks/20-postcopy-user that once created it are commented out.
-	# _make_seed creates it lazily and requires root. Restoring install-time
-	# creation is OMK-12827 Slice B.
+	# Master key: created at install time by installer_hooks/21-postcopy-encryption
+	# at the shipped default path, or lazily by _resolve_seed/_make_seed for a
+	# root process. Location configurable via the 'master_key_file' config key;
+	# custom locations are operator-provisioned (see _resolve_seed).
+	#
+	# The plaintext backup of protected fields written below stays at the
+	# shipped default directory regardless of master_key_file (root-only,
+	# 0400, pre-existing behaviour).
 	my $seeddir  = '/usr/local/etc/firstwave/';
-	my $seedfile = '/usr/local/etc/firstwave/master.key';
 	my $epochNow = time;
 	my $timeNow  = localtime;
 	my %protected;
@@ -4621,10 +4659,6 @@ sub verifyNMISEncryption {
 			$logger->error("ERROR: $msg");
 			print("ERROR: $msg\n");
 			return(1);
-		}
-		# Make sure we have a seed file.
-		if (!-f "$seedfile") {
-			_make_seed($seedfile, $logger);
 		}
 		my $installDir = $config->{'<nmis_base>'} . "/conf-default";
 		if (open($fh, '<', $installDir . '/PasswordFields.nmis'))
@@ -4841,37 +4875,25 @@ sub decrypt {
 	if($@)
 	{
 		$logger->error("ERROR: 'Crypt::CBC' and 'Crypt::Cipher::AES', and 'Math::Random::Secure' must be installed in order to enable password encryption!");
-		$logger->error("ERROR: Password encryption cannot be enabled!");
 		if ($encryption_enabled)
 		{
 			$logger->error("ERROR: 'global_enable_password_encryption' is 'true' but the crypto modules are missing. Encryption stays enabled and secrets cannot be decrypted. NMIS will not disable encryption for you; install the modules named above.");
-			# Fail closed WITHOUT wiping. Never rewrite the flag, and never
-			# return "" here: a decrypt-then-persist caller (NMISNG::Node::new,
-			# cgi-bin/tables.pl doeditTable) assigns decrypt's result straight
-			# back and saves, so "" would overwrite the stored secret. Return
-			# the value unchanged - a "!!" value handed back still fails auth, so
-			# reads stay fail closed, and re-persisting the same ciphertext is a
-			# no-op. This matches encrypt's fail-closed-without-wipe on this path.
-			return $password;
 		}
+		else
+		{
+			$logger->error("ERROR: encryption is disabled but this stored '!!' value cannot be decrypted without the crypto modules; returning it unchanged.");
+		}
+		# Fail closed WITHOUT wiping, in BOTH flag states (OMK-12827 Slice B:
+		# the disabled state used to fall through and die in _make_seed or
+		# Crypt::CBC->new). Never rewrite the flag, and never return "":
+		# a decrypt-then-persist caller (NMISNG::Node::new) assigns decrypt's
+		# result straight back and saves, so "" would overwrite the stored
+		# secret. A '!!' value handed back unchanged still fails auth, so
+		# reads stay fail closed, and re-persisting it is a no-op.
+		return $password;
 	}
 
 	$logger->debug("Encryption is '" . $encryption_enabled . "'.");
-
-	# Master key path. The installer does NOT create this file today. The lines
-	# in installer_hooks/20-postcopy-user that once created it are commented out.
-	# _make_seed creates it lazily and requires root. Restoring install-time
-	# creation is OMK-12827 Slice B.
-	my $seedfile           = '/usr/local/etc/firstwave/master.key';
-	my $strLen             = "";
-	my $fh;
-
-	$logger->debug9(sub {"Seedfile name is '" . $seedfile . "'."});
-
-	# Make sure we have a seed file.
-	if (!-f "$seedfile") {
-		_make_seed($seedfile, $logger);
-	}
 
 	# If the password is not currently encrypted, then we just return what we have.
 	if (substr($password, 0, 2) ne "!!") {
@@ -4895,60 +4917,71 @@ sub decrypt {
 			$logger->debug9(sub {"Encryption is disabled."});
 		}
 		return $password;
-	} else {
-		$password = substr($password, 2);
 	}
-	if (open($fh, '<', $seedfile)) {
-		my $seed = <$fh>;
-		close $fh;
-		chomp($seed);
-		my $cipherHandle = Crypt::CBC->new( -key    => "$seed",
-											-cipher => 'Cipher::AES',
-											-pbkdf  => 'pbkdf2'
-											);
-		my $error = 0;
-		try {
-		   $password = $cipherHandle->decrypt_hex($password);
-#			print STDERR  ("Password '$password.\n");
-		}
-   		catch {
-			$error = $_ || 'Unknown failure!';
-		};
-		if ($error || $password eq "") {
-#			print STDERR  ("Password decryption failure, Error: $error\n");
-			$logger->error("Password decryption failure, Error: $error");
-			$password = "";
-		} else {
-			$strLen   = substr($password, 0, 3);
-			if ($strLen !~ /^\d+$/)
-			{
-#				print STDERR  ("Password decryption failure, Error: Received corrupted String, possible seed file modification.\n");
-				$password = "";
-			} else {
-#				print STDERR  ("Password Length '$strLen'.\n");
-				$password = substr($password, 3, $strLen);
-#				print STDERR  ("Password '$password.\n");
-				# Encryption is disabled, unencrypt whatever we encounter.
-				if (!$encryption_enabled) {
-					# If we have an encrypted password in the configuration file, then we unencrypt it.
-					# (If the 'section and 'keyword' arguments are passed, it means we are dealing with the configuration file)
-					if (defined($section) && defined($keyword) && $section ne '' && $keyword ne '') {
-						# Get the non-flattened raw hash
-						my ($fullConfig,undef) = getConfDeep(only_local => 1);
-						$logger->debug9(sub {"Config '" .  Dumper($fullConfig) . "'."});
-						if ($fullConfig->{$section}{$keyword} ne $password) {
-							$logger->debug3(sub {"Decrypting the password for Section: '$section' Field: '$keyword'"});
-							$fullConfig->{$section}{$keyword} = $password;
-							$logger->debug9(sub {"Config '" .  Dumper($fullConfig) . "'."});
-							writeConfData(data=>$fullConfig);
-						}
-					}
-				}
+
+	# From here the input is a '!!' value. Keep the original so every failure
+	# path fails closed by returning it unchanged - never "", which a
+	# decrypt-then-persist caller (NMISNG::Node::new) would save straight
+	# over the stored secret.
+	my $original = $password;
+	$password = substr($password, 2);
+
+	my ($seed, $seederr) = _resolve_seed($logger);
+	if (!defined($seed))
+	{
+		$logger->error("Password decryption failure: $seederr");
+		return $original;
+	}
+
+	my $cipherHandle;
+	my $error = 0;
+	try {
+		$cipherHandle = Crypt::CBC->new( -key    => "$seed",
+										-cipher => 'Cipher::AES',
+										-pbkdf  => 'pbkdf2'
+										);
+		$password = $cipherHandle->decrypt_hex($password);
+	}
+	catch {
+		$error = $_ || 'Unknown failure!';
+	};
+	if ($error || $password eq "")
+	{
+		$logger->error("Password decryption failure, Error: $error; returning the stored value unchanged.");
+		return $original;
+	}
+	my $strLen = substr($password, 0, 3);
+	if ($strLen !~ /^\d+$/)
+	{
+		$logger->error("Password decryption failure: corrupted payload (bad length prefix), possible master key change; returning the stored value unchanged.");
+		return $original;
+	}
+	if (length($password) != 3 + $strLen)
+	{
+		$logger->error("Password decryption failure: corrupted payload (length prefix does not match payload), possible master key change; returning the stored value unchanged.");
+		return $original;
+	}
+	$password = substr($password, 3, $strLen);
+	if (!defined($password) or $password eq "")
+	{
+		$logger->error("Password decryption failure: corrupted payload (empty extraction), possible master key change; returning the stored value unchanged.");
+		return $original;
+	}
+	# Encryption is disabled, unencrypt whatever we encounter.
+	if (!$encryption_enabled) {
+		# If we have an encrypted password in the configuration file, then we unencrypt it.
+		# (If the 'section and 'keyword' arguments are passed, it means we are dealing with the configuration file)
+		if (defined($section) && defined($keyword) && $section ne '' && $keyword ne '') {
+			# Get the non-flattened raw hash
+			my ($fullConfig,undef) = getConfDeep(only_local => 1);
+			$logger->debug9(sub {"Config '" .  Dumper($fullConfig) . "'."});
+			if ($fullConfig->{$section}{$keyword} ne $password) {
+				$logger->debug3(sub {"Decrypting the password for Section: '$section' Field: '$keyword'"});
+				$fullConfig->{$section}{$keyword} = $password;
+				$logger->debug9(sub {"Config '" .  Dumper($fullConfig) . "'."});
+				writeConfData(data=>$fullConfig);
 			}
 		}
-	} else {
-		$logger->error("Password decryption failure.");
-		$password = "";
 	}
 
 	return $password;
@@ -4994,20 +5027,6 @@ sub encrypt {
 
 	$logger->debug("Encryption is '" . $encryption_enabled . "'.");
 
-	# Master key path. The installer does NOT create this file today. The lines
-	# in installer_hooks/20-postcopy-user that once created it are commented out.
-	# _make_seed creates it lazily and requires root. Restoring install-time
-	# creation is OMK-12827 Slice B.
-	my $seedfile           = '/usr/local/etc/firstwave/master.key';
-	my $strLen             = 0;
-	my $fh;
-
-	$logger->debug9(sub {"Seedfile name is '" . $seedfile . "'."});
-
-	if (!-f "$seedfile") {
-		_make_seed($seedfile, $logger);
-	}
-
 	# Passed an already-encrypted string. encrypt never decrypts a stored value,
 	# never emits cleartext, and never writes the config (OMK-12827 item 8).
 	# Hand the ciphertext back unchanged, regardless of the flag.
@@ -5016,37 +5035,138 @@ sub encrypt {
 	}
 
 	if ($encryption_enabled || $force) {
-		if (open($fh, '<', $seedfile)) {
-			my $seed = <$fh>;
-			close $fh;
-			chomp($seed);
-			$strLen	   = sprintf("%03d", length($password));
-			$password  = $strLen.$password;
-	
-			my $cipherHandle = Crypt::CBC->new( -key    => "$seed",
+		# Keep the original so every failure path fails closed by returning
+		# it unchanged - never "", which NMISNG::Node::new and the table and
+		# config editors would persist straight over the stored secret. The
+		# value is already plaintext at rest, so returning it unchanged adds
+		# no new exposure.
+		my $original = $password;
+
+		# the 3-digit length prefix cannot represent more than 999 characters;
+		# encrypting anyway would produce a value decrypt must reject forever.
+		# Refuse instead: fail closed, value stays as it was.
+		if (length($password) > 999)
+		{
+			$logger->error("Password encryption failure: value longer than 999 characters cannot be encrypted (length prefix limit); storing the value unchanged.");
+			return $original;
+		}
+
+		my ($seed, $seederr) = _resolve_seed($logger);
+		if (!defined($seed))
+		{
+			$logger->error("Password encryption failure: $seederr; storing the value unchanged (it stays plaintext at rest).");
+			return $original;
+		}
+		my $strLen = sprintf("%03d", length($password));
+		$password  = $strLen.$password;
+
+		my $cipherHandle;
+		my $error = 0;
+		try {
+			$cipherHandle = Crypt::CBC->new( -key    => "$seed",
 												-cipher => 'Cipher::AES',
 												-pbkdf  => 'pbkdf2'
 												);
-			my $error = 0;
-			try {
-				$password = $cipherHandle->encrypt_hex($password);
-			}
-			catch {
-				$error = $_ || 'Unknown failure!';
-			};
-			if ($error) {
-				$logger->error("Password encryption failure.; Error $error");
-				$password = "";
-			} else {
-				$password = "!!" . $password;
-			}
-		} else {
-			$logger->error("Password encryption failure.");
-			$password = "";
+			$password = $cipherHandle->encrypt_hex($password);
 		}
+		catch {
+			$error = $_ || 'Unknown failure!';
+		};
+		if ($error)
+		{
+			$logger->error("Password encryption failure, Error: $error; storing the value unchanged.");
+			return $original;
+		}
+		$password = "!!" . $password;
 	}
 
 	return $password;
+}
+
+########################################################################
+# _resolve_seed - resolve and read the master key for encrypt/decrypt. #
+########################################################################
+# The key location comes from the config key 'master_key_file' (default
+# /usr/local/etc/firstwave/master.key, shipped in conf-default;
+# NMIS_MASTER_KEY_FILE overrides it through the normal env mechanism).
+#
+# Creation policy (OMK-12827 Slice B): NMIS only ever CREATES a key at the
+# shipped default path - installer_hooks/21-postcopy-encryption at install
+# time, or _make_seed lazily for a root process. A custom path is
+# read-only to NMIS: never created, chowned or chmodded, so a config
+# writer cannot point us at a symlink and have a root process follow it
+# on create. Never rotate or relocate an existing key: values already
+# encrypted with it would become permanently undecryptable.
+#
+# Returns ($seed, undef) on success, (undef, $why) on failure. Callers
+# fail closed on failure: log $why and return their input unchanged.
+sub _resolve_seed
+{
+	my ($logger) = @_;
+	my $config  = loadConfTable();
+	my $default = '/usr/local/etc/firstwave/master.key';
+
+	my $seedfile = $config->{'master_key_file'};
+	$seedfile = $default if (!defined($seedfile) or $seedfile eq '');
+
+	if (!-f $seedfile)
+	{
+		if ($seedfile eq $default and $< == 0)
+		{
+			_make_seed($seedfile, $logger);
+			return (undef, "master key file '$seedfile' could not be created")
+				if (!-f $seedfile);
+		}
+		elsif ($seedfile eq $default)
+		{
+			return (undef, "master key file '$seedfile' does not exist and this process is not root so it cannot create one. Run the installer (installer_hooks/21-postcopy-encryption) as root to create it.");
+		}
+		else
+		{
+			return (undef, "master key file '$seedfile' does not exist. NMIS never creates a key at a custom master_key_file location; provision the key file there yourself.");
+		}
+	}
+
+	# Open first, then fstat the open handle rather than stat-by-path then
+	# open-by-path: the latter is TOCTOU-able (the path could be swapped
+	# between the two calls). Same precedent as _config_perms_error, which
+	# fstats an open handle before eval'ing a config file as root.
+	my $fh;
+	if (!open($fh, '<', $seedfile))
+	{
+		return (undef, "cannot read master key file '$seedfile': $!");
+	}
+
+	my @fstat = CORE::stat($fh);    # fstat on the open handle, not the path
+	if (!@fstat)
+	{
+		close($fh);
+		return (undef, "cannot stat master key file '$seedfile': $!");
+	}
+	my $mode = $fstat[2] & 07777;
+	if ($mode & 022)
+	{
+		close($fh);
+		return (undef, sprintf("master key file '%s' is group- or world-writable (mode %04o); refusing to use it. chmod it to 0440 or stricter.", $seedfile, $mode));
+	}
+	$logger->warn("master key file '$seedfile' is world-readable; chmod it to 0440 or stricter.")
+		if ($mode & 004);
+
+	# a key inside the NMIS tree would be archived by configbackup right
+	# beside the config it protects; warn, it is the operator's call.
+	for my $treekey ('<nmis_base>', '<nmis_conf>')
+	{
+		my $tree = $config->{$treekey};
+		next if (!defined($tree) or $tree eq '');
+		$logger->warn("master key file '$seedfile' is inside $treekey ($tree); backups of that tree will include the key.")
+			if (File::Spec->rel2abs($seedfile) =~ m{^\Q$tree\E(/|$)});
+	}
+
+	my $seed = <$fh>;
+	close($fh);
+	chomp($seed) if (defined $seed);
+	return (undef, "master key file '$seedfile' is empty") if (!defined($seed) or $seed eq '');
+	return ($seed, undef);
 }
 
 ########################################################################
@@ -5056,10 +5176,10 @@ sub _make_seed {
 	my $seedfile  = shift;
 	my $logger    = shift;
 
-	# Master key path. The installer does NOT create this file today. The lines
-	# in installer_hooks/20-postcopy-user that once created it are commented out.
-	# _make_seed creates it lazily and requires root. Restoring install-time
-	# creation is OMK-12827 Slice B.
+	# Called only for the shipped default path (see _resolve_seed's creation
+	# policy) by a root process, and by installer_hooks/21-postcopy-encryption
+	# equivalent shell code at install time. Never called for a custom
+	# master_key_file location.
 	my $seeddir  = File::Spec->rel2abs(dirname(${seedfile}));
 	my @charset  = (('A'..'Z'), ('a'..'z'), (0..9));
 	my $range    = $#charset + 1;
