@@ -1899,9 +1899,9 @@ sub _evict_sessions
 	return if (!$count);
 
 	# an installer that goes quiet for minutes looks hung, so say what it is doing
-	# $count is every user's files, not $user's: it is the scan cost, not the
+	# $count is every user's files, not this user's: it is the scan cost, not the
 	# number that will be evicted.
-	print STDERR "Scanning $count session files for $user's sessions, this may "
+	print STDERR "Scanning $count session files for ${user}'s sessions, this may "
 		. "take a moment.\n" if ($count >= $EVICT_NOTICE_THRESHOLD);
 
 	my ($err) = eval {
