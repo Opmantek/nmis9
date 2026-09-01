@@ -3524,7 +3524,7 @@ sub plugins
 		else
 		{
 			$self->log->warn("nmis_user '$owner_name' not found in system passwd"
-				. " — only root-owned plugins will be trusted (OMK-12697)");
+				. " - only root-owned plugins will be trusted");
 		}
 	}
 
@@ -3542,7 +3542,7 @@ sub plugins
 		if (!$dir_safe)
 		{
 			$self->log->error("Plugin dir $dir rejected: $dir_reason"
-				. " — not loading plugins from it (OMK-12697);"
+				. " - not loading plugins from it;"
 				. " to fix, run as root: /usr/local/nmis9/bin/nmis-cli act=fixperms");
 			next;
 		}
@@ -3572,7 +3572,7 @@ sub plugins
 		my ($file_safe, $file_reason) = NMISNG::Util::plugin_file_safe($pluginfile, $trusted_uid);
 		if (!$file_safe)
 		{
-			$self->log->error("Plugin $pluginfile rejected: $file_reason — not loading (OMK-12697)");
+			$self->log->error("Plugin $pluginfile rejected: $file_reason — not loading");
 			next;
 		}
 
