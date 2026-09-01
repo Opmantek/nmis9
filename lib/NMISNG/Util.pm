@@ -4491,30 +4491,57 @@ sub disableEOS {
 		print("Disabling Encryption of secrets.\n");
 		my ($fullConfig,undef) = getConfDeep(only_local => 1);
 		$fullConfig->{globals}{global_enable_password_encryption} = "false";
-		writeConfData(data=>$fullConfig);
-		# We changed encryption, so the test below is backwards.
-		# If it indicates changes, then we failed!
-		my $success = verifyNMISEncryption(log => $logger);
+		my $writeErr = writeConfData(data=>$fullConfig);
+		# We changed encryption, so the verify test below is backwards: if it
+		# indicates changes, then we failed. $success keeps that polarity
+		# (0 == reached the requested state, non-zero == did NOT), so the shared
+		# restart-and-return tail can serve both the write-refused and the
+		# verify paths.
+		my $success;
 		my $startMsg;
-		if (!$success)
+		if ($writeErr)
 		{
-			$startMsg = "Encryption was successfully disabled.";
-			$logger->info("$startMsg");
+			# writeConfData refuses the WHOLE file, writing nothing and returning
+			# an error string, when a key it is handed is owned by conf.d
+			# (layer 3) or the environment (layer 4) and diverges from the
+			# effective value - the shipped container's steady state, where
+			# compose sets NMIS_DB_PASSWORD so database/db_password is layer 4.
+			# The 'false' flag write is dropped with it, so encryption was NOT
+			# disabled. Never report success over a flag that did not move.
+			# $writeErr names the offending key and its source, never a value.
+			$success  = 1;   # requested state NOT reached
+			$startMsg = "Encryption could not be disabled: the configuration write was refused ($writeErr).";
+			$logger->error("ERROR: $startMsg");
 			print("$startMsg\n");
 		}
 		else
 		{
-			$startMsg = "Encryption could not be disabled.";
-			$logger->error("ERROR: $startMsg");
-			print("$startMsg\n");
+			$success = verifyNMISEncryption(log => $logger);
+			if (!$success)
+			{
+				$startMsg = "Encryption was successfully disabled.";
+				$logger->info("$startMsg");
+				print("$startMsg\n");
+			}
+			else
+			{
+				$startMsg = "Encryption could not be disabled.";
+				$logger->error("ERROR: $startMsg");
+				print("$startMsg\n");
+			}
 		}
+		# Restart what shutdownAllDaemons stopped, on every path. On a refusal
+		# the flag never moved, so this restores the exact state the box was in
+		# (encryption still on) rather than leaving its daemons down.
 		$rc = startAllDaemons();
 		if (!$rc)
 		{
 			$logger->warn("WARN: $startMsg, but restarting the processes did not succeed.");
 			print("$startMsg, but restarting the processes did not succeed.\n");
 		}
-		return(!$success);
+		# the documented contract is 1 or 0, and bin/nmis-cli exits with it;
+		# !$success yields the empty string, which is falsy but not 0.
+		return($success ? 0 : 1);
 	}
 	else
 	{
@@ -4557,22 +4584,38 @@ sub enableEOS {
 			print("Enabling encryption of secrets.\n");
 			my ($fullConfig,undef) = getConfDeep(only_local => 1);
 			$fullConfig->{globals}{global_enable_password_encryption} = "true";
-			writeConfData(data=>$fullConfig);
-			# We changed encryption, so the test below is backwards.
-			# If it indicates changes, then we failed!
-			my $success = verifyNMISEncryption(log => $logger);
+			my $writeErr = writeConfData(data=>$fullConfig);
+			# See disableEOS: writeConfData refuses the whole file (writing
+			# nothing, returning an error string) when a conf.d- or ENV-managed
+			# key it is handed diverges from the effective value. The 'true' flag
+			# write is dropped with it, so encryption was NOT enabled. $success
+			# keeps verify's polarity so the shared restart-and-return tail below
+			# serves both paths. $writeErr names the key and its source, never a
+			# value.
+			my $success;
 			my $startMsg;
-			if (!$success)
+			if ($writeErr)
 			{
-				$startMsg = "Encryption was successfully enabled.";
-				$logger->info("$startMsg");
+				$success  = 1;   # requested state NOT reached
+				$startMsg = "Encryption could not be enabled: the configuration write was refused ($writeErr).";
+				$logger->error("ERROR: $startMsg");
 				print("$startMsg\n");
 			}
 			else
 			{
-				$startMsg = "Encryption could not be enabled.";
-				$logger->error("ERROR: $startMsg");
-				print("$startMsg\n");
+				$success = verifyNMISEncryption(log => $logger);
+				if (!$success)
+				{
+					$startMsg = "Encryption was successfully enabled.";
+					$logger->info("$startMsg");
+					print("$startMsg\n");
+				}
+				else
+				{
+					$startMsg = "Encryption could not be enabled.";
+					$logger->error("ERROR: $startMsg");
+					print("$startMsg\n");
+				}
 			}
 			$rc = startAllDaemons();
 			if (!$rc)
@@ -4580,21 +4623,56 @@ sub enableEOS {
 				$logger->warn("WARN: $startMsg, but restarting the processes did not succeed.");
 				print("$startMsg, but restarting the processes did not succeed.\n");
 			}
-			return(!$success);
+			# the documented contract is 1 or 0, and bin/nmis-cli exits with it;
+			# !$success yields the empty string, which is falsy but not 0.
+			return($success ? 0 : 1);
 		}
 		else
 		{
-			$logger->error("ERROR: Encryption could not be disabled (daemons could not be stopped).");
-			print("Encryption could not be disabled (daemons could not be stopped).\n");
+			$logger->error("ERROR: Encryption could not be enabled (daemons could not be stopped).");
+			print("Encryption could not be enabled (daemons could not be stopped).\n");
 			return(0);
 		}
 	}
 	else
 	{
-		$logger->error("ERROR: Encryption of secrets encryption test failed, EOS cannpt be enabled!");
-		print("Encryption of secrets encryption test failed, EOS cannpt be enabled!");
+		$logger->error("ERROR: Encryption of secrets encryption test failed, EOS cannot be enabled!");
+		print("Encryption of secrets encryption test failed, EOS cannot be enabled!");
 		return(0);
 	}
+}
+
+########################################################################
+# _encryption_applied / _decryption_applied                            #
+#                                                                      #
+# encrypt and decrypt both fail closed by returning their input        #
+# UNCHANGED (OMK-12827 Slice B) rather than dying or emptying the      #
+# value, so "did this actually work?" is a question about the result,  #
+# not about a return code. Both callers below need the same answer,    #
+# so the policy lives here rather than in eight copies.                #
+########################################################################
+# a real encryption result is '!!'-prefixed and differs from the input
+sub _encryption_applied
+{
+	my ($original, $result) = @_;
+	return (defined($result) && substr($result, 0, 2) eq "!!" && $result ne $original);
+}
+
+# a real decryption result no longer carries the '!!' marker.
+#
+# Known and accepted ambiguity: a legitimate plaintext that happens to BEGIN
+# with '!!' is indistinguishable here from a stored value decrypt could not
+# read and handed back unchanged. Such a secret is reported as an
+# undecryptable survivor and, in the disabled sweep, is left alone rather than
+# written back. That is the safe direction of the two - the alternative is to
+# call a genuinely unreadable value "decrypted" and report success over it -
+# and there is no marker in the stored form that would separate the cases. A
+# secret starting '!!' cannot be stored round-trippably by this scheme at all,
+# which is the underlying limitation.
+sub _decryption_applied
+{
+	my ($result) = @_;
+	return (defined($result) && substr($result, 0, 2) ne "!!");
 }
 
 ########################################################################
@@ -4605,9 +4683,13 @@ sub enableEOS {
 #        the encryption setting (encrypted when it is enabled, decrypted
 #        when it is disabled). The encryption setting itself is never
 #        changed here.
-#    1 - Verification could not run: encryption is enabled but the crypto
-#        modules are missing, or the self-test failed. Nothing was changed
-#        and no secret was touched (fail closed). Install the crypto modules.
+#    1 - Verification could not run, or could not finish: encryption is
+#        enabled but the crypto modules are missing or the self-test
+#        failed (nothing was changed and no secret was touched - fail
+#        closed, install the crypto modules); or encryption is disabled
+#        and at least one stored '!!' field could not be decrypted with
+#        the current master key, so it is still encrypted. Callers treat
+#        1 as "the requested state was NOT reached".
 ########################################################################
 sub verifyNMISEncryption {
 	my (%args)   = @_;
@@ -4638,7 +4720,8 @@ sub verifyNMISEncryption {
 	{
 		$logger->error("ERROR: 'Crypt::CBC' and 'Crypt::Cipher::AES', and 'Math::Random::Secure' must be installed in order to enable password encryption!");
 		$logger->error("ERROR: Password encryption cannot be enabled!");
-		$logger->debug9(sub {"Config '" .  Dumper($fullConfig) . "'."});
+		# (no config dump here: $fullConfig carries every secret in the file,
+		# and a debug level is not a reason to write them all to disk.)
 		if ($nmis_encryption_enabled)
 		{
 			my $msg = "Encryption of secrets is enabled but the required Perl modules Crypt::CBC, Crypt::Cipher::AES and Math::Random::Secure are not installed. Install them (Debian: libcrypt-cbc-perl libcryptx-perl libmath-random-secure-perl. RedHat: perl-Crypt-CBC perl-CryptX perl-Math-Random-Secure). Encryption has NOT been changed.";
@@ -4678,10 +4761,17 @@ sub verifyNMISEncryption {
 						my $password     = $fullConfig->{$fieldsArray[0]}->{$fieldsArray[1]};
 						if (defined($password) && $password ne '' && substr($password, 0, 2) ne "!!")
 						{
-							$protected{$eachRow} = $password;
 							my $encrypted_pw = encrypt($password);
-							$fullConfig->{$fieldsArray[0]}->{$fieldsArray[1]} = $encrypted_pw;
-							$changed = 1;
+							if (_encryption_applied($password, $encrypted_pw))
+							{
+								$protected{$eachRow} = $password;
+								$fullConfig->{$fieldsArray[0]}->{$fieldsArray[1]} = $encrypted_pw;
+								$changed = 1;
+							}
+							else
+							{
+								$logger->error("ERROR: config field '$eachRow' could not be encrypted; it is left exactly as it was and is not added to the protected-fields backup.");
+							}
 						}
 					}
 				}
@@ -4692,10 +4782,17 @@ sub verifyNMISEncryption {
 						my $password     = $fullConfig->{$fieldsArray[0]}->{$fieldsArray[1]}->{$fieldsArray[2]};
 						if (defined($password) && $password ne '' && substr($password, 0, 2) ne "!!")
 						{
-							$protected{$eachRow} = $password;
 							my $encrypted_pw = encrypt($password);
-							$fullConfig->{$fieldsArray[0]}->{$fieldsArray[1]}->{$fieldsArray[2]} = $encrypted_pw;
-							$changed = 1;
+							if (_encryption_applied($password, $encrypted_pw))
+							{
+								$protected{$eachRow} = $password;
+								$fullConfig->{$fieldsArray[0]}->{$fieldsArray[1]}->{$fieldsArray[2]} = $encrypted_pw;
+								$changed = 1;
+							}
+							else
+							{
+								$logger->error("ERROR: config field '$eachRow' could not be encrypted; it is left exactly as it was and is not added to the protected-fields backup.");
+							}
 						}
 					}
 				}
@@ -4707,10 +4804,17 @@ sub verifyNMISEncryption {
 						my $password     = $fullConfig->{$fieldsArray[0]}->{$fieldsArray[1]}->{$fieldsArray[2]}->{$fieldsArray[3]};
 						if (defined($password) && $password ne '' && substr($password, 0, 2) ne "!!")
 						{
-							$protected{$eachRow} = $password;
 							my $encrypted_pw = encrypt($password);
-							$fullConfig->{$fieldsArray[0]}->{$fieldsArray[1]}->{$fieldsArray[2]}->{$fieldsArray[3]} = $encrypted_pw;
-							$changed = 1;
+							if (_encryption_applied($password, $encrypted_pw))
+							{
+								$protected{$eachRow} = $password;
+								$fullConfig->{$fieldsArray[0]}->{$fieldsArray[1]}->{$fieldsArray[2]}->{$fieldsArray[3]} = $encrypted_pw;
+								$changed = 1;
+							}
+							else
+							{
+								$logger->error("ERROR: config field '$eachRow' could not be encrypted; it is left exactly as it was and is not added to the protected-fields backup.");
+							}
 						}
 					}
 				}
@@ -4723,10 +4827,17 @@ sub verifyNMISEncryption {
 						my $password     = $fullConfig->{$fieldsArray[0]}->{$fieldsArray[1]}->{$fieldsArray[2]}->{$fieldsArray[3]}->{$fieldsArray[4]};
 						if (defined($password) && $password ne '' && substr($password, 0, 2) ne "!!")
 						{
-							$protected{$eachRow} = $password;
 							my $encrypted_pw = encrypt($password);
-							$fullConfig->{$fieldsArray[0]}->{$fieldsArray[1]}->{$fieldsArray[2]}->{$fieldsArray[3]}->{$fieldsArray[4]} = $encrypted_pw;
-							$changed = 1;
+							if (_encryption_applied($password, $encrypted_pw))
+							{
+								$protected{$eachRow} = $password;
+								$fullConfig->{$fieldsArray[0]}->{$fieldsArray[1]}->{$fieldsArray[2]}->{$fieldsArray[3]}->{$fieldsArray[4]} = $encrypted_pw;
+								$changed = 1;
+							}
+							else
+							{
+								$logger->error("ERROR: config field '$eachRow' could not be encrypted; it is left exactly as it was and is not added to the protected-fields backup.");
+							}
 						}
 					}
 				}
@@ -4742,7 +4853,21 @@ sub verifyNMISEncryption {
 		}
 		if ($changed)
 		{
-			writeConfData(data=>$fullConfig);
+			my $writeErr = writeConfData(data=>$fullConfig);
+			if ($writeErr)
+			{
+				# The encrypted secrets could not be persisted (writeConfData
+				# refuses the whole file when a conf.d- or ENV-managed key it is
+				# handed diverges from the effective value; $writeErr names the
+				# key and its source, never a value). Encryption was NOT applied
+				# at rest, so the requested state was not reached: return failure
+				# (1) and write NO plaintext backup - a backup of secrets that
+				# were never encrypted on disk protects nothing while leaving a
+				# second cleartext copy of every one of them.
+				$logger->error("ERROR: the encrypted secrets could not be written back to the configuration, "
+					. "so encryption of secrets was NOT applied at rest: $writeErr. No plaintext backup was written.");
+				return(1);
+			}
 			my $protectedFile = "$seeddir/NMIS-$epochNow";
 			unless(open($fh, '>', $protectedFile)) {
 				$logger->error("Unable to backup Passwords.");
@@ -4764,6 +4889,13 @@ sub verifyNMISEncryption {
 	else
 	{
 		my ($fullConfig,undef) = getConfDeep(only_local => 1);
+		# Fields that came out of decrypt still carrying '!!', i.e. decrypt
+		# failed closed and handed the stored value back unchanged. Names only,
+		# never values. Collected so the caller can be told encryption was NOT
+		# turned off over ciphertext it just proved it cannot read - which is
+		# precisely the state an operator is in after losing or swapping the
+		# master key, and precisely when they reach for disable-eos.
+		my @undecryptable;
 		my $installDir = $config->{'<nmis_base>'} . "/conf-default";
 		if (open($fh, '<', $installDir . '/PasswordFields.nmis'))
 	   	{
@@ -4783,8 +4915,15 @@ sub verifyNMISEncryption {
 						if (defined($password) && $password ne '' && substr($password, 0, 2) eq "!!")
 						{
 							my $decrypted_pw = decrypt($password);
-							$fullConfig->{$fieldsArray[0]}->{$fieldsArray[1]} = $decrypted_pw;
-							$changed = 1;
+							if (_decryption_applied($decrypted_pw))
+							{
+								$fullConfig->{$fieldsArray[0]}->{$fieldsArray[1]} = $decrypted_pw;
+								$changed = 1;
+							}
+							else
+							{
+								push(@undecryptable, $eachRow);
+							}
 						}
 					}
 				}
@@ -4796,8 +4935,15 @@ sub verifyNMISEncryption {
 						if (defined($password) && $password ne '' && substr($password, 0, 2) eq "!!")
 						{
 							my $decrypted_pw = decrypt($password);
-							$fullConfig->{$fieldsArray[0]}->{$fieldsArray[1]}->{$fieldsArray[2]} = $decrypted_pw;
-							$changed = 1;
+							if (_decryption_applied($decrypted_pw))
+							{
+								$fullConfig->{$fieldsArray[0]}->{$fieldsArray[1]}->{$fieldsArray[2]} = $decrypted_pw;
+								$changed = 1;
+							}
+							else
+							{
+								push(@undecryptable, $eachRow);
+							}
 						}
 					}
 				}
@@ -4810,8 +4956,15 @@ sub verifyNMISEncryption {
 						if (defined($password) && $password ne '' && substr($password, 0, 2) eq "!!")
 						{
 							my $decrypted_pw = decrypt($password);
-							$fullConfig->{$fieldsArray[0]}->{$fieldsArray[1]}->{$fieldsArray[2]}->{$fieldsArray[3]} = $decrypted_pw;
-							$changed = 1;
+							if (_decryption_applied($decrypted_pw))
+							{
+								$fullConfig->{$fieldsArray[0]}->{$fieldsArray[1]}->{$fieldsArray[2]}->{$fieldsArray[3]} = $decrypted_pw;
+								$changed = 1;
+							}
+							else
+							{
+								push(@undecryptable, $eachRow);
+							}
 						}
 					}
 				}
@@ -4825,8 +4978,15 @@ sub verifyNMISEncryption {
 						if (defined($password) && $password ne '' && substr($password, 0, 2) eq "!!")
 						{
 							my $decrypted_pw = decrypt($password);
-							$fullConfig->{$fieldsArray[0]}->{$fieldsArray[1]}->{$fieldsArray[2]}->{$fieldsArray[3]}->{$fieldsArray[4]} = $decrypted_pw;
-							$changed = 1;
+							if (_decryption_applied($decrypted_pw))
+							{
+								$fullConfig->{$fieldsArray[0]}->{$fieldsArray[1]}->{$fieldsArray[2]}->{$fieldsArray[3]}->{$fieldsArray[4]} = $decrypted_pw;
+								$changed = 1;
+							}
+							else
+							{
+								push(@undecryptable, $eachRow);
+							}
 						}
 					}
 				}
@@ -4842,10 +5002,135 @@ sub verifyNMISEncryption {
 		}
 		if ($changed)
 		{
-			writeConfData(data=>$fullConfig);
+			my $writeErr = writeConfData(data=>$fullConfig);
+			if ($writeErr)
+			{
+				# The decrypted secrets could not be persisted (whole-file
+				# refusal on a divergent conf.d/ENV-managed key; $writeErr names
+				# the key and its source, never a value). Encryption of secrets
+				# was NOT turned off at rest, so the requested state was not
+				# reached: report failure so the caller does not announce a
+				# disable that did not land.
+				$logger->error("ERROR: the decrypted secrets could not be written back to the configuration, "
+					. "so encryption of secrets was NOT turned off: $writeErr.");
+				return(1);
+			}
+		}
+		# Whatever COULD be decrypted has just been written back in plaintext,
+		# which is progress and is kept. But if anything survived the pass still
+		# encrypted, the requested state was not reached and the caller must not
+		# report success: disableEOS turns this into "Encryption could not be
+		# disabled" instead of announcing it disabled encryption over fields it
+		# cannot read.
+		if (@undecryptable)
+		{
+			$logger->error("ERROR: " . scalar(@undecryptable)
+				. " config field(s) could not be decrypted with the current master key and are still encrypted: "
+				. join(', ', @undecryptable)
+				. ". Encryption of secrets cannot be turned off while they remain unreadable. Restore the master key that encrypted them and try again.");
+			return(1);
 		}
 		return(0);
 	}
+}
+
+########################################################################
+# _migrate_config_secret - bring the STORED form of one config secret  #
+#                          into line with the encryption setting.      #
+#                                                                      #
+# decrypt calls this when it was handed a section and a keyword, which #
+# means the value came out of conf/Config.nmis: encryption on and the  #
+# field plaintext means write the ciphertext back, encryption off and  #
+# the field '!!' means write the plaintext back.                       #
+#                                                                      #
+# The migration is OPPORTUNISTIC and must stay that way. With          #
+# encryption on by default (OMK-12695) the first database connect of   #
+# EVERY process reaches this through NMISNG::DB's                      #
+# decrypt($db_password, 'database', 'db_password') - daemons, CLI runs #
+# and short-lived CGI children that never wrote config before. Two     #
+# consequences, and this wrapper exists for both:                      #
+#                                                                      #
+#  - writeConfData refuses to write a property that conf.d or the      #
+#    environment owns once the value it is handed differs from the     #
+#    effective one, and it refuses the WHOLE file at that point (the   #
+#    guard that bit t_cgi_config_protected_keys.t in CI). An           #
+#    ENV-managed db_password meets it on every connect: fresh          #
+#    ciphertext never equals the plaintext the environment supplies.   #
+#    It reports that by RETURNING an error string rather than dying,   #
+#    and the return value used to be discarded - so the refusal was    #
+#    invisible: no migration and no log line, on every connect,        #
+#    forever. It is now logged.                                        #
+#  - nothing in the write path may take the caller down. No croak is   #
+#    reachable there today (writeConfData and writeHashtoFile both     #
+#    return their errors), but writeConfData's own                     #
+#    _notify_config_changed mkpaths a var directory and mkpath croaks  #
+#    on failure, and this is now on the hot path of every process. The #
+#    eval makes the difference between a failed convenience write and  #
+#    a failed database connect.                                        #
+#                                                                      #
+# Returns nothing, and NEVER changes what decrypt returns. Logs the    #
+# property NAME only, never a value.                                   #
+########################################################################
+sub _migrate_config_secret
+{
+	my ($logger, $section, $keyword, $newvalue) = @_;
+
+	eval {
+		# the non-flattened raw hash: only site overrides are writable
+		my ($fullConfig, undef) = getConfDeep(only_local => 1);
+		my $stored = $fullConfig->{$section}{$keyword};
+		return if (defined($stored) && $stored eq $newvalue);   # leaves the eval
+
+		$logger->debug3(sub {"Migrating the stored secret for Section: '$section' Field: '$keyword'"});
+		$fullConfig->{$section}{$keyword} = $newvalue;
+		my $err = writeConfData(data => $fullConfig);
+		if ($err)
+		{
+			# Two very different things arrive here and they must not share a
+			# level. A property that conf.d (layer 3) or the environment
+			# (layer 4) owns is refused BY DESIGN: writeConfData will not
+			# overwrite a value the operator set somewhere else. With
+			# encryption on by default that is the shipped container's steady
+			# state - compose sets NMIS_DB_PASSWORD, so database/db_password
+			# is layer 4 - and every process's first connect would otherwise
+			# log an ERROR the operator can never clear. It still has to be
+			# visible, because it is the reason the stored value never
+			# changes, so it is logged at info. Anything else really is a
+			# failed write and stays an error.
+			#
+			# The level is decided from getConfigSources, NOT by parsing
+			# writeConfData's error string: the two stay independent that way.
+			# getConfigSources is keyed by the bare config key and each entry
+			# is {source, layer, section}; a layer-4 source is the NAME
+			# 'ENV:<varname>', never a value, so it is safe to log.
+			my $src   = getConfigSources()->{$keyword};
+			my $layer = (ref($src) eq 'HASH') ? $src->{layer} : undef;
+			if (defined($layer) && ($layer == 3 || $layer == 4))
+			{
+				# writeConfData refuses the WHOLE file on the first conflicting key it
+				# finds, which is not necessarily $keyword: another conf.d- or
+				# ENV-managed key in the same write can be the actual cause. $err
+				# names that key (and its source), never a value, so appending it
+				# makes a whole-file refusal self-diagnosing instead of pointing
+				# only at the key this call happened to be migrating.
+				$logger->info("The stored secret for '$section/$keyword' is managed by "
+					. (($src->{source} // "config layer $layer"))
+					. ", so it is not migrated to match the current encryption setting. "
+					. "The value in use is unaffected. ($err)");
+			}
+			else
+			{
+				$logger->error("ERROR: could not migrate the stored secret for '$section/$keyword' "
+					. "to match the current encryption setting: $err. The value in use is unaffected.");
+			}
+		}
+	};
+	if ($@)
+	{
+		$logger->error("ERROR: could not migrate the stored secret for '$section/$keyword' "
+			. "to match the current encryption setting: $@. The value in use is unaffected.");
+	}
+	return;
 }
 
 ########################################################################
@@ -4902,15 +5187,21 @@ sub decrypt {
 			# If the 'section and 'keyword' arguments are passed, it means we are
 			# dealing with the configuration file, so we we encrypt it in the file.
 			if (defined($section) && defined($keyword) && $section ne '' && $keyword ne '') {
-				# Get the non-flattened raw hash
-				my ($fullConfig,undef) = getConfDeep(only_local => 1);
-				$logger->debug9(sub {"Config '" .  Dumper($fullConfig) . "'."});
-				my $encrypted_pw = encrypt($password);
-				if ($fullConfig->{$section}{$keyword} ne $encrypted_pw) {
-					$logger->debug3(sub {"Encrypting the password for Section: '$section' Field: '$keyword'"});
-					$fullConfig->{$section}{$keyword} = $encrypted_pw;
-					$logger->debug9(sub {"Config '" .  Dumper($fullConfig) . "'."});
-					writeConfData(data=>$fullConfig);
+				# encrypt fails closed by returning its input UNCHANGED, so an
+				# unguarded call here would hand the PLAINTEXT to the migration
+				# and write it back into conf/Config.nmis under an enabled
+				# flag - a write that says "migrated" over a secret that is
+				# still in the clear. Skip the migration and say so instead.
+				my $encrypted = encrypt($password);
+				if (_encryption_applied($password, $encrypted))
+				{
+					_migrate_config_secret($logger, $section, $keyword, $encrypted);
+				}
+				else
+				{
+					$logger->error("ERROR: could not encrypt the stored secret for '$section/$keyword'; "
+						. "leaving it as it is rather than writing it back unencrypted. "
+						. "Check the crypto modules and the master key (master_key_file).");
 				}
 			}
 		} else {
@@ -4972,15 +5263,7 @@ sub decrypt {
 		# If we have an encrypted password in the configuration file, then we unencrypt it.
 		# (If the 'section and 'keyword' arguments are passed, it means we are dealing with the configuration file)
 		if (defined($section) && defined($keyword) && $section ne '' && $keyword ne '') {
-			# Get the non-flattened raw hash
-			my ($fullConfig,undef) = getConfDeep(only_local => 1);
-			$logger->debug9(sub {"Config '" .  Dumper($fullConfig) . "'."});
-			if ($fullConfig->{$section}{$keyword} ne $password) {
-				$logger->debug3(sub {"Decrypting the password for Section: '$section' Field: '$keyword'"});
-				$fullConfig->{$section}{$keyword} = $password;
-				$logger->debug9(sub {"Config '" .  Dumper($fullConfig) . "'."});
-				writeConfData(data=>$fullConfig);
-			}
+			_migrate_config_secret($logger, $section, $keyword, $password);
 		}
 	}
 

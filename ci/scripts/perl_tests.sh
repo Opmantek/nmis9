@@ -107,6 +107,20 @@ working_tests=(
     t_masterkey_generate.t
     t_masterkey_provision.t
     t_compose_master_key.t
+    # OMK-12927: the restored enable-eos/disable-eos/check-eos/is-eos-available
+    # dispatches in bin/nmis-cli, and the enableEOS/disableEOS round trip plus
+    # the two verifyNMISEncryption warts behind them (root-gated; it backs up
+    # and restores conf/Config.nmis)
+    t_eos_cli.t
+    t_eos_functions.pl
+    # OMK-12928: decrypt's section/keyword migration writes, including the
+    # ENV-managed refusal that used to vanish silently
+    t_util_migration_writes.t
+    # OMK-12695 / OMK-12713: the shipped default is now encryption ON. The one
+    # crypto test that must NOT pin the flag with an env override, since the
+    # default itself is its subject (mongo-backed; it backs up and restores
+    # conf/Config.nmis)
+    t_encrypt_by_default.t
     t_plugin_nodevalidation.pl
     notify_depend.t
     t_nmisng_node_nomodel.pl

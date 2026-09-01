@@ -11,6 +11,28 @@ use lib "$FindBin::Bin/../lib";
 
 use File::Temp;
 
+# MUST run before the master key is substituted below. Since OMK-12695 made
+# encryption the shipped default, the checkout's stored db_password may already
+# be '!!' ciphertext under the INSTALLATION's master key. This test then swaps
+# in an ephemeral key that cannot read it, and every database connect would
+# fail authentication. Resolve the effective value while the ambient key is
+# still in force and hand it to the rest of the process as a layer-4 ENV
+# override - which also puts db_password beyond writeConfData's reach, so
+# nothing here can migrate the checkout's config. decrypt is called with no
+# section and no keyword on purpose: that is the form with no migration write.
+# The value is never printed. A pre-set NMIS_DB_PASSWORD (CI supplies one) wins.
+BEGIN {
+	require NMISNG::Util;
+	my $ambient = NMISNG::Util::loadConfTable();
+	if (!defined($ENV{NMIS_DB_PASSWORD})
+		&& defined($ambient->{db_password}) && $ambient->{db_password} ne '')
+	{
+		my $plain = eval { NMISNG::Util::decrypt($ambient->{db_password}) };
+		$ENV{NMIS_DB_PASSWORD} = $plain if (defined($plain) && $plain ne '');
+	}
+	$NMISNG::Util::_config_cache_invalid = 1;
+}
+
 my ($tempdir, $keyfile);
 BEGIN {
 	$tempdir = File::Temp::tempdir(CLEANUP => 1);
