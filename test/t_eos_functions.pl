@@ -344,11 +344,39 @@ sub read_log
 }
 sub reset_log { unlink($LOGFILE) if (-f $LOGFILE); }
 
+# NMIS_DB_* the CI container always carries during the Test step:
+# docker-dev/compose-dev.yaml sets USERNAME/PASSWORD/AUTH_SOURCE/SERVER/PORT
+# for the app's own scoped identity, and bitbucket-pipelines.yml's Test step
+# overrides USERNAME/PASSWORD/AUTH_SOURCE to the admin identity for the whole
+# perl_tests.sh run. Whichever of the five are also in conf/Config.nmis (the
+# CI-provisioned file, after setup_mongodb.pl's scoped-user migration, carries
+# all five) are ENV-managed (layer 4) for the entire process - the CI-only
+# trap documented in t_cgi_config_protected_keys.t.
+#
+# seed_config (below) already drops layer-3/4 keys before writing, but that
+# filter depends on getConfigSources() knowing which SECTION a key belongs to,
+# and db_auth_source has no shipped default (conf-default/Config.nmis's
+# database section never sets one). The first phase to write a config that
+# omits db_auth_source - which every phase here does, since seed_config strips
+# it - permanently removes it from the site file; once it is gone from both
+# the file and the defaults it has no section left to attribute at all, so a
+# LATER phase's filter can no longer find it to drop again, and $PRISTINE's
+# stale on-disk value leaks back in unfiltered. A phase whose write MUST
+# succeed neutralises the five keys for its own duration instead of relying on
+# that filter - `delete local` on a hash slice restores the prior value (or
+# absence) when the enclosing block ends, so this must be the first statement
+# inside such a block, never inside a helper sub (whose own return would
+# unwind it too soon).
+my @DB_ENV_KEYS = qw(NMIS_DB_AUTH_SOURCE NMIS_DB_USERNAME NMIS_DB_PASSWORD NMIS_DB_SERVER NMIS_DB_PORT);
+
 # ---- phase 1: the round trip ------------------------------------------------
 my $MAILPW = 'eosRoundTripMail1';
 my $ROPW   = 'eosRoundTripComm2';
 
 {
+	delete local @ENV{@DB_ENV_KEYS};
+	$NMISNG::Util::_config_cache_invalid = 1;
+
 	my ($cfg, $local) = seed_config(flag => 'false',
 		'email:mail_password'      => $MAILPW,
 		'system:default_communityRO' => $ROPW);
@@ -391,6 +419,9 @@ my $ROPW   = 'eosRoundTripComm2';
 # what an operator hits after a key loss or a key swap, which is also the
 # moment they are most likely to reach for disable-eos.
 {
+	delete local @ENV{@DB_ENV_KEYS};
+	$NMISNG::Util::_config_cache_invalid = 1;
+
 	my $SURVIVOR = '!!' . ('deadbeef' x 8);
 	my ($cfg, $local) = seed_config(flag => 'true',
 		'email:mail_password' => $SURVIVOR);

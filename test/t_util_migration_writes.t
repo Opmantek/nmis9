@@ -248,10 +248,41 @@ sub read_log
 }
 sub reset_log { unlink($LOGFILE) if (-f $LOGFILE); }
 
+# NMIS_DB_* the CI container always carries during the Test step:
+# docker-dev/compose-dev.yaml sets USERNAME/PASSWORD/AUTH_SOURCE/SERVER/PORT
+# for the app's own scoped identity, and bitbucket-pipelines.yml's Test step
+# overrides USERNAME/PASSWORD/AUTH_SOURCE to the admin identity for the whole
+# perl_tests.sh run. Whichever of the five are also in conf/Config.nmis (the
+# CI-provisioned file, after setup_mongodb.pl's scoped-user migration, carries
+# all five) are ENV-managed (layer 4) for the entire process - the CI-only
+# trap documented in t_cgi_config_protected_keys.t. _migrate_config_secret
+# (decrypt's write path) round-trips the WHOLE local config through
+# writeConfData, same as disableEOS/enableEOS, so it hits the same refusal.
+#
+# seed_config (below) already drops layer-3/4 keys before writing, but that
+# filter depends on getConfigSources() knowing which SECTION a key belongs to,
+# and db_auth_source has no shipped default (conf-default/Config.nmis's
+# database section never sets one). The first case to write a config that
+# omits db_auth_source - which every case here does, since seed_config strips
+# it - permanently removes it from the site file; once it is gone from both
+# the file and the defaults it has no section left to attribute at all, so a
+# LATER case's filter can no longer find it to drop again, and $PRISTINE's
+# stale on-disk value leaks back in unfiltered. A case whose write MUST
+# succeed (U, D) neutralises the five keys for its own duration instead of
+# relying on that filter - case E leaves them alone, since it is testing the
+# refusal itself. `delete local` on a hash slice restores the prior value (or
+# absence) when the enclosing block ends, so this must be the first statement
+# inside such a block, never inside a helper sub (whose own return would
+# unwind it too soon).
+my @DB_ENV_KEYS = qw(NMIS_DB_AUTH_SOURCE NMIS_DB_USERNAME NMIS_DB_PASSWORD NMIS_DB_SERVER NMIS_DB_PORT);
+
 my $PLAIN = 'migrateMe12928';
 
 # ---- U: up-migration --------------------------------------------------------
 {
+	delete local @ENV{@DB_ENV_KEYS};
+	$NMISNG::Util::_config_cache_invalid = 1;
+
 	$ENV{NMIS_GLOBAL_ENABLE_PASSWORD_ENCRYPTION} = 'true';
 	my ($cfg, $local) = seed_config($PLAIN);
 	is(NMISNG::Util::getbool($cfg->{global_enable_password_encryption}), 1,
@@ -271,6 +302,9 @@ my $PLAIN = 'migrateMe12928';
 
 # ---- D: down-migration ------------------------------------------------------
 {
+	delete local @ENV{@DB_ENV_KEYS};
+	$NMISNG::Util::_config_cache_invalid = 1;
+
 	# the ciphertext is produced with encryption still on, then the flag is
 	# flipped: that is the state disable-eos leaves a field in.
 	$ENV{NMIS_GLOBAL_ENABLE_PASSWORD_ENCRYPTION} = 'true';
