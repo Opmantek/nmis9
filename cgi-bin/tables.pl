@@ -275,7 +275,20 @@ sub viewTable
 
   # the get() code doesn't work without a query param, nor does it work with all params present
 	# conversely the non-widget mode needs post inputs as query params are ignored
-	print start_form(-id=>"$formid", -href=>url(-absolute=>1)."?");
+	#
+	# OMK-12926: -action is explicit and deliberately carries NO query string.
+	# CGI.pm's start_form defaults the action to request_uri || self_url, and
+	# self_url reserialises every parameter of the request - a POSTed one included
+	# - into that URL. tables.pl edits the Nodes table, whose six password-flagged
+	# fields (community, wmipassword, authpassword, authkey, privpassword,
+	# privkey) travel in the request body, so the default handed them back to the
+	# browser in cleartext on any response that rendered a form. Dropping the
+	# query string loses nothing: these forms POST, and CGI.pm ignores
+	# QUERY_STRING on a POST (its $APPEND_QUERY_STRING is 0), so every parameter
+	# the handlers read already has to be a form field, and is one. -href is what
+	# the widget-mode get() code reads and is unrelated to the action; it stays as
+	# it was. Covered by test/t_cgi_tables_secret_passthrough.t.
+	print start_form(-id=>"$formid", -action=>url(-absolute=>1), -href=>url(-absolute=>1)."?");
 	print hidden(-override => 1, -name => "conf", -value => $Q->{conf})
 			. hidden(-override => 1, -name => "act", -value => $action)
 			. $AU->csrf_hidden_field
@@ -472,7 +485,9 @@ sub editTable
 
   # the get() code doesn't work without a query param, nor does it work with all params present
 	# conversely the non-widget mode needs post inputs as query params are ignored
-	print start_form(-name=>"$formid",-id=>"$formid",-href=>"$url")
+	# see the first start_form in this file for why -action is explicit (OMK-12926)
+	print start_form(-name=>"$formid",-id=>"$formid",
+									 -action=>url(-absolute=>1), -href=>"$url")
 			. hidden(-override => 1, -name => "conf", -value => $Q->{conf} )
 			. hidden(-override => 1, -name => "act", -value => "config_table_$func")
 			. $AU->csrf_hidden_field
@@ -1074,7 +1089,11 @@ sub doeditTable
 			}
 
 			my $thisurl = url(-absolute => 1)."?";
-			print start_form(-id=>$formid, -href => $thisurl)
+			# OMK-12926: this page is rendered by doeditTable in response to the POST
+			# that just carried the node's six password-flagged fields, so the
+			# self_url default echoed all of them back in cleartext. See the first
+			# start_form in this file.
+			print start_form(-id=>$formid, -action => url(-absolute => 1), -href => $thisurl)
 					. hidden(-override => 1, -name => "conf", -value => $Q->{conf})
 					. hidden(-override => 1, -name => "act", -value => "config_table_menu")
 					. $AU->csrf_hidden_field
@@ -1174,7 +1193,9 @@ sub dodeleteTable {
 				Compat::NMIS::pageStart(title => $node->name." delete");
 			}
 			my $thisurl = url(-absolute => 1)."?";
-			print start_form(-id=>"", -href => $thisurl)
+			# see the first start_form in this file for why -action is explicit
+			# (OMK-12926)
+			print start_form(-id=>"", -action => url(-absolute => 1), -href => $thisurl)
 					. hidden(-override => 1, -name => "conf", -value => $Q->{conf})
 					. hidden(-override => 1, -name => "act", -value => "config_table_menu")
 					. $AU->csrf_hidden_field

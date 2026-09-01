@@ -12,7 +12,11 @@ source /etc/profile
 
 setup() {
   # Create data directories
-  for d in assets var/nmis_system models-custom database conf logs htdocs/nmis9 htdocs/cache
+  # OMK-12929: var/tmp belongs in this list. Runtime code writes scratch files
+  # there (admin/compare_models.pl among others) and does not create the
+  # directory itself, so a dev container without it fails at the point of use
+  # rather than at boot.
+  for d in assets var/nmis_system var/tmp models-custom database conf logs htdocs/nmis9 htdocs/cache
   do
     dir=${NMIS_HOME}/${d}
     [[ -d "${dir}" ]] || mkdir -p "${dir}"    

@@ -374,6 +374,11 @@ sub fetch_edit_form
 	is($form->{section}, 'email', "$desc: addressed at the email section");
 	is($form->{item}, 'mail_password', "$desc: addressed at mail_password");
 	ok($form->{csrf_token}, "$desc: the form carries a CSRF token");
+	# OMK-12926: this is the form the password is typed into, and editConfig builds
+	# it with the same start_form idiom displayConfig uses. Nothing secret is in
+	# the GET that produced it, but a self_url action here would echo the whole
+	# addressing query string back and is the same latent defect, so pin it too.
+	assert_clean_form_action($t->tx->res->dom, 'nmisconfig', 'config.pl', $desc);
 
 	$form->{conf} = 'Config';   # as the GET carried it
 	return $form;
@@ -385,6 +390,63 @@ sub submit
 	$form->{value} = $form->{confirm} = $value;
 	$t->post_ok('/cgi-nmis9/config.pl' => form => $form);
 	return ($t->tx->res->code // 0, $t->tx->res->body // '');
+}
+
+# OMK-12926: a submitted secret must not come back in the rendered response.
+#
+# index(), never a regex. Test::More puts the pattern into the test name and the
+# operand into unlike()'s diagnostics, so a regex-based version of this assertion
+# would print the password into the test output and the CI log - which is the
+# very disclosure it exists to catch. Nothing here ever names the needle.
+#
+# $marker is the anti-vacuity guard, and it is not decoration: index() < 0 is
+# just as true of an empty body, a truncated one or an error page, so each caller
+# names a string the response MUST contain before "the secret is not in it" means
+# anything at all.
+#
+# The two fixture passwords are deliberately built from URL-unreserved characters
+# only ([A-Za-z0-9-]), so they pass through CGI.pm's query escaping and its HTML
+# escaping byte for byte. A plain substring search therefore cannot miss a
+# reflection because of encoding - keep that property if either value is changed.
+sub assert_no_reflection
+{
+	my ($body, $secret, $marker, $desc) = @_;
+
+	ok(index($body, $marker) >= 0, "$desc: the response is the page it should be")
+			or diag("marker '$marker' is missing from a " . length($body)
+							. " byte body, so the reflection check below would be vacuous");
+	ok(index($body, $secret) < 0,
+		 "$desc: the submitted password appears nowhere in the response body")
+			or diag("the submitted value is echoed back into the " . length($body)
+							. " byte response; it is deliberately not reproduced here. The "
+							. "form's action attribute is the place to look.");
+}
+
+# The same defect from the other side, asserted structurally. CGI.pm's start_form
+# defaults the action to request_uri || self_url, and self_url reserialises EVERY
+# parameter of the request - POSTed ones included - into that URL. Pinning "the
+# form's action has no query string" catches the reflection of any parameter, not
+# only the one this test happens to submit, and it stays meaningful if the
+# fixture password ever changes.
+sub assert_clean_form_action
+{
+	my ($dom, $formid, $script, $desc) = @_;
+
+	my $form = $dom->at("form#$formid");
+	if (!$form)
+	{
+		fail("$desc: the response carries the $formid form");
+		return;
+	}
+	my $action = $form->attr('action') // '';
+	# the diagnostics print the path only - everything after the '?' is exactly
+	# the material that must not be echoed anywhere, this test's output included.
+	my ($path) = split(/\?/, $action, 2);
+	ok(index($action, '?') < 0, "$desc: the $formid form action carries no query string")
+			or diag("action path is '$path', followed by a "
+							. (length($action) - length($path) - 1)
+							. " byte query string that is not printed here");
+	like($path, qr{/\Q$script\E$}, "$desc: and the action still points at $script");
 }
 
 # the two refusals, and the third thing neither of them is
@@ -433,6 +495,10 @@ isnt($BASE_CONF, 'ABSENT', "baseline: conf/Config.nmis exists to be watched");
 	unlike($body, $CRYPTO_REFUSAL,
 		   "case 1: refused for emptiness specifically, not by the encrypt-failure check");
 
+	# nothing secret was submitted here, but the mechanism is the same one, so the
+	# structural half of the OMK-12926 check applies to this response too.
+	assert_clean_form_action($t->tx->res->dom, 'nmisconfig', 'config.pl', "case 1");
+
 	is(file_cksum($CONF_FILE), $BASE_CONF, "case 1: conf/Config.nmis was not written");
 	is(file_cksum($CONF_BAK), $BASE_BAK, "case 1: conf/Config.nmis.bak was not written");
 }
@@ -455,15 +521,16 @@ isnt($BASE_CONF, 'ABSENT', "baseline: conf/Config.nmis exists to be watched");
 	unlike($body, $EMPTY_REFUSAL,
 		   "case 2: refused for the encryption failure, not for emptiness");
 
-	# NOT asserted here, but observed while writing this test and worth naming so
-	# the next reader does not have to rediscover it: the submitted password comes
-	# back in cleartext in the response, in the form's action URL. displayConfig
-	# calls start_form without an -action, so CGI.pm defaults it to self_url, and
-	# CGI.pm's query_string() reserialises every parameter of the request -
-	# including a POSTed one - into that URL. It happens on the refusal responses
-	# and on the successful one alike. That is a separate defect from the two
-	# refusals under test (it predates them and is not reached through them), so
-	# it is left for its own ticket rather than pinned as expected behaviour here.
+	# OMK-12926, found while writing this test and fixed on that ticket: the
+	# submitted password used to come back in cleartext in the response, in the
+	# form's action URL. displayConfig called start_form without an -action, so
+	# CGI.pm defaulted it to request_uri || self_url; where the gateway leaves
+	# REQUEST_URI unset - as Mojolicious::Plugin::CGI does, and as this test
+	# therefore demonstrated - self_url wins, and CGI.pm's query_string()
+	# reserialises every parameter of the request, POSTed ones included, into that
+	# URL. It happened on the refusal responses and on the successful one alike.
+	assert_no_reflection($body, $CRYPTO_PLAIN, 'failed to validate', "case 2");
+	assert_clean_form_action($t->tx->res->dom, 'nmisconfig', 'config.pl', "case 2");
 
 	is(file_cksum($CONF_FILE), $BASE_CONF, "case 2: conf/Config.nmis was not written");
 	is(file_cksum($CONF_BAK), $BASE_BAK, "case 2: conf/Config.nmis.bak was not written");
@@ -510,6 +577,14 @@ my $GOOD_PLAIN = 'WorkingKeyPass-OMK12827';
 	unlike($body, $ANY_ABORT,
 		   "case 3: the identical submission is accepted once the key works")
 			or diag("response was: " . substr($body, 0, 800));
+
+	# OMK-12926 on the success path. This is the response that matters most: the
+	# save worked, the operator is looking at the config table, and the password
+	# they just typed used to be sitting in the page's form action in cleartext.
+	# The stored value is ciphertext and typeSect masks password rows, so the
+	# action URL is the only way the plaintext can be here at all.
+	assert_no_reflection($body, $GOOD_PLAIN, 'NMIS Configuration', "case 3");
+	assert_clean_form_action($t->tx->res->dom, 'nmisconfig', 'config.pl', "case 3");
 
 	isnt(file_cksum($CONF_FILE), $BASE_CONF,
 		 "case 3: conf/Config.nmis WAS written - so the unchanged checksums above "

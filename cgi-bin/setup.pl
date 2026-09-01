@@ -148,7 +148,19 @@ Entries that likely need to be adjusted are marked with $iconbad.|;
 
   # the get() code doesn't work without a query param, nor does it work with all params present
 	# conversely the non-widget mode needs post inputs as query params are ignored
-	print start_form(-id=>"nmissetup", -href=>url(-absolute=>1)."?")
+	#
+	# OMK-12926: -action is explicit and deliberately carries NO query string.
+	# CGI.pm's start_form defaults the action to request_uri || self_url, and
+	# self_url reserialises every parameter of the request - a POSTed one included
+	# - into that URL. This panel is re-rendered after every save, and it submits
+	# option/email/mail_password among the rest, so the default handed the mail
+	# password straight back to the browser in cleartext. Dropping the query string
+	# loses nothing: this form POSTs, and CGI.pm ignores QUERY_STRING on a POST
+	# (its $APPEND_QUERY_STRING is 0), so every parameter edit_config reads already
+	# has to be a form field, and is one. -href is what the widget-mode get() code
+	# reads and is unrelated to the action; it stays as it was. Covered by
+	# test/t_cgi_config_protected_keys.t (the S cases).
+	print start_form(-id=>"nmissetup", -action=>url(-absolute=>1), -href=>url(-absolute=>1)."?")
 			. hidden(-override => 1, -name => "conf", -value => $Q->{conf})
 			. hidden(-override => 1, -name => "act", -value => "setup_doedit")
 			. $AU->csrf_hidden_field

@@ -168,7 +168,19 @@ sub displayConfig{
 	# start of form
     # the get() code doesn't work without a query param, nor does it work with all params present
 	# conversely the non-widget mode needs post inputs as query params are ignored
-	print start_form(-id=>"nmisconfig", -href=>url(-absolute=>1)."?")
+	#
+	# OMK-12926: -action is explicit and deliberately carries NO query string.
+	# CGI.pm's start_form defaults the action to request_uri || self_url, and
+	# self_url reserialises every parameter of the request - a POSTed one included
+	# - into that URL. This is the form displayConfig renders after every write, so
+	# the default put the password the operator had just submitted back into the
+	# page in cleartext, on refusals and successes alike. Dropping the query string
+	# loses nothing: these forms POST, and CGI.pm ignores QUERY_STRING on a POST
+	# (its $APPEND_QUERY_STRING is 0), so every parameter the handlers read already
+	# has to be a form field, and is one. -href is what the widget-mode get() code
+	# reads and is unrelated to the action; it stays as it was. Covered by
+	# test/t_cgi_config_password_refusals.t and test/t_cgi_config_protected_keys.t.
+	print start_form(-id=>"nmisconfig", -action=>url(-absolute=>1), -href=>url(-absolute=>1)."?")
 			. hidden(-override => 1, -name => "act", -value => "config_nmis_menu")
 			. $AU->csrf_hidden_field
 			. hidden(-override => 1, -name => "widget", -value => $widget);
@@ -356,9 +368,9 @@ sub editConfig {
 		}
 	}
 
-	# start of form, see comment for first start_form
+	# start of form, see comment for first start_form (-action included)
 	# except that this one also needs the cancel case covered
-	print start_form(-id=>"nmisconfig", -href=>url(-absolute=>1)."?")
+	print start_form(-id=>"nmisconfig", -action=>url(-absolute=>1), -href=>url(-absolute=>1)."?")
 			. hidden(-override => 1, -name => "act", -value => "config_nmis_doedit")
 			. $AU->csrf_hidden_field
 			. hidden(-override => 1, -name => "widget", -value => $widget)
@@ -764,8 +776,9 @@ sub deleteConfig {
 
 	my $value = $CC->{$section}{$item};
 
-	# start of form, see comment for first two start_forms
-	print start_form( -name=>"nmisconfig", -id=>"nmisconfig", -href=>url(-absolute=>1)."?")
+	# start of form, see comment for first two start_forms (-action included)
+	print start_form( -name=>"nmisconfig", -id=>"nmisconfig",
+										-action=>url(-absolute=>1), -href=>url(-absolute=>1)."?")
 			. hidden(-override => 1, -name => "act", -value => "config_nmis_dodelete")
 			. $AU->csrf_hidden_field
 			. hidden(-override => 1, -name => "widget", -value => $widget)
@@ -850,8 +863,8 @@ sub addConfig{
 
 	$AU->CheckAccess("Table_Config_rw");
 
-	# start of form, see comment for first two start_forms
-	print start_form(-id=>"nmisconfig", -href=>url(-absolute=>1)."?")
+	# start of form, see comment for first two start_forms (-action included)
+	print start_form(-id=>"nmisconfig", -action=>url(-absolute=>1), -href=>url(-absolute=>1)."?")
 			. hidden(-override => 1, -name => "act", -value => "config_nmis_doadd")
 			. $AU->csrf_hidden_field
 			. hidden(-override => 1, -name => "widget", -value => $widget)
